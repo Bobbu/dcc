@@ -1,0 +1,22 @@
+# macOS system files
+.DS_Store
+
+# Environment variables
+.env
+.env.*
+!.env.sample
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+build/
+dist/
+*.log
+
+# AWS deployment artifacts
+.aws-sam/
+samconfig.toml

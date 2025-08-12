@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: DCC API - Random Quote Service with API Key Authentication
+
+Resources:
+  # Lambda function with API Gateway integration
+  QuoteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-quote-handler
+      CodeUri: lambda/
+      Handler: quote_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Events:
+        QuoteApi:
+          Type: Api
+          Properties:
+            Path: /quote
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+
+  # Explicit API Gateway for better control
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: dcc-quote-api
+      StageName: prod
+      Auth:
+        ApiKeyRequired: true
+      Cors:
+        AllowMethods: "'GET,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+
+  # API Key
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: dcc-api-key
+      Description: API Key for DCC Quote Service
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref ApiGatewayApi
+          StageName: prod
+    DependsOn: ApiGatewayApiprodStage
+
+  # Usage Plan
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName: dcc-usage-plan
+      Description: Usage plan for DCC Quote API
+      ApiStages:
+        - ApiId: !Ref ApiGatewayApi
+          Stage: prod
+      Throttle:
+        BurstLimit: 5
+        RateLimit: 1
+      Quota:
+        Limit: 1000
+        Period: DAY
+    DependsOn: ApiGatewayApiprodStage
+
+  # Usage Plan Key
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlan
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  
+  QuoteEndpoint:
+    Description: "Quote endpoint URL"
+    Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/prod/quote"
+
+  ApiKeyValue:
+    Description: "API Key for accessing the service"
+    Value: !Ref ApiKey
