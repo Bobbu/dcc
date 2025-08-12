@@ -56,18 +56,25 @@ dcc/
 - Xcode (for iOS development)
 - iOS device or simulator with audio capability for text-to-speech features
 
+### Environment Configuration
+**⚠️ Important: Set up environment variables first before running the applications.**
+
+See [ENV_SETUP.md](ENV_SETUP.md) for detailed environment setup instructions, including:
+- Automatic AWS synchronization with `./update_env.sh`
+- Manual `.env` file configuration
+- Security best practices for API key management
+
 ### AWS API Deployment
 1. Navigate to the `aws` directory
 2. Run the deployment script: `./deploy.sh`
 3. Follow the SAM guided deployment prompts
-4. Note the API endpoint URL and API Key from the output
+4. Run `./update_env.sh` to automatically update environment files with new values
 
 ### Flutter App Setup
-1. Navigate to the `dcc_mobile` directory
-2. Update the `apiUrl` constant in `lib/main.dart` with your API Gateway URL
-3. Add the API key to your HTTP requests (see API Usage section below)
-4. Install dependencies: `flutter pub get`
-5. Run on iOS simulator: `flutter run`
+1. Set up environment variables (see [ENV_SETUP.md](ENV_SETUP.md))
+2. Navigate to the `dcc_mobile` directory
+3. Install dependencies: `flutter pub get`
+4. Run on iOS simulator: `flutter run`
 
 ## Development Notes
 
@@ -76,6 +83,7 @@ You can test the deployed API directly with your API key:
 ```bash
 curl -H "x-api-key: YOUR_API_KEY" https://your-api-id.execute-api.region.amazonaws.com/prod/quote
 ```
+For as more thorough set of API tests, you can run the test script located in the tests folder -- `tests/test_api.sh`.
 
 ### Flutter Development
 - **Enhanced Error Handling**: User-friendly messages for network issues and rate limiting
@@ -126,3 +134,5 @@ curl -H "x-api-key: YOUR_API_KEY" https://your-api-id.execute-api.region.amazona
 After deployment, the API key will be displayed in the CloudFormation outputs. You can also retrieve it from:
 - AWS Console → API Gateway → API Keys → dcc-api-key
 - AWS CLI: `aws apigateway get-api-keys --include-values`
+
+Finally, we have a handy script, `update_env.sh` that you can run any time after deploying the AWS components to automatically have the API_KEY and API_URL updated in the two .env files within the project.
