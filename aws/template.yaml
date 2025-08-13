@@ -2,6 +2,20 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: DCC API - Random Quote Service with API Key Authentication
 
+Parameters:
+  CustomDomainName:
+    Type: String
+    Default: dcc.anystupididea.com
+    Description: Custom domain name for the API
+  
+  CertificateArn:
+    Type: String
+    Default: ""
+    Description: ACM Certificate ARN for the custom domain (leave empty to skip custom domain setup)
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref CertificateArn, ""]]
+
 Resources:
   # Lambda function with API Gateway integration
   QuoteFunction:
@@ -78,6 +92,28 @@ Resources:
       KeyType: API_KEY
       UsagePlanId: !Ref UsagePlan
 
+  # Custom Domain Name
+  CustomDomain:
+    Type: AWS::ApiGateway::DomainName
+    Condition: HasCustomDomain
+    Properties:
+      DomainName: !Ref CustomDomainName
+      CertificateArn: !Ref CertificateArn
+      EndpointConfiguration:
+        Types:
+          - EDGE
+      SecurityPolicy: TLS_1_2
+
+  # Base Path Mapping
+  BasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: HasCustomDomain
+    Properties:
+      DomainName: !Ref CustomDomain
+      RestApiId: !Ref ApiGatewayApi
+      Stage: prod
+    DependsOn: ApiGatewayApiprodStage
+
 Outputs:
   ApiUrl:
     Description: "API Gateway endpoint URL"
@@ -86,6 +122,18 @@ Outputs:
   QuoteEndpoint:
     Description: "Quote endpoint URL"
     Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/prod/quote"
+
+  CustomDomainUrl:
+    Description: "Custom domain API URL (if configured)"
+    Value: !If [HasCustomDomain, !Sub "https://${CustomDomainName}", "Not configured"]
+    
+  CustomDomainQuoteEndpoint:
+    Description: "Custom domain quote endpoint URL (if configured)"
+    Value: !If [HasCustomDomain, !Sub "https://${CustomDomainName}/quote", "Not configured"]
+
+  CustomDomainTarget:
+    Description: "CloudFront domain name for DNS CNAME record"
+    Value: !If [HasCustomDomain, !GetAtt CustomDomain.DistributionDomainName, "Not configured"]
 
   ApiKeyValue:
     Description: "API Key for accessing the service"

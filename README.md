@@ -135,4 +135,4 @@ After deployment, the API key will be displayed in the CloudFormation outputs. Y
 - AWS Console → API Gateway → API Keys → dcc-api-key
 - AWS CLI: `aws apigateway get-api-keys --include-values`
 
-Finally, we have a handy script, `update_env.sh` that you can run any time after deploying the AWS components to automatically have the API_KEY and API_URL updated in the two .env files within the project.
+Finally, we have a handy script, `update_env.sh` that you can run any time after deploying the AWS components to automatically have the API_KEY and API_ENDPOINT updated in the two .env files within the project.

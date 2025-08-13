@@ -75,8 +75,17 @@ STACK_OUTPUTS=$(aws cloudformation describe-stacks \
     --output json)
 
 # Extract values from outputs
-API_URL=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="QuoteEndpoint") | .OutputValue')
+API_ENDPOINT=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="QuoteEndpoint") | .OutputValue')
+CUSTOM_DOMAIN_URL=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="CustomDomainQuoteEndpoint") | .OutputValue')
 API_KEY_ID=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="ApiKeyValue") | .OutputValue')
+
+# Use custom domain if available, otherwise use default API Gateway URL
+if [ "$CUSTOM_DOMAIN_URL" != "null" ] && [ "$CUSTOM_DOMAIN_URL" != "Not configured" ] && [ -n "$CUSTOM_DOMAIN_URL" ]; then
+    API_ENDPOINT="$CUSTOM_DOMAIN_URL"
+    print_success "Using custom domain endpoint: $CUSTOM_DOMAIN_URL"
+else
+    print_status "Custom domain not configured, using API Gateway endpoint"
+fi
 
 # Get the actual API key value (the output only gives us the key ID)
 print_status "Retrieving API key value..."
@@ -88,8 +97,8 @@ API_KEY=$(aws apigateway get-api-key \
     --output text)
 
 # Validate we got the values
-if [ "$API_URL" = "null" ] || [ -z "$API_URL" ]; then
-    print_error "Could not retrieve API URL from CloudFormation outputs"
+if [ "$API_ENDPOINT" = "null" ] || [ -z "$API_ENDPOINT" ]; then
+    print_error "Could not retrieve API ENDPOINT from CloudFormation outputs"
     exit 1
 fi
 
@@ -101,7 +110,7 @@ fi
 # Display found values
 echo ""
 print_success "Found current AWS values:"
-echo "  API URL: $API_URL"
+echo "  API ENDPOINT: $API_ENDPOINT"
 echo "  API Key: ${API_KEY:0:8}********"
 echo ""
 
@@ -127,7 +136,7 @@ done
 echo ""
 
 # Confirmation prompt
-print_warning "This will overwrite the API_URL and API_KEY values in the above files."
+print_warning "This will overwrite the API_ENDPOINT and API_KEY values in the above files."
 read -p "Do you want to proceed? (y/N): " -n 1 -r
 echo ""
 
@@ -150,14 +159,13 @@ update_env_file() {
     if [ -f "$file" ]; then
         # Update existing file, preserving other variables
         sed -E \
-            -e "s|^API_URL=.*|API_URL=$API_URL|g" \
             -e "s|^API_KEY=.*|API_KEY=$API_KEY|g" \
-            -e "s|^API_ENDPOINT=.*|API_ENDPOINT=$API_URL|g" \
+            -e "s|^API_ENDPOINT=.*|API_ENDPOINT=$API_ENDPOINT|g" \
             "$file" > "$temp_file"
         
-        # If no API_URL line existed, add it
-        if ! grep -q "^API_URL=" "$temp_file"; then
-            echo "API_URL=$API_URL" >> "$temp_file"
+        # If no API_ENDPOINT line existed, add it
+        if ! grep -q "^API_ENDPOINT=" "$temp_file"; then
+            echo "API_ENDPOINT=$API_ENDPOINT" >> "$temp_file"
         fi
         
         # If no API_KEY line existed, add it  
@@ -167,18 +175,18 @@ update_env_file() {
         
         # For tests folder, also handle API_ENDPOINT
         if [[ "$file" == "tests/.env" ]] && ! grep -q "^API_ENDPOINT=" "$temp_file"; then
-            echo "API_ENDPOINT=$API_URL" >> "$temp_file"
+            echo "API_ENDPOINT=$API_ENDPOINT" >> "$temp_file"
         fi
     else
         # Create new file
         if [[ "$file" == "tests/.env" ]]; then
             cat > "$temp_file" << EOF
-API_ENDPOINT=$API_URL
+API_ENDPOINT=$API_ENDPOINT
 API_KEY=$API_KEY
 EOF
         else
             cat > "$temp_file" << EOF
-API_URL=$API_URL
+API_ENDPOINT=$API_ENDPOINT
 API_KEY=$API_KEY
 EOF
         fi

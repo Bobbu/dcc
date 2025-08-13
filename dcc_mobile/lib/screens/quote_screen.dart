@@ -26,7 +26,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
   Set<String> _selectedCategories = {'All'};
   Map<String, String>? _selectedVoice;
 
-  static final String apiUrl = dotenv.env['API_URL'] ?? '';
+  static final String apiEndpoint = dotenv.env['API_ENDPOINT'] ?? '';
   static final String apiKey = dotenv.env['API_KEY'] ?? '';
 
   @override
@@ -154,7 +154,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse(apiUrl),
+        Uri.parse(apiEndpoint),
         headers: {
           'x-api-key': apiKey,
           'Content-Type': 'application/json',

@@ -1,5 +1,8 @@
 #!/bin/bash
-
+#
+# Essentially, using this form:
+# $ curl -H "x-api-key: $API_KEY" $API_ENDPOINT
+#
 # Test script for DCC Quote API
 # Load environment variables
 if [ -f .env ]; then
