@@ -1,0 +1,540 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../services/auth_service.dart';
+
+class TagsEditorScreen extends StatefulWidget {
+  const TagsEditorScreen({super.key});
+
+  @override
+  State<TagsEditorScreen> createState() => _TagsEditorScreenState();
+}
+
+class _TagsEditorScreenState extends State<TagsEditorScreen> {
+  List<String> _tags = [];
+  bool _isLoading = true;
+  String? _error;
+
+  static final String _baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTags();
+  }
+
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final idToken = await AuthService.getIdToken();
+    return {
+      'Authorization': 'Bearer $idToken',
+      'Content-Type': 'application/json',
+    };
+  }
+
+  Future<void> _loadTags() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/admin/tags'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final tags = List<String>.from(data['tags'] ?? []);
+        
+        setState(() {
+          _tags = tags;
+          _isLoading = false;
+        });
+      } else if (response.statusCode == 401) {
+        _navigateBack();
+      } else {
+        setState(() {
+          _error = 'Failed to load tags (${response.statusCode})';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Network error: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _addTag(String tagName) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/admin/tags'),
+        headers: headers,
+        body: json.encode({'tag': tagName}),
+      );
+
+      if (response.statusCode == 201) {
+        _loadTags(); // Refresh the list
+        _showMessage('Tag "$tagName" added successfully!', isError: false);
+      } else {
+        final errorData = json.decode(response.body);
+        _showMessage(errorData['error'] ?? 'Failed to add tag', isError: true);
+      }
+    } catch (e) {
+      _showMessage('Error adding tag: $e', isError: true);
+    }
+  }
+
+  Future<void> _updateTag(String oldTag, String newTag) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.put(
+        Uri.parse('$_baseUrl/admin/tags/${Uri.encodeComponent(oldTag)}'),
+        headers: headers,
+        body: json.encode({'tag': newTag}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final quotesUpdated = data['quotes_updated'] ?? 0;
+        _loadTags(); // Refresh the list
+        _showMessage('Tag updated successfully! ($quotesUpdated quotes updated)', isError: false);
+      } else {
+        final errorData = json.decode(response.body);
+        _showMessage(errorData['error'] ?? 'Failed to update tag', isError: true);
+      }
+    } catch (e) {
+      _showMessage('Error updating tag: $e', isError: true);
+    }
+  }
+
+  Future<void> _deleteTag(String tagName) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/admin/tags/${Uri.encodeComponent(tagName)}'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final quotesUpdated = data['quotes_updated'] ?? 0;
+        _loadTags(); // Refresh the list
+        _showMessage('Tag deleted successfully! ($quotesUpdated quotes updated)', isError: false);
+      } else {
+        final errorData = json.decode(response.body);
+        _showMessage(errorData['error'] ?? 'Failed to delete tag', isError: true);
+      }
+    } catch (e) {
+      _showMessage('Error deleting tag: $e', isError: true);
+    }
+  }
+
+  Future<void> _cleanupUnusedTags() async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/admin/tags/unused'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final removedCount = data['count_removed'] ?? 0;
+        final removedTags = data['removed_tags'] ?? [];
+        
+        if (removedCount == 0) {
+          _showMessage('No unused tags found to clean up', isError: false);
+        } else {
+          _showMessage('Successfully removed $removedCount unused tags: ${removedTags.join(', ')}', isError: false);
+        }
+        
+        _loadTags(); // Refresh to show updated data
+      } else {
+        _showMessage('Failed to cleanup unused tags (${response.statusCode})', isError: true);
+      }
+    } catch (e) {
+      _showMessage('Error cleaning up unused tags: $e', isError: true);
+    }
+  }
+
+  void _showMessage(String message, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: isError ? 4 : 3),
+      ),
+    );
+  }
+
+  void _navigateBack() {
+    Navigator.of(context).pop();
+  }
+
+  void _showAddTagDialog() {
+    final tagController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.add, color: Color(0xFF800000)),
+            SizedBox(width: 8),
+            Text('Add New Tag'),
+          ],
+        ),
+        content: TextField(
+          controller: tagController,
+          decoration: const InputDecoration(
+            labelText: 'Tag Name',
+            border: OutlineInputBorder(),
+            hintText: 'Enter tag name',
+          ),
+          textCapitalization: TextCapitalization.words,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final tagName = tagController.text.trim();
+              if (tagName.isNotEmpty) {
+                Navigator.of(context).pop();
+                _addTag(tagName);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF800000),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditTagDialog(String currentTag) {
+    final tagController = TextEditingController(text: currentTag);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.edit, color: Color(0xFF800000)),
+            SizedBox(width: 8),
+            Text('Edit Tag'),
+          ],
+        ),
+        content: TextField(
+          controller: tagController,
+          decoration: const InputDecoration(
+            labelText: 'Tag Name',
+            border: OutlineInputBorder(),
+          ),
+          textCapitalization: TextCapitalization.words,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newTag = tagController.text.trim();
+              if (newTag.isNotEmpty && newTag != currentTag) {
+                Navigator.of(context).pop();
+                _updateTag(currentTag, newTag);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF800000),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteTagDialog(String tagName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete Tag'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete the tag "$tagName"?\n\nThis will remove it from all quotes that use it. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteTag(tagName);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCleanupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.cleaning_services, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Clean Unused Tags'),
+          ],
+        ),
+        content: const Text(
+          'This will remove all tags that are not currently used by any quotes. This action cannot be undone.\n\nAre you sure you want to proceed?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _cleanupUnusedTags();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Clean Up'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tags Editor'),
+        backgroundColor: const Color(0xFF800000),
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            onPressed: _showCleanupDialog,
+            icon: const Icon(Icons.cleaning_services),
+            tooltip: 'Clean Unused Tags',
+          ),
+          IconButton(
+            onPressed: _loadTags,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddTagDialog,
+        backgroundColor: const Color(0xFF800000),
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
+      ),
+      body: Column(
+        children: [
+          // Header with count
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            color: const Color(0xFFFFD700).withValues(alpha: 0.1),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.local_offer,
+                  color: Color(0xFF800000),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Tag Management',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF800000),
+                    fontSize: 16,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_tags.length} tags',
+                  style: const TextStyle(
+                    color: Color(0xFF800000),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Content
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF800000)),
+                    ),
+                  )
+                : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red.shade400,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _error!,
+                              style: TextStyle(
+                                color: Colors.red.shade700,
+                                fontSize: 16,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _loadTags,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _tags.isEmpty
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.local_offer_outlined,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  'No tags found',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Tap the + button to add your first tag',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(8),
+                            itemCount: _tags.length,
+                            itemBuilder: (context, index) {
+                              final tag = _tags[index];
+                              return Card(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                child: ListTile(
+                                  leading: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFD700).withValues(alpha: 0.3),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Text(
+                                      tag,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF800000),
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    'Tag: $tag',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  subtitle: const Text('Tap to edit or delete'),
+                                  trailing: PopupMenuButton<String>(
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        _showEditTagDialog(tag);
+                                      } else if (value == 'delete') {
+                                        _showDeleteTagDialog(tag);
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.edit),
+                                            SizedBox(width: 8),
+                                            Text('Edit'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.delete, color: Colors.red),
+                                            SizedBox(width: 8),
+                                            Text('Delete'),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+          ),
+        ],
+      ),
+    );
+  }
+}

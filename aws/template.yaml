@@ -116,6 +116,33 @@ Resources:
             Auth:
               Authorizer: CognitoAuthorizer
               ApiKeyRequired: false
+        AddTag:
+          Type: Api
+          Properties:
+            Path: /admin/tags
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UpdateTag:
+          Type: Api
+          Properties:
+            Path: /admin/tags/{tag}
+            Method: PUT
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        DeleteTag:
+          Type: Api
+          Properties:
+            Path: /admin/tags/{tag}
+            Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
 
   # Explicit API Gateway for better control
   ApiGatewayApi:

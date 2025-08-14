@@ -64,6 +64,10 @@ flutter test
 # (creates temp admin user, tests unused tag detection and cleanup)
 python3 tests/test_tag_cleanup.py
 
+# Test individual tag management functionality
+# (creates temp admin user, tests tag CRUD operations with data integrity)
+python3 tests/test_tag_editor.py
+
 # Manual admin authentication for debugging:
 aws cognito-idp admin-initiate-auth \
   --user-pool-id us-east-1_ecyuILBAu \
@@ -89,11 +93,18 @@ open -a Simulator
   - Cognito User Pool with admin group for role-based access
   - Custom domain support with SSL certificates
 - **Lambda Functions**:
-  - `quote_handler.py`: Public quote API with tag filtering + dynamic tags endpoint (GET /tags)
-  - `admin_handler.py`: Admin CRUD operations with tags metadata management
+  - `quote_handler.py`: Public quote API with tag validation, filtering + dynamic tags endpoint (GET /tags)
+    - Validates requested tags against metadata
+    - Gracefully handles non-existent tags
+    - Falls back to "All" if no valid tags found
+  - `admin_handler.py`: Admin CRUD operations with comprehensive tags management and data integrity
+    - Tag rename/delete operations automatically update all affected quotes
+    - Maintains tags metadata cache for O(1) retrieval
 - **Database**: DynamoDB with tags metadata caching for zero-scan performance
   - TAGS_METADATA record maintains complete tag list for O(1) retrieval
-  - Admin operations automatically update tags metadata
+  - Admin operations automatically update tags metadata with full data integrity
+  - Individual tag management with automatic quote synchronization
+  - Metadata records properly filtered from quote listings
   - No database scanning required for tag list retrieval
 - **Response Format**: JSON with `quote`, `author`, `tags`, and `id` fields
 - **Security Features**:
@@ -111,6 +122,7 @@ open -a Simulator
   - `settings_screen.dart`: Dynamic tag loading with voice testing and server synchronization
   - `admin_login_screen.dart`: Secure admin authentication with branded UI
   - `admin_dashboard_screen.dart`: Full quote management interface with CRUD operations
+  - `tags_editor_screen.dart`: Dedicated tag management interface with individual tag CRUD operations
 - **Authentication Service**: `lib/services/auth_service.dart`
   - AWS Amplify Cognito integration for secure authentication
   - Admin group membership verification
@@ -124,15 +136,66 @@ open -a Simulator
   - `amplify_flutter: ^2.0.0`: AWS Amplify core functionality
   - `amplify_auth_cognito: ^2.0.0`: Cognito authentication integration
 - **State Management**: setState() pattern with service-layer abstraction
-- **Error Handling**: Comprehensive error handling for network, auth, and API failures
+- **Error Handling**: Comprehensive error handling with automatic retry logic for 500 errors
 - **Theme**: Professional corporate branding with maroon (#800000) and gold (#FFD700)
 - **Advanced Features**:
-  - **Audio System**: Voice selection, testing, and smart interruption controls
-  - **Dynamic Tag Filtering**: Real-time tag loading from server with zero-scan performance
+  - **Audio System**: Voice selection, testing, smart interruption controls, and simulator compatibility
+  - **Dynamic Tag Filtering**: Real-time tag loading with 3-tag minimum for variety
   - **Admin Management**: Complete quote CRUD with real-time updates
+  - **Tag Management System**: Dedicated Tags Editor with individual tag CRUD operations
+  - **Import System**: Copy/paste TSV import from Google Sheets with preview
   - **Tag Cleanup System**: Automated removal of unused tags from metadata with confirmation dialog
+  - **Data Integrity**: Automatic quote synchronization when tags are renamed or deleted
   - **Responsive Design**: Perfect layout in all orientations with no overflow
   - **Security Integration**: Seamless admin access with role-based permissions
+  - **Resilience Features**: Automatic retry with exponential backoff for server errors
+
+### Import System
+The admin dashboard includes a powerful copy/paste import feature for Google Sheets data:
+
+**Core Features**:
+- **TSV Parser**: Handles tab-separated values from Google Sheets copy/paste
+- **Smart Header Detection**: Automatically skips header rows containing "Nugget" and "Source"
+- **Column Mapping**: 
+  - Column 1: Nugget (Quote text)
+  - Column 2: Source (Author)
+  - Columns 3-7: Tag1, Tag2, Tag3, Tag4, Tag5
+- **Live Preview**: Shows first 3 parsed quotes before importing
+- **Batch Processing**: Creates multiple quotes via sequential API calls
+- **Import Feedback**: Shows success/failure counts after import
+- **Error Handling**: Continues import even if individual quotes fail
+
+**Access Method**: Admin Dashboard → Menu → "Import Quotes"
+
+### Tags Editor System
+The dedicated Tags Editor provides comprehensive tag management capabilities separate from quote management:
+
+**Core Features**:
+- **Individual Tag CRUD**: Add, rename, delete individual tags with validation
+- **Data Integrity**: Tag operations automatically update all affected quotes
+- **Duplicate Prevention**: Cannot add tags that already exist
+- **Smart Synchronization**: Renaming tags updates all quotes using that tag
+- **Safe Deletion**: Deleting tags removes them from all quotes using them
+- **User-Friendly Interface**: Professional UI with confirmation dialogs
+- **Real-time Feedback**: Shows how many quotes were affected by each operation
+
+**Access Methods**:
+- **Primary Access**: Admin Dashboard → Menu → "Manage Tags"
+- **Direct Navigation**: Dedicated Tags Editor screen with full functionality
+- **Integrated Cleanup**: Access to unused tag cleanup from within the editor
+
+**Technical Implementation**:
+- **Backend Validation**: Comprehensive server-side validation and error handling  
+- **Quote Synchronization**: Automatic scanning and updating of affected quotes
+- **Metadata Consistency**: Tags metadata cache updated with every operation
+- **Error Recovery**: Graceful handling of network issues and API failures
+- **State Management**: Real-time UI updates reflecting server changes
+
+**Security & Data Integrity**:
+- **Admin Authentication**: Full JWT authentication and group membership verification
+- **Transaction Safety**: Each operation maintains database consistency
+- **Audit Trail**: All tag changes logged with timestamps and user information
+- **Rollback Protection**: Confirmation dialogs prevent accidental destructive operations
 
 ### Key Integration Points
 1. **Environment Management**: Automated via `./update_env.sh` script that syncs AWS outputs to `.env` files
@@ -171,8 +234,12 @@ open -a Simulator
   - `DELETE /admin/quotes/{id}` - Delete quote
 - **Tag Management Endpoints**:
   - `GET /admin/tags` - Get all available tags from metadata
+  - `POST /admin/tags` - Add new individual tag to metadata
+  - `PUT /admin/tags/{tag}` - Update/rename tag (automatically updates all quotes using the tag)
+  - `DELETE /admin/tags/{tag}` - Delete individual tag (removes from all quotes using it)
   - `DELETE /admin/tags/unused` - Clean up unused tags (removes tags not used by any quotes)
-- **Tags Metadata Management**: All CRUD operations automatically maintain tags metadata cache with cleanup capabilities
+- **Tags Metadata Management**: All CRUD operations automatically maintain tags metadata cache with full data integrity
+- **Quote Synchronization**: Tag rename/delete operations automatically update all affected quotes
 
 ### Admin Credentials
 - **Email**: `admin@dcc.com`
@@ -194,10 +261,23 @@ open -a Simulator
 - **Admin Management**: Complete quote lifecycle management with real-time updates
 - **Dynamic Tag System**: Real-time tag loading and filtering with zero-scan database performance
 - **Tags Metadata Caching**: Efficient O(1) tag retrieval without database scanning
+- **Individual Tag Management**: Dedicated Tags Editor for adding, renaming, and deleting individual tags
+- **Data Integrity Enforcement**: Tag operations automatically synchronize with all affected quotes
 - **Automated Tag Cleanup**: Admin can remove unused tags with one-click cleanup and detailed reporting
+- **Metadata Filtering**: TAGS_METADATA records are properly filtered from quote listings
 - **Responsive Design**: Perfect layout across all device orientations and screen sizes
 - **Error Handling**: Comprehensive error management with user-friendly messaging
 - **State Management**: Persistent settings and authentication across app sessions
+
+### Resilience & Error Handling
+- **Automatic Retry Logic**: 500 errors trigger up to 3 retries with exponential backoff (500ms, 1000ms, 1500ms)
+- **Tag Validation**: Backend validates all requested tags and gracefully handles non-existent ones
+- **TTS State Management**: Enhanced audio controls work properly in simulator with timeout fallbacks
+- **Network Error Recovery**: Automatic retry for network failures with user feedback
+- **Tag Selection Validation**: Requires minimum 3 tags when not using "All" to ensure quote variety
+- **Substring Safety**: Handles quotes of any length without crashes in logging
+- **Rate Limit Messaging**: Clear, friendly messages when API rate limits are exceeded
+- **Server Error Messaging**: User-friendly "Server issue, retrying..." during automatic retries
 
 ### Development Standards
 - **Code Architecture**: Clean separation of concerns with service layer patterns

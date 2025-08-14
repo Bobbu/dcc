@@ -432,6 +432,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           color: const Color(0xFF800000).withOpacity(0.7),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      // Show warning if less than 3 categories selected and not "All"
+                      if (!_selectedCategories.contains('All') && _selectedCategories.length < 3)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            border: Border.all(color: Colors.orange.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.orange.shade700,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Please select at least 3 categories or "All" to ensure variety',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.orange.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       if (!_categoriesLoaded)
                         const Center(child: CircularProgressIndicator())
@@ -497,6 +526,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     _selectedCategories.remove('All');
                                     _selectedCategories.add(category);
                                   } else {
+                                    // Check if deselecting would leave us with less than 3 categories
+                                    final remainingCategories = _selectedCategories
+                                        .where((cat) => cat != category && cat != 'All')
+                                        .length;
+                                    
+                                    if (remainingCategories < 3) {
+                                      // Show a snackbar message and don't allow deselection
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: const Text(
+                                            'Please keep at least 3 categories selected for variety, or select "All"',
+                                          ),
+                                          backgroundColor: Colors.orange.shade700,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                      return; // Don't allow deselection
+                                    }
+                                    
                                     _selectedCategories.remove(category);
                                     // If no specific categories are selected, auto-select "All"
                                     final hasSpecificCategories = _selectedCategories

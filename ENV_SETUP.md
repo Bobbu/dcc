@@ -32,7 +32,7 @@ This script will:
    API_KEY=your-api-key-here
    
    # dcc_mobile/.env  
-   API_URL=https://your-api-id.execute-api.region.amazonaws.com/prod/quote
+   API_ENDPOINT=https://your-api-id.execute-api.region.amazonaws.com/prod/quote
    API_KEY=your-api-key-here
    ```
 

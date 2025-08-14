@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,21 +44,57 @@ class _QuoteScreenState extends State<QuoteScreen> {
     flutterTts = FlutterTts();
     
     flutterTts.setStartHandler(() {
-      setState(() {
-        _isSpeaking = true;
-      });
+      print('🔊 TTS Start Handler triggered');
+      if (mounted) {
+        setState(() {
+          _isSpeaking = true;
+        });
+      }
     });
 
     flutterTts.setCompletionHandler(() {
-      setState(() {
-        _isSpeaking = false;
-      });
+      print('✅ TTS Completion Handler triggered');
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
     });
 
     flutterTts.setErrorHandler((msg) {
-      setState(() {
-        _isSpeaking = false;
-      });
+      print('❌ TTS Error Handler triggered: $msg');
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
+    });
+
+    flutterTts.setCancelHandler(() {
+      print('🛑 TTS Cancel Handler triggered');
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
+    });
+
+    flutterTts.setPauseHandler(() {
+      print('⏸️ TTS Pause Handler triggered');
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
+    });
+
+    flutterTts.setContinueHandler(() {
+      print('▶️ TTS Continue Handler triggered');
+      if (mounted) {
+        setState(() {
+          _isSpeaking = true;
+        });
+      }
     });
 
     // Configure TTS settings
@@ -71,19 +108,83 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
 
   void _speakQuote() async {
+    print('🔊 _speakQuote() called - _audioEnabled=$_audioEnabled, _quote=${_quote != null}, _author=${_author != null}');
+    
     if (_audioEnabled && _quote != null && _author != null) {
       String textToSpeak = '$_quote, by $_author';
-      await flutterTts.speak(textToSpeak);
+      final previewLength = textToSpeak.length > 50 ? 50 : textToSpeak.length;
+      print('🎤 About to speak: "${textToSpeak.substring(0, previewLength)}..."');
+      
+      // Manually set speaking state (in case TTS handlers don't fire in simulator)
+      if (mounted) {
+        setState(() {
+          _isSpeaking = true;
+        });
+      }
+      
+      try {
+        await flutterTts.speak(textToSpeak);
+        print('✅ TTS speak() called successfully');
+        
+        // For simulator compatibility: auto-reset speaking state after estimated time
+        // Calculate rough duration: assume 150 words per minute
+        final wordCount = textToSpeak.split(' ').length;
+        final estimatedDurationMs = (wordCount / 150 * 60 * 1000).round();
+        final maxDurationMs = estimatedDurationMs + 2000; // Add 2 second buffer
+        
+        Timer(Duration(milliseconds: maxDurationMs), () {
+          if (mounted && _isSpeaking) {
+            print('⏰ Auto-resetting speaking state after timeout');
+            setState(() {
+              _isSpeaking = false;
+            });
+          }
+        });
+        
+      } catch (e) {
+        print('❌ Error in _speakQuote: $e');
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+          });
+        }
+      }
+    } else {
+      print('⏹️ Not speaking because: audioEnabled=$_audioEnabled, quote=${_quote != null}, author=${_author != null}');
     }
   }
 
   void _stopSpeaking() async {
-    await flutterTts.stop();
+    print('🛑 _stopSpeaking() called - current _isSpeaking=$_isSpeaking');
+    
+    try {
+      await flutterTts.stop();
+      print('✅ TTS stop() called successfully in _stopSpeaking');
+      
+      // Force state update in case handlers don't fire
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error stopping TTS in _stopSpeaking: $e');
+      // Still update state even if stop failed
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
-    flutterTts.stop();
+    try {
+      flutterTts.stop();
+    } catch (e) {
+      print('Error stopping TTS in dispose: $e');
+    }
     super.dispose();
   }
 
@@ -171,9 +272,18 @@ class _QuoteScreenState extends State<QuoteScreen> {
     }
   }
 
-  Future<void> _getQuote() async {
-    // Stop any currently playing audio
-    await flutterTts.stop();
+  Future<void> _getQuote({int retryCount = 0}) async {
+    print('🎯 _getQuote() called - Current state: _isLoading=$_isLoading, _isSpeaking=$_isSpeaking, retry=$retryCount');
+    
+    // Stop any currently playing audio - wrap in try-catch to handle interruption errors
+    try {
+      print('🔇 Attempting to stop TTS...');
+      await flutterTts.stop();
+      print('✅ TTS stop completed successfully');
+    } catch (e) {
+      print('❌ Error stopping TTS: $e');
+      // Continue anyway - the error shouldn't prevent getting a new quote
+    }
     
     setState(() {
       _isLoading = true;
@@ -189,6 +299,9 @@ class _QuoteScreenState extends State<QuoteScreen> {
         url += '?tags=$tags';
       }
       
+      print('🌐 Making API request to: $url');
+      print('📋 Selected categories: $_selectedCategories');
+      
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -197,8 +310,17 @@ class _QuoteScreenState extends State<QuoteScreen> {
         },
       );
       
+      print('📡 API Response: ${response.statusCode}');
+      if (response.statusCode != 200) {
+        print('❌ API Error Body: ${response.body}');
+      }
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        final quoteText = data['quote']?.toString() ?? 'null';
+        final previewLength = quoteText.length > 50 ? 50 : quoteText.length;
+        print('✅ Quote received: "${quoteText.substring(0, previewLength)}..."');
+        
         setState(() {
           _quote = data['quote'];
           _author = data['author'];
@@ -206,21 +328,54 @@ class _QuoteScreenState extends State<QuoteScreen> {
         });
         
         // Automatically speak the new quote
+        print('🔊 About to speak quote, _audioEnabled=$_audioEnabled');
         _speakQuote();
+      } else if (response.statusCode == 500 && retryCount < 3) {
+        // Retry for 500 errors with exponential backoff
+        final delay = Duration(milliseconds: 500 * (retryCount + 1));
+        print('🔄 Got 500 error, retrying in ${delay.inMilliseconds}ms (attempt ${retryCount + 1}/3)');
+        
+        setState(() {
+          _error = 'Server issue, retrying...';
+        });
+        
+        await Future.delayed(delay);
+        
+        // Recursive retry
+        return _getQuote(retryCount: retryCount + 1);
       } else {
         String errorMessage;
         if (response.statusCode == 429) {
           errorMessage = 'Please wait a moment before requesting another quote. You\'ve reached the rate limit - try again in a few seconds! 😊';
+        } else if (response.statusCode == 500) {
+          errorMessage = 'Server is having issues. Please try again in a moment.';
         } else {
           errorMessage = 'Failed to load quote (${response.statusCode})';
         }
         
+        print('❌ Setting error: $errorMessage');
         setState(() {
           _error = errorMessage;
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('❌ Network/Parse error in _getQuote: $e');
+      print('❌ Error type: ${e.runtimeType}');
+      
+      // Retry network errors if we haven't retried too many times
+      if (retryCount < 3) {
+        final delay = Duration(milliseconds: 500 * (retryCount + 1));
+        print('🔄 Network error, retrying in ${delay.inMilliseconds}ms (attempt ${retryCount + 1}/3)');
+        
+        setState(() {
+          _error = 'Connection issue, retrying...';
+        });
+        
+        await Future.delayed(delay);
+        return _getQuote(retryCount: retryCount + 1);
+      }
+      
       setState(() {
         _error = 'Network error: ${e.toString()}';
         _isLoading = false;
@@ -375,7 +530,14 @@ class _QuoteScreenState extends State<QuoteScreen> {
                                 children: [
                                   IconButton(
                                     onPressed: _audioEnabled 
-                                      ? (_isSpeaking ? _stopSpeaking : _speakQuote)
+                                      ? () {
+                                          print('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
+                                          if (_isSpeaking) {
+                                            _stopSpeaking();
+                                          } else {
+                                            _speakQuote();
+                                          }
+                                        }
                                       : null,
                                     icon: Icon(
                                       _isSpeaking 

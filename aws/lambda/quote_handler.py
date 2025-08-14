@@ -36,10 +36,21 @@ def get_quotes_by_tags(tags):
         print(f"Error querying DynamoDB: {e}")
         return []
 
+def get_tags_metadata():
+    """Get the current list of valid tags from metadata."""
+    try:
+        response = table.get_item(Key={'id': 'TAGS_METADATA'})
+        item = response.get('Item', {})
+        return item.get('tags', [])
+    except Exception as e:
+        print(f"Error fetching tags metadata: {e}")
+        return []
+
 def parse_tags_from_query(event):
     """
     Parse tags from query string parameters.
     Supports: ?tags=Motivation,Business or ?tags=All
+    Validates that requested tags exist in the database.
     """
     query_params = event.get('queryStringParameters') or {}
     tags_param = query_params.get('tags', 'All')
@@ -48,19 +59,23 @@ def parse_tags_from_query(event):
         return ['All']
     
     # Split by comma and clean up
-    tags = [tag.strip() for tag in tags_param.split(',') if tag.strip()]
-    return tags if tags else ['All']
-
-def get_tags_metadata():
-    """Get all available tags from metadata record"""
-    try:
-        response = table.get_item(Key={'id': 'TAGS_METADATA'})
-        if 'Item' in response:
-            return response['Item']['tags']
-        return []
-    except Exception as e:
-        print(f"Error getting tags metadata: {e}")
-        return []
+    requested_tags = [tag.strip() for tag in tags_param.split(',') if tag.strip()]
+    
+    if not requested_tags:
+        return ['All']
+    
+    # Validate tags against database metadata
+    valid_tags = get_tags_metadata()
+    validated_tags = []
+    
+    for tag in requested_tags:
+        if tag in valid_tags:
+            validated_tags.append(tag)
+        else:
+            print(f"⚠️ Warning: Requested tag '{tag}' not found in metadata, skipping")
+    
+    # If no valid tags found, default to 'All'
+    return validated_tags if validated_tags else ['All']
 
 def handle_tags_request():
     """Handle GET /tags request"""

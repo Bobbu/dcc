@@ -23,25 +23,30 @@ A comprehensive, enterprise-grade quote management platform featuring secure AWS
   - **Settings Screen**: Dynamic tag loading from server with voice testing capabilities  
   - **Admin Login**: Secure authentication interface with corporate branding
   - **Admin Dashboard**: Complete quote management with real-time CRUD operations
+  - **Tags Editor**: Dedicated tag management interface with individual tag CRUD operations
 
 - **Advanced Audio System**: 
   - Professional TTS with 20-50+ voice options per device
   - Voice selection and testing with sample phrases
   - Smart audio interruption and state management
   - Visual indicators: 🔊 (enabled), 🔇 (disabled), ⏹️ (speaking)
+  - Simulator compatibility with automatic timeout fallbacks
 
 - **Admin Management Features**:
   - Secure Cognito authentication with admin group verification
   - Complete quote lifecycle management (Create, Read, Update, Delete)
   - Real-time quote list with metadata display
-  - Tag-based categorization with visual chip interface
+  - Multi-select tag editor with inline tag creation
+  - Import from Google Sheets via copy/paste with preview
   - Automated unused tag cleanup with confirmation dialogs
   - Instant synchronization with public API
 
 - **User Experience**:
   - Real-time dynamic tag loading and filtering with zero-scan performance
+  - Minimum 3-tag selection requirement for quote variety
   - Responsive design perfect in all orientations
   - Persistent settings across app sessions
+  - Automatic retry with exponential backoff for server errors
   - Comprehensive error handling with friendly messaging
   - Corporate maroon and gold branding throughout
 
@@ -73,14 +78,16 @@ dcc/
 │   │       ├── quote_screen.dart        # Main app with admin access
 │   │       ├── settings_screen.dart     # User preferences and voice testing
 │   │       ├── admin_login_screen.dart  # Secure admin authentication
-│   │       └── admin_dashboard_screen.dart  # Quote management interface
+│   │       ├── admin_dashboard_screen.dart  # Quote management interface
+│   │       └── tags_editor_screen.dart  # Individual tag management interface
 │   ├── pubspec.yaml        # Dependencies (includes AWS Amplify)
 │   └── ...
 └── tests/
     ├── .env                # Test environment configuration
     ├── test_api.sh         # Public API testing suite with rate limiting
     ├── test_admin_api.sh   # Comprehensive admin API regression tests
-    └── test_tag_cleanup.py # Tag cleanup functionality testing
+    ├── test_tag_cleanup.py # Tag cleanup functionality testing
+    └── test_tag_editor.py  # Individual tag management testing
 ```
 
 ## Setup Instructions
@@ -141,6 +148,8 @@ You can create additional admin users via AWS Console or CLI.
 3. Select **"Admin"** from the dropdown
 4. Sign in with admin credentials
 5. Manage quotes via the admin dashboard
+6. Access Tags Editor via menu → "Manage Tags" for individual tag operations
+7. Import quotes via menu → "Import Quotes" for bulk import from Google Sheets
 
 ## Development Notes
 
@@ -166,6 +175,9 @@ curl -H "x-api-key: YOUR_API_KEY" "https://dcc.anystupididea.com/tags"
 # Test tag cleanup functionality specifically
 python3 tests/test_tag_cleanup.py
 
+# Test individual tag management functionality
+python3 tests/test_tag_editor.py
+
 # Manual admin authentication for debugging
 TOKEN=$(aws cognito-idp admin-initiate-auth \
   --user-pool-id us-east-1_ecyuILBAu \
@@ -177,6 +189,28 @@ TOKEN=$(aws cognito-idp admin-initiate-auth \
 # Test admin endpoints
 curl -H "Authorization: Bearer $TOKEN" "https://dcc.anystupididea.com/admin/quotes"
 ```
+
+### Import Feature
+
+**Google Sheets Import:**
+The admin dashboard includes a powerful import feature for bulk quote creation from Google Sheets:
+
+1. **Prepare your data** in Google Sheets with columns:
+   - Column A: Nugget (Quote text)
+   - Column B: Source (Author)
+   - Columns C-G: Tag1, Tag2, Tag3, Tag4, Tag5 (optional)
+
+2. **Select and copy** rows from your spreadsheet (including headers)
+
+3. **In the app**: Admin Dashboard → Menu → "Import Quotes"
+
+4. **Paste** your data and click "Parse Data" to preview
+
+5. **Review** the preview showing first 3 quotes
+
+6. **Import** all quotes with one click
+
+The import system handles tab-separated values, automatically detects headers, and provides feedback on success/failure counts.
 
 ### Flutter Development Features
 
@@ -195,8 +229,14 @@ curl -H "Authorization: Bearer $TOKEN" "https://dcc.anystupididea.com/admin/quot
 **Admin Management:**
 - **Secure Authentication**: AWS Cognito integration with admin group verification
 - **Complete CRUD Operations**: Create, read, update, delete quotes with validation
-- **Tag Management**: Multi-tag categorization with visual chip interface
-- **Automated Tag Cleanup**: One-click removal of unused tags with detailed reporting
+- **Tag Management System**: 
+  - **Tags Editor**: Dedicated interface for individual tag CRUD operations
+  - **Data Integrity**: Automatic quote synchronization when tags are renamed or deleted
+  - **Duplicate Prevention**: Cannot add tags that already exist
+  - **Smart Synchronization**: Tag rename updates all affected quotes automatically
+  - **Safe Deletion**: Removing tags updates all quotes that were using them
+  - **Visual Management**: Multi-tag categorization with visual chip interface
+  - **Automated Cleanup**: One-click removal of unused tags with detailed reporting
 - **Real-time Updates**: Instant quote list refresh and synchronization
 - **User-Friendly Interface**: Intuitive admin dashboard with confirmation dialogs
 
@@ -266,6 +306,22 @@ curl -H "Authorization: Bearer $TOKEN" "https://dcc.anystupididea.com/admin/quot
 - **GET** `/admin/tags` - Returns all available tags from metadata cache
 - **Response**: `{"tags": ["Action", "Business", ...], "count": 19}`
 
+**Add Individual Tag:**
+- **POST** `/admin/tags`
+- **Body**: `{"tag": "NewTag"}`
+- **Response**: `{"message": "Tag 'NewTag' added successfully", "tags": [...], "count": 20}`
+
+**Rename Tag:**
+- **PUT** `/admin/tags/{tag}`
+- **Body**: `{"new_tag": "RenamedTag"}`
+- **Auto-Updates**: All quotes using the old tag are updated automatically
+- **Response**: `{"message": "Tag renamed and X quotes updated", "updated_quotes": X}`
+
+**Delete Individual Tag:**
+- **DELETE** `/admin/tags/{tag}`
+- **Auto-Updates**: Removes tag from all quotes using it
+- **Response**: `{"message": "Tag 'OldTag' deleted and X quotes updated", "updated_quotes": X}`
+
 **Clean Unused Tags:**
 - **DELETE** `/admin/tags/unused` - Removes tags not used by any quotes
 - **Response**: `{"message": "Successfully removed X unused tags", "removed_tags": [...], "remaining_tags": [...], "count_removed": X, "count_remaining": Y}`
@@ -288,8 +344,16 @@ curl -H "Authorization: Bearer $TOKEN" "https://dcc.anystupididea.com/admin/quot
 - **DynamoDB**: NoSQL database with automatic scaling and backup
 - **Dynamic Tags System**: Zero-scan tags metadata caching for O(1) performance
 - **Multi-Tag Support**: Efficient tag-based querying with automatic metadata updates
+- **Tag Validation**: Backend validates requested tags and handles non-existent ones gracefully
 - **Data Integrity**: Comprehensive validation and error handling
 - **Real-time Sync**: Instant propagation of admin changes to public API and tags cache
+
+**Resilience Features:**
+- **Automatic Retry Logic**: 500 errors trigger up to 3 retries with exponential backoff
+- **Network Error Recovery**: Graceful handling of network failures with automatic retry
+- **Lambda Cold Start Handling**: Retry mechanism handles cold start timeouts
+- **DynamoDB Throttling Protection**: Backoff strategy prevents overwhelming the database
+- **User-Friendly Error Messages**: Clear feedback during retries and failures
 
 ### Environment Management
 

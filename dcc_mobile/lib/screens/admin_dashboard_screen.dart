@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/auth_service.dart';
+import 'tags_editor_screen.dart';
 
 class Quote {
   final String id;
@@ -263,80 +264,97 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _showImportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => _ImportDialog(
+        onImport: (quotes) {
+          _importQuotes(quotes);
+        },
+      ),
+    );
+  }
+
+  Future<void> _importQuotes(List<Quote> quotes) async {
+    if (quotes.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final headers = await _getAuthHeaders();
+      int successCount = 0;
+      int errorCount = 0;
+
+      for (final quote in quotes) {
+        try {
+          final response = await http.post(
+            Uri.parse('$_baseUrl/admin/quotes'),
+            headers: headers,
+            body: json.encode(quote.toJson()),
+          );
+
+          if (response.statusCode == 201) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (e) {
+          errorCount++;
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Import complete: $successCount imported, $errorCount failed',
+            ),
+            backgroundColor: successCount > 0 ? Colors.green : Colors.red,
+          ),
+        );
+      }
+
+      // Reload quotes to show imported ones
+      await _loadQuotes();
+    } catch (e) {
+      setState(() {
+        _error = 'Import failed: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
   void _showQuoteDialog({Quote? quote}) {
     final isEditing = quote != null;
     final quoteController = TextEditingController(text: quote?.quote ?? '');
     final authorController = TextEditingController(text: quote?.author ?? '');
-    final tagsController = TextEditingController(text: quote?.tags.join(', ') ?? '');
-
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isEditing ? 'Edit Quote' : 'Add New Quote'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: quoteController,
-                decoration: const InputDecoration(
-                  labelText: 'Quote Text',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: authorController,
-                decoration: const InputDecoration(
-                  labelText: 'Author',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: tagsController,
-                decoration: const InputDecoration(
-                  labelText: 'Tags (comma-separated)',
-                  border: OutlineInputBorder(),
-                  hintText: 'Motivation, Business, Success',
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final newQuote = Quote(
-                id: quote?.id ?? '',
-                quote: quoteController.text.trim(),
-                author: authorController.text.trim(),
-                tags: tagsController.text
-                    .split(',')
-                    .map((tag) => tag.trim())
-                    .where((tag) => tag.isNotEmpty)
-                    .toList(),
-                createdAt: quote?.createdAt ?? '',
-                updatedAt: quote?.updatedAt ?? '',
-                createdBy: quote?.createdBy,
-              );
+      builder: (context) => _QuoteEditDialog(
+        isEditing: isEditing,
+        quoteController: quoteController,
+        authorController: authorController,
+        initialTags: quote?.tags ?? [],
+        onSave: (selectedTags) {
+          final newQuote = Quote(
+            id: quote?.id ?? '',
+            quote: quoteController.text.trim(),
+            author: authorController.text.trim(),
+            tags: selectedTags,
+            createdAt: quote?.createdAt ?? '',
+            updatedAt: quote?.updatedAt ?? '',
+            createdBy: quote?.createdBy,
+          );
 
-              Navigator.of(context).pop();
-
-              if (isEditing) {
-                _updateQuote(newQuote);
-              } else {
-                _createQuote(newQuote);
-              }
-            },
-            child: Text(isEditing ? 'Update' : 'Create'),
-          ),
-        ],
+          if (isEditing) {
+            _updateQuote(newQuote);
+          } else {
+            _createQuote(newQuote);
+          }
+        },
       ),
     );
   }
@@ -353,6 +371,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onSelected: (value) {
               if (value == 'refresh') {
                 _loadQuotes();
+              } else if (value == 'import_quotes') {
+                _showImportDialog();
+              } else if (value == 'tags_editor') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const TagsEditorScreen(),
+                  ),
+                );
               } else if (value == 'cleanup_tags') {
                 _showCleanupTagsDialog();
               } else if (value == 'logout') {
@@ -367,6 +393,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.refresh),
                     SizedBox(width: 8),
                     Text('Refresh'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'import_quotes',
+                child: Row(
+                  children: [
+                    Icon(Icons.file_upload, color: Color(0xFF800000)),
+                    SizedBox(width: 8),
+                    Text('Import Quotes'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'tags_editor',
+                child: Row(
+                  children: [
+                    Icon(Icons.local_offer, color: Color(0xFF800000)),
+                    SizedBox(width: 8),
+                    Text('Manage Tags'),
                   ],
                 ),
               ),
@@ -609,5 +655,507 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ],
       ),
     );
+  }
+}
+
+class _QuoteEditDialog extends StatefulWidget {
+  final bool isEditing;
+  final TextEditingController quoteController;
+  final TextEditingController authorController;
+  final List<String> initialTags;
+  final Function(List<String>) onSave;
+
+  const _QuoteEditDialog({
+    required this.isEditing,
+    required this.quoteController,
+    required this.authorController,
+    required this.initialTags,
+    required this.onSave,
+  });
+
+  @override
+  State<_QuoteEditDialog> createState() => _QuoteEditDialogState();
+}
+
+class _QuoteEditDialogState extends State<_QuoteEditDialog> {
+  List<String> _availableTags = [];
+  Set<String> _selectedTags = {};
+  bool _isLoadingTags = true;
+  final TextEditingController _newTagController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTags = Set<String>.from(widget.initialTags);
+    _loadAvailableTags();
+  }
+
+  Future<void> _loadAvailableTags() async {
+    try {
+      final idToken = await AuthService.getIdToken();
+      final headers = {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      };
+      
+      final baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/tags'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _availableTags = List<String>.from(data['tags'] ?? []);
+          _isLoadingTags = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingTags = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading tags: $e');
+      setState(() {
+        _isLoadingTags = false;
+      });
+    }
+  }
+
+  void _addNewTag() {
+    final newTag = _newTagController.text.trim();
+    if (newTag.isNotEmpty && !_availableTags.contains(newTag)) {
+      setState(() {
+        _availableTags.add(newTag);
+        _selectedTags.add(newTag);
+        _newTagController.clear();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.isEditing ? 'Edit Quote' : 'Add New Quote'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: widget.quoteController,
+              decoration: const InputDecoration(
+                labelText: 'Quote Text',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: widget.authorController,
+              decoration: const InputDecoration(
+                labelText: 'Author',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Tags',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            
+            // Selected tags display
+            if (_selectedTags.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFD700).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFFFFD700).withOpacity(0.3),
+                  ),
+                ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _selectedTags.map((tag) {
+                    return Chip(
+                      label: Text(tag),
+                      backgroundColor: const Color(0xFF800000).withOpacity(0.1),
+                      deleteIcon: const Icon(Icons.close, size: 18),
+                      onDeleted: () {
+                        setState(() {
+                          _selectedTags.remove(tag);
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            
+            // Add new tag field
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _newTagController,
+                    decoration: const InputDecoration(
+                      labelText: 'Add new tag',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onSubmitted: (_) => _addNewTag(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _addNewTag,
+                  icon: const Icon(Icons.add_circle),
+                  color: const Color(0xFF800000),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            // Available tags
+            const Text(
+              'Available Tags (tap to select)',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_isLoadingTags)
+              const Center(child: CircularProgressIndicator())
+            else
+              Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _availableTags.map((tag) {
+                      final isSelected = _selectedTags.contains(tag);
+                      return FilterChip(
+                        label: Text(tag),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedTags.add(tag);
+                            } else {
+                              _selectedTags.remove(tag);
+                            }
+                          });
+                        },
+                        selectedColor: const Color(0xFFFFD700).withOpacity(0.3),
+                        checkmarkColor: const Color(0xFF800000),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            widget.onSave(_selectedTags.toList());
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF800000),
+            foregroundColor: Colors.white,
+          ),
+          child: Text(widget.isEditing ? 'Update' : 'Create'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _newTagController.dispose();
+    super.dispose();
+  }
+}
+
+class _ImportDialog extends StatefulWidget {
+  final Function(List<Quote>) onImport;
+
+  const _ImportDialog({
+    required this.onImport,
+  });
+
+  @override
+  State<_ImportDialog> createState() => _ImportDialogState();
+}
+
+class _ImportDialogState extends State<_ImportDialog> {
+  final TextEditingController _textController = TextEditingController();
+  List<Quote> _parsedQuotes = [];
+  String? _error;
+  bool _showPreview = false;
+
+  void _parseData() {
+    setState(() {
+      _error = null;
+      _parsedQuotes = [];
+      _showPreview = false;
+    });
+
+    final text = _textController.text.trim();
+    if (text.isEmpty) {
+      setState(() {
+        _error = 'Please paste your data first';
+      });
+      return;
+    }
+
+    try {
+      final lines = text.split('\n');
+      if (lines.isEmpty) {
+        setState(() {
+          _error = 'No data found';
+        });
+        return;
+      }
+
+      // Skip header row if it contains "Nugget" and "Source"
+      int startIndex = 0;
+      if (lines[0].toLowerCase().contains('nugget') && lines[0].toLowerCase().contains('source')) {
+        startIndex = 1;
+      }
+
+      List<Quote> quotes = [];
+      for (int i = startIndex; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.isEmpty) continue;
+
+        // Split by tab (TSV format from Google Sheets)
+        final parts = line.split('\t');
+        if (parts.length < 2) continue; // Need at least quote and author
+
+        final quote = parts[0].trim();
+        final author = parts[1].trim();
+        
+        if (quote.isEmpty || author.isEmpty) continue;
+
+        // Collect tags from columns 2-6 (Tag1-Tag5)
+        List<String> tags = [];
+        for (int j = 2; j < parts.length && j < 7; j++) {
+          final tag = parts[j].trim();
+          if (tag.isNotEmpty) {
+            tags.add(tag);
+          }
+        }
+
+        quotes.add(Quote(
+          id: '', // Will be generated by server
+          quote: quote,
+          author: author,
+          tags: tags,
+          createdAt: '',
+          updatedAt: '',
+        ));
+      }
+
+      setState(() {
+        _parsedQuotes = quotes;
+        _showPreview = quotes.isNotEmpty;
+        if (quotes.isEmpty) {
+          _error = 'No valid quotes found. Make sure your data has quote and author columns.';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error parsing data: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.file_upload, color: Color(0xFF800000)),
+          SizedBox(width: 8),
+          Text('Import Quotes'),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 500,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Instructions:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '1. Select rows in your Google Sheet (including headers)\n'
+              '2. Copy them (Cmd+C or Ctrl+C)\n'
+              '3. Paste below and click "Parse Data"',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            
+            const Text(
+              'Paste your Google Sheets data here:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            
+            Expanded(
+              flex: _showPreview ? 1 : 2,
+              child: TextField(
+                controller: _textController,
+                maxLines: null,
+                expands: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Nugget\tSource\tTag1\tTag2...\nQuote text\tAuthor\tTag1\tTag2...',
+                  contentPadding: EdgeInsets.all(12),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: _parseData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF800000),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Parse Data'),
+                ),
+                if (_parsedQuotes.isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  Text(
+                    '${_parsedQuotes.length} quotes found',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade300),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                ),
+              ),
+            ],
+            
+            if (_showPreview) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Preview (first 3 quotes):',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                flex: 1,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: ListView.builder(
+                    itemCount: _parsedQuotes.take(3).length,
+                    itemBuilder: (context, index) {
+                      final quote = _parsedQuotes[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '"${quote.quote}"',
+                              style: const TextStyle(fontStyle: FontStyle.italic),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '— ${quote.author}',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            if (quote.tags.isNotEmpty)
+                              Text(
+                                'Tags: ${quote.tags.join(', ')}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _parsedQuotes.isNotEmpty
+              ? () {
+                  Navigator.of(context).pop();
+                  widget.onImport(_parsedQuotes);
+                }
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF800000),
+            foregroundColor: Colors.white,
+          ),
+          child: Text('Import ${_parsedQuotes.length} Quotes'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
   }
 }

@@ -257,7 +257,10 @@ def handle_list_quotes(event, user_claims):
     try:
         # Get all quotes for admin view
         response = table.scan()
-        quotes = response.get('Items', [])
+        all_items = response.get('Items', [])
+        
+        # Filter out metadata records - only include actual quotes
+        quotes = [item for item in all_items if item.get('id') != 'TAGS_METADATA']
         
         # Sort by creation date (newest first)
         quotes.sort(key=lambda x: x.get('created_at', ''), reverse=True)
@@ -359,6 +362,184 @@ def handle_cleanup_unused_tags(event, user_claims):
         print(f"Error cleaning up unused tags: {e}")
         return create_response(500, {"error": "Internal server error"})
 
+def handle_add_tag(event, user_claims):
+    """Handle POST /admin/tags"""
+    if not user_claims['is_admin']:
+        return create_response(403, {"error": "Forbidden", "message": "Admin access required"})
+    
+    try:
+        # Parse request body
+        body = json.loads(event.get('body', '{}'))
+        new_tag = body.get('tag', '').strip()
+        
+        if not new_tag:
+            return create_response(400, {"error": "Tag name is required"})
+        
+        # Get current tags
+        current_tags = set(get_tags_metadata())
+        
+        if new_tag in current_tags:
+            return create_response(400, {"error": f"Tag '{new_tag}' already exists"})
+        
+        # Add new tag
+        current_tags.add(new_tag)
+        
+        # Update metadata
+        metadata_id = "TAGS_METADATA"
+        timestamp = datetime.utcnow().isoformat() + 'Z'
+        
+        table.put_item(Item={
+            'id': metadata_id,
+            'tags': sorted(list(current_tags)),
+            'updated_at': timestamp
+        })
+        
+        print(f"✅ Added new tag: {new_tag}")
+        
+        return create_response(201, {
+            "message": f"Successfully added tag '{new_tag}'",
+            "tag": new_tag,
+            "all_tags": sorted(list(current_tags))
+        })
+        
+    except json.JSONDecodeError:
+        return create_response(400, {"error": "Invalid JSON in request body"})
+    except Exception as e:
+        print(f"Error adding tag: {e}")
+        return create_response(500, {"error": "Internal server error"})
+
+def handle_update_tag(event, user_claims):
+    """Handle PUT /admin/tags/{old_tag}"""
+    if not user_claims['is_admin']:
+        return create_response(403, {"error": "Forbidden", "message": "Admin access required"})
+    
+    try:
+        # Get old tag from path
+        old_tag = event.get('pathParameters', {}).get('tag')
+        if not old_tag:
+            return create_response(400, {"error": "Tag name is required in path"})
+        
+        # Parse request body
+        body = json.loads(event.get('body', '{}'))
+        new_tag = body.get('tag', '').strip()
+        
+        if not new_tag:
+            return create_response(400, {"error": "New tag name is required"})
+        
+        if old_tag == new_tag:
+            return create_response(400, {"error": "New tag name must be different from old tag name"})
+        
+        # Get current tags
+        current_tags = set(get_tags_metadata())
+        
+        if old_tag not in current_tags:
+            return create_response(404, {"error": f"Tag '{old_tag}' not found"})
+        
+        if new_tag in current_tags:
+            return create_response(400, {"error": f"Tag '{new_tag}' already exists"})
+        
+        # Update tag in metadata
+        current_tags.remove(old_tag)
+        current_tags.add(new_tag)
+        
+        # Update metadata
+        metadata_id = "TAGS_METADATA"
+        timestamp = datetime.utcnow().isoformat() + 'Z'
+        
+        table.put_item(Item={
+            'id': metadata_id,
+            'tags': sorted(list(current_tags)),
+            'updated_at': timestamp
+        })
+        
+        # Update all quotes that use this tag
+        response = table.scan()
+        all_items = response.get('Items', [])
+        quotes_updated = 0
+        
+        for item in all_items:
+            if item.get('id') != 'TAGS_METADATA' and 'tags' in item:
+                if old_tag in item['tags']:
+                    # Update the tags in this quote
+                    updated_tags = [new_tag if tag == old_tag else tag for tag in item['tags']]
+                    item['tags'] = updated_tags
+                    item['updated_at'] = timestamp
+                    table.put_item(Item=item)
+                    quotes_updated += 1
+        
+        print(f"✅ Updated tag '{old_tag}' to '{new_tag}' in {quotes_updated} quotes")
+        
+        return create_response(200, {
+            "message": f"Successfully updated tag '{old_tag}' to '{new_tag}'",
+            "old_tag": old_tag,
+            "new_tag": new_tag,
+            "quotes_updated": quotes_updated,
+            "all_tags": sorted(list(current_tags))
+        })
+        
+    except json.JSONDecodeError:
+        return create_response(400, {"error": "Invalid JSON in request body"})
+    except Exception as e:
+        print(f"Error updating tag: {e}")
+        return create_response(500, {"error": "Internal server error"})
+
+def handle_delete_tag(event, user_claims):
+    """Handle DELETE /admin/tags/{tag}"""
+    if not user_claims['is_admin']:
+        return create_response(403, {"error": "Forbidden", "message": "Admin access required"})
+    
+    try:
+        # Get tag from path
+        tag_to_delete = event.get('pathParameters', {}).get('tag')
+        if not tag_to_delete:
+            return create_response(400, {"error": "Tag name is required in path"})
+        
+        # Get current tags
+        current_tags = set(get_tags_metadata())
+        
+        if tag_to_delete not in current_tags:
+            return create_response(404, {"error": f"Tag '{tag_to_delete}' not found"})
+        
+        # Remove tag from metadata
+        current_tags.remove(tag_to_delete)
+        
+        # Update metadata
+        metadata_id = "TAGS_METADATA"
+        timestamp = datetime.utcnow().isoformat() + 'Z'
+        
+        table.put_item(Item={
+            'id': metadata_id,
+            'tags': sorted(list(current_tags)),
+            'updated_at': timestamp
+        })
+        
+        # Remove tag from all quotes that use it
+        response = table.scan()
+        all_items = response.get('Items', [])
+        quotes_updated = 0
+        
+        for item in all_items:
+            if item.get('id') != 'TAGS_METADATA' and 'tags' in item:
+                if tag_to_delete in item['tags']:
+                    # Remove the tag from this quote
+                    item['tags'] = [tag for tag in item['tags'] if tag != tag_to_delete]
+                    item['updated_at'] = timestamp
+                    table.put_item(Item=item)
+                    quotes_updated += 1
+        
+        print(f"✅ Deleted tag '{tag_to_delete}' from {quotes_updated} quotes")
+        
+        return create_response(200, {
+            "message": f"Successfully deleted tag '{tag_to_delete}'",
+            "deleted_tag": tag_to_delete,
+            "quotes_updated": quotes_updated,
+            "all_tags": sorted(list(current_tags))
+        })
+        
+    except Exception as e:
+        print(f"Error deleting tag: {e}")
+        return create_response(500, {"error": "Internal server error"})
+
 def lambda_handler(event, context):
     """
     AWS Lambda handler for admin quote management.
@@ -383,8 +564,14 @@ def lambda_handler(event, context):
             return handle_list_quotes(event, user_claims)
         elif method == 'GET' and path == '/admin/tags':
             return handle_get_tags(event, user_claims)
+        elif method == 'POST' and path == '/admin/tags':
+            return handle_add_tag(event, user_claims)
+        elif method == 'PUT' and path.startswith('/admin/tags/'):
+            return handle_update_tag(event, user_claims)
         elif method == 'DELETE' and path == '/admin/tags/unused':
             return handle_cleanup_unused_tags(event, user_claims)
+        elif method == 'DELETE' and path.startswith('/admin/tags/'):
+            return handle_delete_tag(event, user_claims)
         else:
             return create_response(404, {"error": "Not found"})
             
