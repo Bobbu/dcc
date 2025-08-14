@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/quote_screen.dart';
+import 'services/auth_service.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+  
+  try {
+    await AuthService.configure();
+  } catch (e) {
+    print('Failed to configure auth service: $e');
+  }
+  
   runApp(const DccApp());
 }
 

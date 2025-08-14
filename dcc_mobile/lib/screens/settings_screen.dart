@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../services/api_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool audioEnabled;
@@ -28,7 +29,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late FlutterTts _testTts;
   bool _isTestSpeaking = false;
   
-  static const List<String> _availableCategories = [
+  // Categories/Tags management
+  List<String> _availableCategories = [];
+  bool _categoriesLoaded = false;
+  
+  static const List<String> _fallbackCategories = [
     'All', 'Sports', 'Education', 'Science', 'Motivation', 'Funny', 'Persistence', 'Business'
   ];
 
@@ -43,6 +48,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _testTts = FlutterTts();
     _initTestTts();
     _loadAvailableVoices();
+    
+    // Load categories/tags
+    _loadCategories();
   }
   
   @override
@@ -82,6 +90,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
       print('Error loading voices: $e');
       setState(() {
         _voicesLoaded = true;
+      });
+    }
+  }
+  
+  Future<void> _loadCategories() async {
+    try {
+      print('📋 Loading dynamic tags from public API...');
+      
+      // Load tags from public API (no authentication required)
+      final apiTags = await ApiService.getTags();
+      
+      setState(() {
+        _availableCategories = apiTags;
+        _categoriesLoaded = true;
+      });
+      
+      print('✅ Loaded ${apiTags.length} dynamic tags: $apiTags');
+      
+    } catch (e) {
+      print('❌ Failed to load dynamic tags, using fallback categories: $e');
+      
+      // Use fallback categories if API fails
+      setState(() {
+        _availableCategories = List.from(_fallbackCategories);
+        _categoriesLoaded = true;
       });
     }
   }
@@ -400,28 +433,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFD700).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: const Color(0xFFFFD700).withOpacity(0.3),
-                          ),
-                        ),
-                        child: Text(
-                          'Note: Category filtering will be implemented in a future update. Currently all quotes are shown regardless of selection.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFF800000).withOpacity(0.6),
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _availableCategories.map((category) {
+                      if (!_categoriesLoaded)
+                        const Center(child: CircularProgressIndicator())
+                      else
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF800000).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: const Color(0xFF800000).withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.cloud_sync,
+                                    color: const Color(0xFF800000),
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Dynamic tags loaded from server',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: const Color(0xFF800000),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: _availableCategories.map((category) {
                           final isSelected = _selectedCategories.contains(category);
                           final isAllSelected = _selectedCategories.contains('All');
                           final isAll = category == 'All';
@@ -471,8 +520,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                             ),
                           );
-                        }).toList(),
-                      ),
+                              }).toList(),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),

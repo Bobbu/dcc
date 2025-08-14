@@ -5,6 +5,9 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'settings_screen.dart';
+import 'admin_login_screen.dart';
+import '../services/auth_service.dart';
+import 'admin_dashboard_screen.dart';
 
 class QuoteScreen extends StatefulWidget {
   const QuoteScreen({super.key});
@@ -142,6 +145,32 @@ class _QuoteScreenState extends State<QuoteScreen> {
     );
   }
 
+  Future<void> _openAdmin() async {
+    // Check if user is already signed in as admin
+    final isSignedIn = await AuthService.isSignedIn();
+    if (isSignedIn && await AuthService.isUserInAdminGroup()) {
+      // Already signed in as admin, go directly to dashboard
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AdminDashboardScreen(),
+          ),
+        );
+      }
+    } else {
+      // Not signed in or not admin, show login screen
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AdminLoginScreen(),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _getQuote() async {
     // Stop any currently playing audio
     await flutterTts.stop();
@@ -153,8 +182,15 @@ class _QuoteScreenState extends State<QuoteScreen> {
     });
 
     try {
+      // Build URL with tag filtering
+      String url = apiEndpoint;
+      if (!_selectedCategories.contains('All') && _selectedCategories.isNotEmpty) {
+        final tags = _selectedCategories.join(',');
+        url += '?tags=$tags';
+      }
+      
       final response = await http.get(
-        Uri.parse(apiEndpoint),
+        Uri.parse(url),
         headers: {
           'x-api-key': apiKey,
           'Content-Type': 'application/json',
@@ -209,6 +245,25 @@ class _QuoteScreenState extends State<QuoteScreen> {
             icon: const Icon(Icons.settings),
             onPressed: _openSettings,
             tooltip: 'Settings',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'admin') {
+                _openAdmin();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'admin',
+                child: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings),
+                    SizedBox(width: 8),
+                    Text('Admin'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

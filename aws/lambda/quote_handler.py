@@ -1,83 +1,153 @@
 import json
 import random
+import boto3
+import os
+from boto3.dynamodb.conditions import Key, Attr
 
-# Collection of inspirational quotes with their authors
-QUOTES = [
-    {
-        "quote": "The only way to do great work is to love what you do.",
-        "author": "Steve Jobs"
-    },
-    {
-        "quote": "Innovation distinguishes between a leader and a follower.",
-        "author": "Steve Jobs"
-    },
-    {
-        "quote": "Life is what happens to you while you're busy making other plans.",
-        "author": "John Lennon"
-    },
-    {
-        "quote": "The future belongs to those who believe in the beauty of their dreams.",
-        "author": "Eleanor Roosevelt"
-    },
-    {
-        "quote": "It is during our darkest moments that we must focus to see the light.",
-        "author": "Aristotle"
-    },
-    {
-        "quote": "The only impossible journey is the one you never begin.",
-        "author": "Tony Robbins"
-    },
-    {
-        "quote": "Success is not final, failure is not fatal: it is the courage to continue that counts.",
-        "author": "Winston Churchill"
-    },
-    {
-        "quote": "The way to get started is to quit talking and begin doing.",
-        "author": "Walt Disney"
-    },
-    {
-        "quote": "Don't let yesterday take up too much of today.",
-        "author": "Will Rogers"
-    },
-    {
-        "quote": "You learn more from failure than from success. Don't let it stop you. Failure builds character.",
-        "author": "Unknown"
-    },
-    {
-        "quote": "If you are working on something that you really care about, you don't have to be pushed. The vision pulls you.",
-        "author": "Steve Jobs"
-    },
-    {
-        "quote": "Experience is a hard teacher because she gives the test first, the lesson afterward.",
-        "author": "Vernon Law"
-    },
-    {
-        "quote": "To live a creative life, we must lose our fear of being wrong.",
-        "author": "Joseph Chilton Pearce"
-    },
-    {
-        "quote": "If you want to lift yourself up, lift up someone else.",
-        "author": "Booker T. Washington"
-    },
-    {
-        "quote": "I have not failed. I've just found 10,000 ways that won't work.",
-        "author": "Thomas A. Edison"
-    }
-]
+# Initialize DynamoDB
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ.get('QUOTES_TABLE', 'dcc-quotes'))
+
+def get_quotes_by_tags(tags):
+    """
+    Get quotes that contain any of the specified tags.
+    Uses DynamoDB scan with filter expression.
+    """
+    try:
+        if not tags or 'All' in tags:
+            # Get all quotes
+            response = table.scan()
+        else:
+            # Create filter expression for any tag match
+            filter_expressions = []
+            for tag in tags:
+                filter_expressions.append(Attr('tags').contains(tag))
+            
+            # Combine with OR logic
+            filter_expression = filter_expressions[0]
+            for expr in filter_expressions[1:]:
+                filter_expression = filter_expression | expr
+                
+            response = table.scan(FilterExpression=filter_expression)
+        
+        return response.get('Items', [])
+        
+    except Exception as e:
+        print(f"Error querying DynamoDB: {e}")
+        return []
+
+def parse_tags_from_query(event):
+    """
+    Parse tags from query string parameters.
+    Supports: ?tags=Motivation,Business or ?tags=All
+    """
+    query_params = event.get('queryStringParameters') or {}
+    tags_param = query_params.get('tags', 'All')
+    
+    if tags_param == 'All':
+        return ['All']
+    
+    # Split by comma and clean up
+    tags = [tag.strip() for tag in tags_param.split(',') if tag.strip()]
+    return tags if tags else ['All']
+
+def get_tags_metadata():
+    """Get all available tags from metadata record"""
+    try:
+        response = table.get_item(Key={'id': 'TAGS_METADATA'})
+        if 'Item' in response:
+            return response['Item']['tags']
+        return []
+    except Exception as e:
+        print(f"Error getting tags metadata: {e}")
+        return []
+
+def handle_tags_request():
+    """Handle GET /tags request"""
+    try:
+        tags = get_tags_metadata()
+        
+        # Ensure 'All' is first in the list
+        if 'All' not in tags:
+            tags = ['All'] + tags
+        elif tags.index('All') != 0:
+            tags.remove('All')
+            tags = ['All'] + tags
+        
+        response_body = {
+            "tags": tags,
+            "count": len(tags)
+        }
+        
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "GET,OPTIONS"
+            },
+            "body": json.dumps(response_body)
+        }
+        
+    except Exception as e:
+        print(f"Error handling tags request: {e}")
+        
+        error_response = {
+            "error": "Internal server error",
+            "message": "Failed to retrieve tags"
+        }
+        
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
+            "body": json.dumps(error_response)
+        }
 
 def lambda_handler(event, context):
     """
-    AWS Lambda handler for the quote endpoint.
-    Returns a random quote with its author.
+    AWS Lambda handler for the quote endpoint and tags endpoint.
+    
+    Routes:
+    - GET /quote: Returns a random quote with its author, filtered by tags if specified.
+    - GET /tags: Returns all available tags.
+    
+    Query parameters for /quote:
+    - tags: Comma-separated list of tags (e.g., "Motivation,Business") or "All"
     """
     try:
+        # Route based on path
+        path = event.get('path', '/quote')
+        
+        if path == '/tags':
+            return handle_tags_request()
+        
+        # Default to quote handling
+        # Parse tags from query parameters
+        requested_tags = parse_tags_from_query(event)
+        
+        # Get quotes matching the tags
+        quotes = get_quotes_by_tags(requested_tags)
+        
+        if not quotes:
+            # Fallback to all quotes if no matches found
+            quotes = get_quotes_by_tags(['All'])
+        
+        if not quotes:
+            raise Exception("No quotes found in database")
+        
         # Select a random quote
-        selected_quote = random.choice(QUOTES)
+        selected_quote = random.choice(quotes)
         
         # Prepare the response
         response_body = {
             "quote": selected_quote["quote"],
-            "author": selected_quote["author"]
+            "author": selected_quote["author"],
+            "tags": selected_quote.get("tags", []),
+            "id": selected_quote["id"]
         }
         
         return {
@@ -93,6 +163,8 @@ def lambda_handler(event, context):
         
     except Exception as e:
         # Handle any unexpected errors
+        print(f"Lambda error: {e}")
+        
         error_response = {
             "error": "Internal server error",
             "message": "Failed to retrieve quote"

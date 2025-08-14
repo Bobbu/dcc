@@ -26,6 +26,12 @@ Resources:
       Handler: quote_handler.lambda_handler
       Runtime: python3.10
       Timeout: 30
+      Environment:
+        Variables:
+          QUOTES_TABLE: !Ref QuotesTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref QuotesTable
       Events:
         QuoteApi:
           Type: Api
@@ -33,6 +39,83 @@ Resources:
             Path: /quote
             Method: GET
             RestApiId: !Ref ApiGatewayApi
+        TagsApi:
+          Type: Api
+          Properties:
+            Path: /tags
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+
+  # Admin Lambda function for CRUD operations
+  AdminFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-admin-handler
+      CodeUri: lambda/
+      Handler: admin_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          QUOTES_TABLE: !Ref QuotesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotesTable
+      Events:
+        CreateQuote:
+          Type: Api
+          Properties:
+            Path: /admin/quotes
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UpdateQuote:
+          Type: Api
+          Properties:
+            Path: /admin/quotes/{id}
+            Method: PUT
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        DeleteQuote:
+          Type: Api
+          Properties:
+            Path: /admin/quotes/{id}
+            Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        ListQuotes:
+          Type: Api
+          Properties:
+            Path: /admin/quotes
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        GetTags:
+          Type: Api
+          Properties:
+            Path: /admin/tags
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        CleanupUnusedTags:
+          Type: Api
+          Properties:
+            Path: /admin/tags/unused
+            Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
 
   # Explicit API Gateway for better control
   ApiGatewayApi:
@@ -42,8 +125,13 @@ Resources:
       StageName: prod
       Auth:
         ApiKeyRequired: true
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+            AuthType: COGNITO_USER_POOLS
+            IdentitySource: method.request.header.Authorization
       Cors:
-        AllowMethods: "'GET,OPTIONS'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
       MethodSettings:
@@ -92,6 +180,74 @@ Resources:
       KeyType: API_KEY
       UsagePlanId: !Ref UsagePlan
 
+  # Cognito User Pool for admin authentication
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: dcc-admin-pool
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: dcc-admin-client
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ADMIN_NO_SRP_AUTH
+        - USER_PASSWORD_AUTH
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+
+  # Admin Group
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admins
+      UserPoolId: !Ref UserPool
+      Description: Admin users for quote management
+      Precedence: 1
+
+  # DynamoDB table for quotes
+  QuotesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: dcc-quotes
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: tag
+          AttributeType: S
+        - AttributeName: quote_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: TagIndex
+          KeySchema:
+            - AttributeName: tag
+              KeyType: HASH
+            - AttributeName: quote_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+      BillingMode: PAY_PER_REQUEST
+
   # Custom Domain Name
   CustomDomain:
     Type: AWS::ApiGateway::DomainName
@@ -138,3 +294,21 @@ Outputs:
   ApiKeyValue:
     Description: "API Key for accessing the service"
     Value: !Ref ApiKey
+
+  UserPoolId:
+    Description: "Cognito User Pool ID"
+    Value: !Ref UserPool
+    Export:
+      Name: DccUserPoolId
+
+  UserPoolClientId:
+    Description: "Cognito User Pool Client ID" 
+    Value: !Ref UserPoolClient
+    Export:
+      Name: DccUserPoolClientId
+
+  QuotesTableName:
+    Description: "DynamoDB Quotes Table Name"
+    Value: !Ref QuotesTable
+    Export:
+      Name: DccQuotesTableName
