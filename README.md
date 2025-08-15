@@ -35,9 +35,11 @@ A comprehensive, enterprise-grade quote management platform featuring secure AWS
 - **Admin Management Features**:
   - Secure Cognito authentication with admin group verification
   - Complete quote lifecycle management (Create, Read, Update, Delete)
-  - Real-time quote list with metadata display
+  - Real-time quote list with advanced sorting capabilities (Quote, Author, Date)
+  - AppBar sorting toggles with ascending/descending options and visual indicators
+  - Intelligent duplicate detection and cleanup with preservation logic
   - Multi-select tag editor with inline tag creation
-  - Import from Google Sheets via copy/paste with preview
+  - Import from Google Sheets with real-time progress tracking and batch processing
   - Automated unused tag cleanup with confirmation dialogs
   - Instant synchronization with public API
 
@@ -147,9 +149,13 @@ You can create additional admin users via AWS Console or CLI.
 2. Tap the **three-dot menu** in the app bar
 3. Select **"Admin"** from the dropdown
 4. Sign in with admin credentials
-5. Manage quotes via the admin dashboard
-6. Access Tags Editor via menu → "Manage Tags" for individual tag operations
-7. Import quotes via menu → "Import Quotes" for bulk import from Google Sheets
+5. Manage quotes via the admin dashboard with sorting and duplicate cleanup
+6. **Admin Dashboard Features**:
+   - **Sort quotes**: Use AppBar toggle buttons for Quote, Author, or Date sorting
+   - **Manage duplicates**: Menu → "Clean Duplicate Quotes" for intelligent duplicate cleanup
+   - **Manage tags**: Menu → "Manage Tags" for individual tag operations
+   - **Import quotes**: Menu → "Import Quotes" for bulk import with progress tracking
+   - **Clean unused tags**: Menu → "Clean Unused Tags" for automated tag cleanup
 
 ## Development Notes
 
@@ -192,8 +198,8 @@ curl -H "Authorization: Bearer $TOKEN" "https://dcc.anystupididea.com/admin/quot
 
 ### Import Feature
 
-**Google Sheets Import:**
-The admin dashboard includes a powerful import feature for bulk quote creation from Google Sheets:
+**Google Sheets Import with Progress Tracking:**
+The admin dashboard includes a powerful import feature for bulk quote creation from Google Sheets with real-time progress monitoring:
 
 1. **Prepare your data** in Google Sheets with columns:
    - Column A: Nugget (Quote text)
@@ -208,9 +214,16 @@ The admin dashboard includes a powerful import feature for bulk quote creation f
 
 5. **Review** the preview showing first 3 quotes
 
-6. **Import** all quotes with one click
+6. **Import** all quotes with real-time progress tracking
 
-The import system handles tab-separated values, automatically detects headers, and provides feedback on success/failure counts.
+**Progress Features:**
+- **Visual Progress Bar**: Shows completion percentage during import
+- **Live Counter**: Displays "25 of 100 quotes" style progress tracking
+- **Batch Processing**: Processes quotes in groups of 5 with rate limiting protection
+- **Status Updates**: Real-time messages like "Processing batch 3 of 20..." and "Importing 25 of 100..."
+- **Error Handling**: Continues import even if individual quotes fail, with detailed results
+
+The import system handles tab-separated values, automatically detects headers, includes 1.1-second delays to prevent API overload, and provides comprehensive feedback on success/failure counts with retry functionality.
 
 ### Flutter Development Features
 
@@ -229,6 +242,20 @@ The import system handles tab-separated values, automatically detects headers, a
 **Admin Management:**
 - **Secure Authentication**: AWS Cognito integration with admin group verification
 - **Complete CRUD Operations**: Create, read, update, delete quotes with validation
+- **Advanced Sorting System**:
+  - **Three Sort Fields**: Quote text, Author name, and Created Date sorting options
+  - **AppBar Integration**: Compact toggle buttons directly in the app bar for quick access
+  - **Bi-Directional Sorting**: Click once for ascending, click again for descending order
+  - **Visual Indicators**: Arrow icons show current sort direction, expand icons show inactive fields
+  - **Smart Tooltips**: Hover text explains each button's function and current sort state
+  - **Persistent State**: Sort preferences maintained during admin session
+- **Duplicate Management System**:
+  - **Smart Detection**: Identifies duplicates by matching quote text and author exactly (case-insensitive)
+  - **Tag Agnostic**: Ignores tag differences when determining duplicates
+  - **Intelligent Selection**: Pre-selects newer duplicates for deletion while preserving the oldest quote
+  - **User Control**: Full control over which quotes to keep or delete with checkbox interface
+  - **Batch Operations**: Safely deletes multiple duplicates with rate limiting protection
+  - **Preview Dialog**: Shows duplicate groups with metadata to assist decision-making
 - **Tag Management System**: 
   - **Tags Editor**: Dedicated interface for individual tag CRUD operations
   - **Data Integrity**: Automatic quote synchronization when tags are renamed or deleted

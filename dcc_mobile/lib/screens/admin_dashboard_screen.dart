@@ -52,11 +52,19 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
+enum SortField { quote, author, createdAt }
+
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<Quote> _quotes = [];
   bool _isLoading = true;
   String? _error;
   String? _userEmail;
+  SortField _sortField = SortField.createdAt;
+  bool _sortAscending = false;
+  bool _isImporting = false;
+  int _importProgress = 0;
+  int _importTotal = 0;
+  String _importStatus = '';
 
   static final String _baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
 
@@ -82,6 +90,140 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     };
   }
 
+  void _sortQuotes() {
+    _quotes.sort((a, b) {
+      int comparison;
+      switch (_sortField) {
+        case SortField.quote:
+          comparison = a.quote.toLowerCase().compareTo(b.quote.toLowerCase());
+          break;
+        case SortField.author:
+          comparison = a.author.toLowerCase().compareTo(b.author.toLowerCase());
+          break;
+        case SortField.createdAt:
+          comparison = a.createdAt.compareTo(b.createdAt);
+          break;
+      }
+      return _sortAscending ? comparison : -comparison;
+    });
+  }
+
+  void _setSortField(SortField field) {
+    setState(() {
+      if (_sortField == field) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortField = field;
+        _sortAscending = true;
+      }
+      _sortQuotes();
+    });
+  }
+
+  Widget _buildImportProgress() {
+    final progress = _importTotal > 0 ? _importProgress / _importTotal : 0.0;
+    
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.cloud_upload,
+              size: 64,
+              color: Color(0xFF800000),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Importing Quotes',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF800000),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Progress bar
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxWidth: 300),
+              child: Column(
+                children: [
+                  LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: Colors.grey.shade300,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF800000)),
+                    minHeight: 8,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$_importProgress of $_importTotal quotes',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // Status message
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFD700).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: const Color(0xFFFFD700).withOpacity(0.3),
+                ),
+              ),
+              child: Text(
+                _importStatus,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // Cancel button (optional - though canceling mid-import could be complex)
+            const Text(
+              'Please wait while quotes are being imported...',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<List<Quote>> _findDuplicateGroups() {
+    Map<String, List<Quote>> duplicateMap = {};
+    
+    for (Quote quote in _quotes) {
+      String key = '${quote.quote.trim().toLowerCase()}|${quote.author.trim().toLowerCase()}';
+      if (duplicateMap.containsKey(key)) {
+        duplicateMap[key]!.add(quote);
+      } else {
+        duplicateMap[key] = [quote];
+      }
+    }
+    
+    // Return only groups with more than one quote (actual duplicates)
+    return duplicateMap.values.where((group) => group.length > 1).toList();
+  }
+
   Future<void> _loadQuotes() async {
     setState(() {
       _isLoading = true;
@@ -103,6 +245,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         
         setState(() {
           _quotes = quotes;
+          _sortQuotes();
           _isLoading = false;
         });
       } else if (response.statusCode == 401) {
@@ -208,6 +351,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+  Future<void> _cleanupDuplicateQuotes(List<String> quoteIdsToDelete) async {
+    if (quoteIdsToDelete.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    int deletedCount = 0;
+    List<String> errors = [];
+
+    try {
+      final headers = await _getAuthHeaders();
+
+      for (String quoteId in quoteIdsToDelete) {
+        try {
+          final response = await http.delete(
+            Uri.parse('$_baseUrl/admin/quotes/$quoteId'),
+            headers: headers,
+          );
+
+          if (response.statusCode == 200) {
+            deletedCount++;
+          } else {
+            errors.add('Failed to delete quote $quoteId (${response.statusCode})');
+          }
+
+          // Add small delay between deletions to prevent rate limiting
+          if (quoteId != quoteIdsToDelete.last) {
+            await Future.delayed(const Duration(milliseconds: 300));
+          }
+        } catch (e) {
+          errors.add('Error deleting quote $quoteId: $e');
+        }
+      }
+
+      // Reload quotes to show updated data
+      await _loadQuotes();
+
+      if (mounted) {
+        if (deletedCount > 0) {
+          _showMessage('Successfully deleted $deletedCount duplicate quotes', isError: false);
+        }
+        if (errors.isNotEmpty) {
+          _showMessage('Some deletions failed: ${errors.take(3).join(', ')}${errors.length > 3 ? '...' : ''}', isError: true);
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Cleanup failed: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
   void _showMessage(String message, {required bool isError}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -264,6 +461,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _showCleanupDuplicatesDialog() {
+    final duplicateGroups = _findDuplicateGroups();
+    
+    if (duplicateGroups.isEmpty) {
+      _showMessage('No duplicate quotes found!', isError: false);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => _DuplicateCleanupDialog(
+        duplicateGroups: duplicateGroups,
+        onCleanup: (quoteIdsToDelete) {
+          Navigator.of(context).pop();
+          _cleanupDuplicateQuotes(quoteIdsToDelete);
+        },
+      ),
+    );
+  }
+
   void _showImportDialog() {
     showDialog(
       context: context,
@@ -279,51 +496,132 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (quotes.isEmpty) return;
 
     setState(() {
-      _isLoading = true;
+      _isImporting = true;
+      _isLoading = false; // Don't show general loading, show progress instead
+      _importProgress = 0;
+      _importTotal = quotes.length;
+      _importStatus = 'Starting import...';
     });
+
+    List<Quote> successfulQuotes = [];
+    List<Map<String, dynamic>> failedQuotes = [];
+    const int batchSize = 5;
 
     try {
       final headers = await _getAuthHeaders();
-      int successCount = 0;
-      int errorCount = 0;
 
-      for (final quote in quotes) {
-        try {
-          final response = await http.post(
-            Uri.parse('$_baseUrl/admin/quotes'),
-            headers: headers,
-            body: json.encode(quote.toJson()),
-          );
+      // Process quotes in batches of 5
+      for (int batchStart = 0; batchStart < quotes.length; batchStart += batchSize) {
+        final batchEnd = (batchStart + batchSize < quotes.length) 
+            ? batchStart + batchSize 
+            : quotes.length;
+        
+        final batch = quotes.sublist(batchStart, batchEnd);
+        
+        setState(() {
+          _importStatus = 'Processing batch ${(batchStart ~/ batchSize) + 1} of ${(quotes.length / batchSize).ceil()}...';
+        });
 
-          if (response.statusCode == 201) {
-            successCount++;
-          } else {
-            errorCount++;
+        // Process each quote in the current batch
+        for (int i = 0; i < batch.length; i++) {
+          final globalIndex = batchStart + i;
+          final quote = batch[i];
+          
+          setState(() {
+            _importProgress = globalIndex + 1;
+            _importStatus = 'Importing ${globalIndex + 1} of ${quotes.length}...';
+          });
+          
+          try {
+            final response = await http.post(
+              Uri.parse('$_baseUrl/admin/quotes'),
+              headers: headers,
+              body: json.encode(quote.toJson()),
+            );
+
+            if (response.statusCode == 201) {
+              successfulQuotes.add(quote);
+            } else {
+              String errorMsg = 'Unknown error';
+              try {
+                final errorData = json.decode(response.body);
+                errorMsg = errorData['error'] ?? errorData['message'] ?? 'Error ${response.statusCode}';
+              } catch (_) {
+                errorMsg = 'Error ${response.statusCode}';
+              }
+              
+              failedQuotes.add({
+                'quote': quote,
+                'error': errorMsg,
+                'index': globalIndex + 1,
+              });
+            }
+          } catch (e) {
+            failedQuotes.add({
+              'quote': quote,
+              'error': 'Network error: ${e.toString()}',
+              'index': globalIndex + 1,
+            });
           }
-        } catch (e) {
-          errorCount++;
+
+          // Add delay between requests to prevent rate limiting
+          // Skip delay after the last request
+          if (globalIndex < quotes.length - 1) {
+            await Future.delayed(const Duration(milliseconds: 1100)); // 1.1 second delay
+          }
+        }
+
+        // Small pause between batches for UI updates
+        if (batchEnd < quotes.length) {
+          setState(() {
+            _importStatus = 'Completed batch ${(batchStart ~/ batchSize) + 1}. Starting next batch...';
+          });
+          await Future.delayed(const Duration(milliseconds: 500));
         }
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Import complete: $successCount imported, $errorCount failed',
-            ),
-            backgroundColor: successCount > 0 ? Colors.green : Colors.red,
-          ),
-        );
-      }
+      setState(() {
+        _importStatus = 'Finalizing import...';
+      });
 
       // Reload quotes to show imported ones
       await _loadQuotes();
+
+      setState(() {
+        _isImporting = false;
+        _importProgress = 0;
+        _importTotal = 0;
+        _importStatus = '';
+      });
+
+      if (mounted) {
+        // Show detailed results dialog
+        _showImportResultsDialog(successfulQuotes, failedQuotes);
+      }
     } catch (e) {
       setState(() {
+        _isImporting = false;
+        _importProgress = 0;
+        _importTotal = 0;
+        _importStatus = '';
         _error = 'Import failed: $e';
         _isLoading = false;
       });
     }
+  }
+
+  void _showImportResultsDialog(List<Quote> successful, List<Map<String, dynamic>> failed) {
+    showDialog(
+      context: context,
+      builder: (context) => _ImportResultsDialog(
+        successfulQuotes: successful,
+        failedQuotes: failed,
+        onRetry: (quotesToRetry) {
+          Navigator.of(context).pop();
+          _importQuotes(quotesToRetry);
+        },
+      ),
+    );
   }
 
   void _showQuoteDialog({Quote? quote}) {
@@ -367,6 +665,55 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         backgroundColor: const Color(0xFF800000),
         foregroundColor: Colors.white,
         actions: [
+          // Sorting buttons
+          IconButton(
+            onPressed: () => _setSortField(SortField.quote),
+            icon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.format_quote, size: 16),
+                Icon(
+                  _sortField == SortField.quote 
+                    ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                    : Icons.unfold_more,
+                  size: 12,
+                ),
+              ],
+            ),
+            tooltip: 'Sort by Quote ${_sortField == SortField.quote ? (_sortAscending ? '(A-Z)' : '(Z-A)') : ''}',
+          ),
+          IconButton(
+            onPressed: () => _setSortField(SortField.author),
+            icon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person, size: 16),
+                Icon(
+                  _sortField == SortField.author 
+                    ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                    : Icons.unfold_more,
+                  size: 12,
+                ),
+              ],
+            ),
+            tooltip: 'Sort by Author ${_sortField == SortField.author ? (_sortAscending ? '(A-Z)' : '(Z-A)') : ''}',
+          ),
+          IconButton(
+            onPressed: () => _setSortField(SortField.createdAt),
+            icon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.schedule, size: 16),
+                Icon(
+                  _sortField == SortField.createdAt 
+                    ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                    : Icons.unfold_more,
+                  size: 12,
+                ),
+              ],
+            ),
+            tooltip: 'Sort by Date ${_sortField == SortField.createdAt ? (_sortAscending ? '(Old-New)' : '(New-Old)') : ''}',
+          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'refresh') {
@@ -381,6 +728,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 );
               } else if (value == 'cleanup_tags') {
                 _showCleanupTagsDialog();
+              } else if (value == 'cleanup_duplicates') {
+                _showCleanupDuplicatesDialog();
               } else if (value == 'logout') {
                 _signOut();
               }
@@ -423,6 +772,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.cleaning_services, color: Colors.orange),
                     SizedBox(width: 8),
                     Text('Clean Unused Tags'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'cleanup_duplicates',
+                child: Row(
+                  children: [
+                    Icon(Icons.content_copy, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Clean Duplicate Quotes'),
                   ],
                 ),
               ),
@@ -487,7 +846,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF800000)),
                     ),
                   )
-                : _error != null
+                : _isImporting
+                    ? _buildImportProgress()
+                    : _error != null
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1157,5 +1518,533 @@ class _ImportDialogState extends State<_ImportDialog> {
   void dispose() {
     _textController.dispose();
     super.dispose();
+  }
+}
+
+class _ImportResultsDialog extends StatefulWidget {
+  final List<Quote> successfulQuotes;
+  final List<Map<String, dynamic>> failedQuotes;
+  final Function(List<Quote>) onRetry;
+
+  const _ImportResultsDialog({
+    required this.successfulQuotes,
+    required this.failedQuotes,
+    required this.onRetry,
+  });
+
+  @override
+  State<_ImportResultsDialog> createState() => _ImportResultsDialogState();
+}
+
+class _ImportResultsDialogState extends State<_ImportResultsDialog> {
+  late List<Map<String, dynamic>> _editableFailedQuotes;
+  
+  @override
+  void initState() {
+    super.initState();
+    // Create editable copies of failed quotes
+    _editableFailedQuotes = widget.failedQuotes.map((item) {
+      return {
+        'quote': Quote(
+          id: '',
+          quote: item['quote'].quote,
+          author: item['quote'].author,
+          tags: List<String>.from(item['quote'].tags),
+          createdAt: '',
+          updatedAt: '',
+        ),
+        'error': item['error'],
+        'index': item['index'],
+        'selected': true, // By default, select all for retry
+      };
+    }).toList();
+  }
+
+  void _editFailedQuote(int index) {
+    final item = _editableFailedQuotes[index];
+    final quote = item['quote'] as Quote;
+    
+    // Use temporary variables for editing
+    String tempQuoteText = quote.quote;
+    String tempAuthor = quote.author;
+    List<String> tempTags = List<String>.from(quote.tags);
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Edit Quote #${item['index']}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Show the error message
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    border: Border.all(color: Colors.red.shade300),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Error: ${item['error']}',
+                          style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Edit fields
+                TextField(
+                  controller: TextEditingController(text: tempQuoteText),
+                  decoration: const InputDecoration(
+                    labelText: 'Quote Text',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) {
+                    tempQuoteText = value;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: TextEditingController(text: tempAuthor),
+                  decoration: const InputDecoration(
+                    labelText: 'Author',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    tempAuthor = value;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: TextEditingController(text: tempTags.join(', ')),
+                  decoration: const InputDecoration(
+                    labelText: 'Tags (comma-separated)',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    tempTags = value.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+                  },
+                ),
+              ],
+            ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                // Create a new Quote object with the edited values
+                _editableFailedQuotes[index]['quote'] = Quote(
+                  id: '',
+                  quote: tempQuoteText,
+                  author: tempAuthor,
+                  tags: tempTags,
+                  createdAt: '',
+                  updatedAt: '',
+                );
+              });
+              Navigator.of(context).pop();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF800000),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasFailures = widget.failedQuotes.isNotEmpty;
+    final selectedCount = _editableFailedQuotes.where((item) => item['selected'] == true).length;
+    
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            hasFailures ? Icons.warning : Icons.check_circle,
+            color: hasFailures ? Colors.orange : Colors.green,
+          ),
+          const SizedBox(width: 8),
+          const Text('Import Results'),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Summary
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Column(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green, size: 32),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${widget.successfulQuotes.length}',
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      const Text('Successful'),
+                    ],
+                  ),
+                  if (hasFailures)
+                    Column(
+                      children: [
+                        Icon(Icons.error, color: Colors.red, size: 32),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${widget.failedQuotes.length}',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                        const Text('Failed'),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            
+            if (hasFailures) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Failed Quotes (tap to edit):',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              
+              // Failed quotes list
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _editableFailedQuotes.length,
+                  itemBuilder: (context, index) {
+                    final item = _editableFailedQuotes[index];
+                    final quote = item['quote'] as Quote;
+                    
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: Checkbox(
+                          value: item['selected'] ?? false,
+                          onChanged: (value) {
+                            setState(() {
+                              item['selected'] = value;
+                            });
+                          },
+                        ),
+                        title: Text(
+                          '"${quote.quote.length > 50 ? quote.quote.substring(0, 50) + '...' : quote.quote}"',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('— ${quote.author}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                            Text(
+                              'Error: ${item['error']}',
+                              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.edit, color: Color(0xFF800000)),
+                          onPressed: () => _editFailedQuote(index),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              if (selectedCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    '$selectedCount selected for retry',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+            ],
+            
+            // Success list (if no failures or collapsed)
+            if (!hasFailures && widget.successfulQuotes.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Successfully Imported:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: widget.successfulQuotes.length,
+                  itemBuilder: (context, index) {
+                    final quote = widget.successfulQuotes[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      child: ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                        title: Text(
+                          '"${quote.quote.length > 50 ? quote.quote.substring(0, 50) + '...' : quote.quote}"',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        subtitle: Text('— ${quote.author}'),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        if (hasFailures && selectedCount > 0)
+          ElevatedButton(
+            onPressed: () {
+              // Get selected quotes for retry
+              final quotesToRetry = _editableFailedQuotes
+                  .where((item) => item['selected'] == true)
+                  .map((item) => item['quote'] as Quote)
+                  .toList();
+              
+              if (quotesToRetry.isNotEmpty) {
+                widget.onRetry(quotesToRetry);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF800000),
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Retry Selected ($selectedCount)'),
+          ),
+      ],
+    );
+  }
+}
+
+class _DuplicateCleanupDialog extends StatefulWidget {
+  final List<List<Quote>> duplicateGroups;
+  final Function(List<String>) onCleanup;
+
+  const _DuplicateCleanupDialog({
+    required this.duplicateGroups,
+    required this.onCleanup,
+  });
+
+  @override
+  State<_DuplicateCleanupDialog> createState() => _DuplicateCleanupDialogState();
+}
+
+class _DuplicateCleanupDialogState extends State<_DuplicateCleanupDialog> {
+  late Map<String, bool> _selectedQuotesToDelete;
+  
+  @override
+  void initState() {
+    super.initState();
+    _selectedQuotesToDelete = {};
+    
+    // Pre-select all duplicates except the first one in each group (keep the oldest)
+    for (List<Quote> group in widget.duplicateGroups) {
+      List<Quote> sortedGroup = List.from(group);
+      sortedGroup.sort((a, b) => a.createdAt.compareTo(b.createdAt)); // Sort by creation date
+      
+      for (int i = 1; i < sortedGroup.length; i++) { // Skip first (oldest)
+        _selectedQuotesToDelete[sortedGroup[i].id] = true;
+      }
+      
+      // Mark the first (oldest) as not selected
+      _selectedQuotesToDelete[sortedGroup[0].id] = false;
+    }
+  }
+
+  int get _totalDuplicates {
+    return widget.duplicateGroups.fold(0, (sum, group) => sum + group.length);
+  }
+
+  int get _selectedCount {
+    return _selectedQuotesToDelete.values.where((selected) => selected).length;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.content_copy, color: Colors.red),
+          const SizedBox(width: 8),
+          Text('Clean Duplicate Quotes (${widget.duplicateGroups.length} groups found)'),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 500,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Found $_totalDuplicates total quotes in ${widget.duplicateGroups.length} duplicate groups',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$_selectedCount quotes selected for deletion',
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'By default, the oldest quote in each group is kept (unchecked). You can change the selection below.',
+                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Duplicate Groups (select quotes to delete):',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                itemCount: widget.duplicateGroups.length,
+                itemBuilder: (context, groupIndex) {
+                  final group = widget.duplicateGroups[groupIndex];
+                  final sortedGroup = List<Quote>.from(group);
+                  sortedGroup.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Group ${groupIndex + 1} (${group.length} duplicates)',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '"${group.first.quote.length > 100 ? group.first.quote.substring(0, 100) + '...' : group.first.quote}"',
+                            style: const TextStyle(
+                              fontStyle: FontStyle.italic,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            '— ${group.first.author}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ...sortedGroup.map((quote) {
+                            final isSelected = _selectedQuotesToDelete[quote.id] ?? false;
+                            final isOldest = quote == sortedGroup.first;
+                            
+                            return CheckboxListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'Created: ${quote.createdAt}${isOldest ? ' (oldest)' : ''}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isOldest ? Colors.green.shade700 : null,
+                                  fontWeight: isOldest ? FontWeight.w500 : null,
+                                ),
+                              ),
+                              subtitle: quote.tags.isNotEmpty 
+                                ? Text(
+                                    'Tags: ${quote.tags.join(', ')}',
+                                    style: const TextStyle(fontSize: 10),
+                                  )
+                                : null,
+                              value: isSelected,
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedQuotesToDelete[quote.id] = value ?? false;
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _selectedCount > 0 
+            ? () {
+                final quoteIdsToDelete = _selectedQuotesToDelete.entries
+                    .where((entry) => entry.value)
+                    .map((entry) => entry.key)
+                    .toList();
+                widget.onCleanup(quoteIdsToDelete);
+              }
+            : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+          ),
+          child: Text('Delete $_selectedCount Duplicates'),
+        ),
+      ],
+    );
   }
 }

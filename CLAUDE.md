@@ -141,9 +141,12 @@ open -a Simulator
 - **Advanced Features**:
   - **Audio System**: Voice selection, testing, smart interruption controls, and simulator compatibility
   - **Dynamic Tag Filtering**: Real-time tag loading with 3-tag minimum for variety
-  - **Admin Management**: Complete quote CRUD with real-time updates
+  - **Admin Management**: Complete quote CRUD with real-time updates and advanced sorting
+  - **Quote Sorting**: AppBar toggle buttons for sorting by Quote, Author, or Created Date (ascending/descending)
+  - **Duplicate Management**: Smart duplicate detection and cleanup with intelligent selection
   - **Tag Management System**: Dedicated Tags Editor with individual tag CRUD operations
-  - **Import System**: Copy/paste TSV import from Google Sheets with preview
+  - **Import System**: Copy/paste TSV import from Google Sheets with real-time progress tracking
+  - **Progress Tracking**: Batch processing with visual progress bar and status updates
   - **Tag Cleanup System**: Automated removal of unused tags from metadata with confirmation dialog
   - **Data Integrity**: Automatic quote synchronization when tags are renamed or deleted
   - **Responsive Design**: Perfect layout in all orientations with no overflow
@@ -151,7 +154,7 @@ open -a Simulator
   - **Resilience Features**: Automatic retry with exponential backoff for server errors
 
 ### Import System
-The admin dashboard includes a powerful copy/paste import feature for Google Sheets data:
+The admin dashboard includes a powerful copy/paste import feature for Google Sheets data with real-time progress tracking:
 
 **Core Features**:
 - **TSV Parser**: Handles tab-separated values from Google Sheets copy/paste
@@ -161,11 +164,65 @@ The admin dashboard includes a powerful copy/paste import feature for Google She
   - Column 2: Source (Author)
   - Columns 3-7: Tag1, Tag2, Tag3, Tag4, Tag5
 - **Live Preview**: Shows first 3 parsed quotes before importing
-- **Batch Processing**: Creates multiple quotes via sequential API calls
-- **Import Feedback**: Shows success/failure counts after import
+- **Batch Processing**: Processes quotes in batches of 5 with 1.1-second delays to prevent rate limiting
+- **Real-Time Progress**: Visual progress bar and status updates during long imports
+- **Progress Tracking**: Shows "Importing 25 of 100..." with batch status updates
+- **Import Feedback**: Shows success/failure counts after import with retry functionality
 - **Error Handling**: Continues import even if individual quotes fail
+- **Rate Limiting Protection**: Built-in delays and batch processing prevent API overload
+
+**Progress Display**:
+- **Visual Progress Bar**: Linear progress indicator with percentage completion
+- **Live Counter**: "25 of 100 quotes" style progress tracking
+- **Status Messages**: Real-time updates like "Processing batch 3 of 20..." and "Importing 25 of 100..."
+- **Batch Visibility**: Clear indication of processing stages and completion status
 
 **Access Method**: Admin Dashboard → Menu → "Import Quotes"
+
+### Admin Dashboard Sorting System
+The admin dashboard provides comprehensive sorting capabilities for efficient quote management:
+
+**Sorting Features**:
+- **Three Sort Fields**: Quote text, Author name, and Created Date sorting options
+- **AppBar Integration**: Compact toggle buttons directly in the app bar for quick access
+- **Bi-Directional Sorting**: Click once for ascending, click again for descending order
+- **Visual Indicators**: Arrow icons show current sort direction, expand icons show inactive fields
+- **Smart Tooltips**: Hover text explains each button's function and current sort state
+- **Case-Insensitive**: Text sorting ignores case for better alphabetical organization
+- **Persistent State**: Sort preferences maintained during admin session
+
+**Sorting Options**:
+- **Quote Text**: Alphabetical sorting (A-Z / Z-A) with case-insensitive comparison
+- **Author Name**: Alphabetical author sorting (A-Z / Z-A) with case-insensitive comparison  
+- **Created Date**: Chronological sorting (Newest First / Oldest First) by timestamp
+
+**Default Behavior**: Starts with Created Date sorting, newest quotes first (descending order)
+
+### Duplicate Management System
+The admin dashboard includes intelligent duplicate detection and cleanup functionality:
+
+**Core Features**:
+- **Smart Detection**: Identifies duplicates by matching quote text and author exactly (case-insensitive)
+- **Tag Agnostic**: Ignores tag differences when determining duplicates, as requested
+- **Intelligent Selection**: Pre-selects newer duplicates for deletion while preserving the oldest quote
+- **Batch Operations**: Safely deletes multiple duplicates with rate limiting protection
+- **User Control**: Full control over which quotes to keep or delete with checkbox interface
+
+**Duplicate Preview Dialog**:
+- **Group Summary**: Shows total quotes found and deletion count
+- **Detailed View**: Displays each duplicate group with quote preview and metadata
+- **Creation Timestamps**: Shows creation dates to help identify the original quote
+- **Tag Information**: Displays tags for each duplicate to assist decision-making
+- **Color Coding**: Green highlights indicate the recommended quote to keep (oldest)
+- **Safe Defaults**: Automatically selects newer duplicates for deletion, keeping originals
+
+**Cleanup Process**:
+- **Batch Deletion**: Processes selected quotes in batches with error handling
+- **Progress Feedback**: Shows detailed success/failure counts after cleanup
+- **Rate Limiting**: Includes 300ms delays between deletions to prevent API overload
+- **Auto Refresh**: Automatically refreshes quote list to show results
+
+**Access Method**: Admin Dashboard → Menu → "Clean Duplicate Quotes"
 
 ### Tags Editor System
 The dedicated Tags Editor provides comprehensive tag management capabilities separate from quote management:
@@ -258,12 +315,17 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 
 ### Advanced Capabilities
 - **Audio System**: Professional TTS with 20-50+ voice options, testing, and smart controls
-- **Admin Management**: Complete quote lifecycle management with real-time updates
+- **Admin Management**: Complete quote lifecycle management with real-time updates and advanced sorting
+- **Quote Sorting**: Three-field sorting (Quote, Author, Date) with ascending/descending toggles in AppBar
+- **Duplicate Management**: Intelligent duplicate detection with smart cleanup and preservation logic
+- **Progress Tracking**: Real-time batch processing with visual progress bars for long operations
 - **Dynamic Tag System**: Real-time tag loading and filtering with zero-scan database performance
 - **Tags Metadata Caching**: Efficient O(1) tag retrieval without database scanning
 - **Individual Tag Management**: Dedicated Tags Editor for adding, renaming, and deleting individual tags
 - **Data Integrity Enforcement**: Tag operations automatically synchronize with all affected quotes
 - **Automated Tag Cleanup**: Admin can remove unused tags with one-click cleanup and detailed reporting
+- **Import Progress**: Batch processing with real-time status updates and visual feedback
+- **Rate Limiting Protection**: Built-in delays and batch processing prevent API overload
 - **Metadata Filtering**: TAGS_METADATA records are properly filtered from quote listings
 - **Responsive Design**: Perfect layout across all device orientations and screen sizes
 - **Error Handling**: Comprehensive error management with user-friendly messaging

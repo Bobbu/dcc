@@ -15,10 +15,12 @@ def get_quotes_by_tags(tags):
     """
     try:
         if not tags or 'All' in tags:
-            # Get all quotes
-            response = table.scan()
+            # Get all quotes, excluding metadata records
+            response = table.scan(
+                FilterExpression=Attr('id').ne('TAGS_METADATA')
+            )
         else:
-            # Create filter expression for any tag match
+            # Create filter expression for any tag match AND exclude metadata
             filter_expressions = []
             for tag in tags:
                 filter_expressions.append(Attr('tags').contains(tag))
@@ -27,10 +29,18 @@ def get_quotes_by_tags(tags):
             filter_expression = filter_expressions[0]
             for expr in filter_expressions[1:]:
                 filter_expression = filter_expression | expr
+            
+            # Also exclude metadata records
+            filter_expression = filter_expression & Attr('id').ne('TAGS_METADATA')
                 
             response = table.scan(FilterExpression=filter_expression)
         
-        return response.get('Items', [])
+        items = response.get('Items', [])
+        
+        # Additional safety check to filter out any metadata records
+        quotes = [item for item in items if item.get('id') != 'TAGS_METADATA']
+        
+        return quotes
         
     except Exception as e:
         print(f"Error querying DynamoDB: {e}")
