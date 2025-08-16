@@ -186,18 +186,26 @@ deploy_infrastructure() {
     if [ "$STACK_STATUS" != "DOES_NOT_EXIST" ]; then
         print_warning "Stack $STACK_NAME already exists with status: $STACK_STATUS"
         
-        if [[ "$STACK_STATUS" == *"FAILED"* ]] || [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
-            echo "Stack is in a failed state. Would you like to delete and recreate it?"
+        if [[ "$STACK_STATUS" == *"FAILED"* ]] || [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]] || [[ "$STACK_STATUS" == *"ROLLBACK"* ]]; then
+            echo "Stack is in a failed or rollback state. Would you like to delete and recreate it?"
             read -p "Delete and recreate? (y/n): " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 echo "Deleting stack..."
                 aws cloudformation delete-stack --stack-name $STACK_NAME --region $REGION
+                echo "Waiting for stack deletion to complete..."
                 aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME --region $REGION
                 print_success "Stack deleted"
             else
+                print_error "Cannot proceed with stack in current state"
                 exit 1
             fi
+        elif [[ "$STACK_STATUS" == *"IN_PROGRESS"* ]]; then
+            print_error "Stack is currently in progress state: $STACK_STATUS"
+            echo "Please wait for the current operation to complete or cancel it manually."
+            echo "You can monitor the stack at:"
+            echo "https://console.aws.amazon.com/cloudformation/home?region=$REGION#/stacks/events?stackId=$STACK_NAME"
+            exit 1
         elif [[ "$STACK_STATUS" == "CREATE_COMPLETE" ]] || [[ "$STACK_STATUS" == "UPDATE_COMPLETE" ]]; then
             echo "Stack exists and is healthy. Proceeding with update..."
         fi
