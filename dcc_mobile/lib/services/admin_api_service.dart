@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'auth_service.dart';
 
 class AdminApiService {
-  static final String baseUrl = dotenv.env['API_ENDPOINT'] ?? '';
+  static final String baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
 
   static Future<Map<String, String>> _getAuthHeaders() async {
     final token = await AuthService.getIdToken();

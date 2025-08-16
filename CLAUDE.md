@@ -5,11 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 "Quote Me" is a comprehensive quote management system with enterprise-grade features consisting of:
-1. **AWS API Backend** - Secure, scalable API with authentication and database storage
-2. **Flutter Mobile App** - Feature-rich iOS app with modern indigo theme and advanced audio capabilities  
+1. **AWS API Backend** - Secure, scalable API with authentication, CORS support, and database storage
+2. **Flutter Mobile & Web Apps** - Cross-platform applications with modern indigo theme and advanced capabilities  
 3. **Admin Management System** - Complete CRUD interface with tag filtering and quote management
+4. **Web Deployment Infrastructure** - Automated deployment with CloudFront CDN, S3 hosting, and SSL certificates
 
-The architecture follows modern cloud-native patterns with JWT authentication, DynamoDB storage, API Gateway security, and mobile-first design principles with a professional indigo color scheme.
+The architecture follows modern cloud-native patterns with JWT authentication, DynamoDB storage, API Gateway security with CORS, CloudFront distribution, and cross-platform design principles with a professional indigo color scheme.
 
 ## Development Commands
 
@@ -47,8 +48,30 @@ flutter pub get
 # Run on iOS simulator (includes admin functionality)
 flutter run
 
+# Build for web
+flutter build web --release
+
 # Run tests
 flutter test
+```
+
+### Web App Deployment
+```bash
+# Deploy complete web application with automatic SSL and CDN
+./deploy-web.sh
+
+# Deploy to custom domain
+./deploy-web.sh myapp.example.com
+
+# Deploy with custom stack name and region
+./deploy-web.sh myapp.example.com my-stack us-west-2 my-flutter-app
+
+# Update existing web deployment (rebuild and upload)
+cd dcc_mobile
+flutter build web --release
+cd ..
+aws s3 sync dcc_mobile/build/web/ s3://BUCKET_NAME/ --delete
+aws cloudfront create-invalidation --distribution-id DISTRIBUTION_ID --paths "/*"
 ```
 
 ### Project Testing
@@ -100,6 +123,10 @@ open -a Simulator
   - `admin_handler.py`: Admin CRUD operations with comprehensive tags management and data integrity
     - Tag rename/delete operations automatically update all affected quotes
     - Maintains tags metadata cache for O(1) retrieval
+  - `options_handler.py`: CORS preflight handler for web browser compatibility
+    - Handles OPTIONS requests without authentication
+    - Returns proper CORS headers for cross-origin requests
+    - Enables web application functionality
 - **Database**: DynamoDB with tags metadata caching for zero-scan performance
   - TAGS_METADATA record maintains complete tag list for O(1) retrieval
   - Admin operations automatically update tags metadata with full data integrity
@@ -111,12 +138,14 @@ open -a Simulator
   - API Key authentication for public endpoints (rate limited)
   - Cognito JWT authentication for admin endpoints (no rate limits)
   - Admin group membership verification
-  - CORS configured for mobile app access
+  - CORS configured for web and mobile app access
+  - OPTIONS handlers for browser preflight requests
 - **Rate Limits**: 1 req/sec sustained, 5 req/sec burst, 1,000 req/day for public API
 - **Monitoring**: CloudWatch metrics, logging, and distributed tracing enabled
 
 ### Flutter App (`dcc_mobile/`)
 - **App Name**: Quote Me - Modern quote management application
+- **Platform Support**: iOS, Android, and Web (https://quote-me.anystupididea.com)
 - **Architecture**: Clean separation with screens in dedicated folders and services
 - **Screen Components**:
   - `quote_screen.dart`: Main app with responsive layout and category filtering
@@ -158,6 +187,27 @@ open -a Simulator
   - **Responsive Design**: Perfect layout in all orientations with no overflow
   - **Security Integration**: Seamless admin access with role-based permissions
   - **Resilience Features**: Automatic retry with exponential backoff for server errors
+
+### Web Deployment Infrastructure (`web-infrastructure.yaml` & `deploy-web.sh`)
+- **CloudFormation Template**: Complete web hosting infrastructure with automatic SSL
+  - **S3 Bucket**: Static website hosting with CORS configuration
+  - **CloudFront Distribution**: Global CDN with edge caching and HTTPS redirect
+  - **Route53 Records**: Automatic DNS setup with alias records
+  - **ACM Certificate**: Automatic SSL certificate creation and validation
+  - **Origin Access Control**: Secure S3 access from CloudFront only
+- **Deployment Script**: Comprehensive automation for Flutter web deployment
+  - **Prerequisites Check**: Validates AWS CLI, Flutter SDK, and hosted zone
+  - **Certificate Management**: Automatic SSL certificate detection and creation
+  - **Flutter Build**: Automated web compilation with release optimization
+  - **File Upload**: Optimized caching strategy (1 year for assets, no-cache for HTML)
+  - **CloudFront Invalidation**: Cache busting for immediate updates
+  - **Error Handling**: Graceful failure recovery with detailed troubleshooting
+- **Features**:
+  - **Custom Domains**: Support for any subdomain with existing Route53 hosted zone
+  - **HTTPS Enforcement**: All traffic redirected to secure connections
+  - **SPA Support**: Proper routing for single-page application architecture
+  - **Performance Optimized**: Managed cache policies and compression
+  - **Cost Effective**: PriceClass_100 (US, Canada, Europe) for optimal cost/performance
 
 ### Import System
 The admin dashboard includes a powerful copy/paste import feature for Google Sheets data with real-time progress tracking:
@@ -339,9 +389,10 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 ### Production Features
 - **Database**: DynamoDB with 20+ curated quotes and dynamic tag system (zero-scan performance)
 - **Authentication**: Enterprise-grade Cognito integration with role-based access control
-- **Security**: Dual-layer API security (API keys + JWT) with admin group verification
+- **Security**: Dual-layer API security (API keys + JWT) with admin group verification and CORS support
 - **Performance**: Rate limiting, CloudWatch monitoring, tags metadata caching, custom domain with CDN
-- **Mobile Platform**: iOS-focused but cross-platform capable Flutter implementation with real-time tag synchronization
+- **Cross-Platform**: Mobile (iOS/Android) and Web (https://quote-me.anystupididea.com) with real-time tag synchronization
+- **Web Deployment**: Automated CloudFormation infrastructure with S3, CloudFront, Route53, and SSL
 
 ### Advanced Capabilities
 - **Audio System**: Professional TTS with 20-50+ voice options, testing, and smart controls

@@ -46,6 +46,73 @@ Resources:
             Method: GET
             RestApiId: !Ref ApiGatewayApi
 
+  # OPTIONS Handler for CORS
+  OptionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-options-handler
+      CodeUri: lambda/
+      Handler: options_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 3
+      Events:
+        OptionsQuote:
+          Type: Api
+          Properties:
+            Path: /quote
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsTags:
+          Type: Api
+          Properties:
+            Path: /tags
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminQuotes:
+          Type: Api
+          Properties:
+            Path: /admin/quotes
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminQuotesId:
+          Type: Api
+          Properties:
+            Path: /admin/quotes/{id}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminTags:
+          Type: Api
+          Properties:
+            Path: /admin/tags
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminTagsId:
+          Type: Api
+          Properties:
+            Path: /admin/tags/{tag}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminTagsUnused:
+          Type: Api
+          Properties:
+            Path: /admin/tags/unused
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+
   # Admin Lambda function for CRUD operations
   AdminFunction:
     Type: AWS::Serverless::Function
@@ -159,8 +226,9 @@ Resources:
             IdentitySource: method.request.header.Authorization
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-api-key'"
         AllowOrigin: "'*'"
+        AllowCredentials: false
       MethodSettings:
         - ResourcePath: "/*"
           HttpMethod: "*"
