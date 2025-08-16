@@ -186,7 +186,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
       builder: (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.add, color: Color(0xFF800000)),
+            Icon(Icons.add, color: Color(0xFF3F51B5)),
             SizedBox(width: 8),
             Text('Add New Tag'),
           ],
@@ -214,7 +214,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF800000),
+              backgroundColor: const Color(0xFF3F51B5),
               foregroundColor: Colors.white,
             ),
             child: const Text('Add'),
@@ -232,7 +232,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
       builder: (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.edit, color: Color(0xFF800000)),
+            Icon(Icons.edit, color: Color(0xFF3F51B5)),
             SizedBox(width: 8),
             Text('Edit Tag'),
           ],
@@ -259,7 +259,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF800000),
+              backgroundColor: const Color(0xFF3F51B5),
               foregroundColor: Colors.white,
             ),
             child: const Text('Update'),
@@ -344,7 +344,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tags Editor'),
-        backgroundColor: const Color(0xFF800000),
+        backgroundColor: const Color(0xFF3F51B5),
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -361,7 +361,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddTagDialog,
-        backgroundColor: const Color(0xFF800000),
+        backgroundColor: const Color(0xFF3F51B5),
         foregroundColor: Colors.white,
         child: const Icon(Icons.add),
       ),
@@ -371,19 +371,19 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: const Color(0xFFFFD700).withValues(alpha: 0.1),
+            color: const Color(0xFF5C6BC0).withValues(alpha: 0.1),
             child: Row(
               children: [
                 const Icon(
                   Icons.local_offer,
-                  color: Color(0xFF800000),
+                  color: Color(0xFF3F51B5),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'Tag Management',
                   style: const TextStyle(
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF800000),
+                    color: Color(0xFF3F51B5),
                     fontSize: 16,
                   ),
                 ),
@@ -391,7 +391,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                 Text(
                   '${_tags.length} tags',
                   style: const TextStyle(
-                    color: Color(0xFF800000),
+                    color: Color(0xFF3F51B5),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -404,7 +404,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF800000)),
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3F51B5)),
                     ),
                   )
                 : _error != null
@@ -479,14 +479,14 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFFD700).withValues(alpha: 0.3),
+                                      color: const Color(0xFF5C6BC0).withValues(alpha: 0.3),
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: Text(
                                       tag,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w500,
-                                        color: Color(0xFF800000),
+                                        color: Color(0xFF3F51B5),
                                       ),
                                     ),
                                   ),

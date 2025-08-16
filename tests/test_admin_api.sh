@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# DCC Admin API Regression Tests
+# Quote Me Admin API Regression Tests
 # Tests all admin endpoints with authentication
 
 set -e  # Exit on any error

@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a comprehensive quote management system with enterprise-grade features consisting of:
+"Quote Me" is a comprehensive quote management system with enterprise-grade features consisting of:
 1. **AWS API Backend** - Secure, scalable API with authentication and database storage
-2. **Flutter Mobile App** - Feature-rich iOS app with advanced audio and admin capabilities  
-3. **Admin Management System** - Complete CRUD interface for quote management
+2. **Flutter Mobile App** - Feature-rich iOS app with modern indigo theme and advanced audio capabilities  
+3. **Admin Management System** - Complete CRUD interface with tag filtering and quote management
 
-The architecture follows modern cloud-native patterns with JWT authentication, DynamoDB storage, API Gateway security, and mobile-first design principles.
+The architecture follows modern cloud-native patterns with JWT authentication, DynamoDB storage, API Gateway security, and mobile-first design principles with a professional indigo color scheme.
 
 ## Development Commands
 
@@ -116,12 +116,13 @@ open -a Simulator
 - **Monitoring**: CloudWatch metrics, logging, and distributed tracing enabled
 
 ### Flutter App (`dcc_mobile/`)
+- **App Name**: Quote Me - Modern quote management application
 - **Architecture**: Clean separation with screens in dedicated folders and services
 - **Screen Components**:
   - `quote_screen.dart`: Main app with responsive layout and category filtering
   - `settings_screen.dart`: Dynamic tag loading with voice testing and server synchronization
-  - `admin_login_screen.dart`: Secure admin authentication with branded UI
-  - `admin_dashboard_screen.dart`: Full quote management interface with CRUD operations
+  - `admin_login_screen.dart`: Secure admin authentication with indigo-themed UI
+  - `admin_dashboard_screen.dart`: Full quote management interface with CRUD operations and tag filtering
   - `tags_editor_screen.dart`: Dedicated tag management interface with individual tag CRUD operations
 - **Authentication Service**: `lib/services/auth_service.dart`
   - AWS Amplify Cognito integration for secure authentication
@@ -137,12 +138,17 @@ open -a Simulator
   - `amplify_auth_cognito: ^2.0.0`: Cognito authentication integration
 - **State Management**: setState() pattern with service-layer abstraction
 - **Error Handling**: Comprehensive error handling with automatic retry logic for 500 errors
-- **Theme**: Professional corporate branding with maroon (#800000) and gold (#FFD700)
+- **Theme**: Modern professional branding with:
+  - **Primary Color**: Dark indigo (#3F51B5) for AppBar, buttons, and primary elements
+  - **Accent Color**: Light indigo (#5C6BC0) for highlights and secondary elements
+  - **Background**: Light indigo (#E8EAF6) for a cohesive, modern appearance
+  - **Text**: White on dark backgrounds, indigo on light backgrounds for optimal contrast
 - **Advanced Features**:
   - **Audio System**: Voice selection, testing, smart interruption controls, and simulator compatibility
   - **Dynamic Tag Filtering**: Real-time tag loading with 3-tag minimum for variety
   - **Admin Management**: Complete quote CRUD with real-time updates and advanced sorting
   - **Quote Sorting**: AppBar toggle buttons for sorting by Quote, Author, or Created Date (ascending/descending)
+  - **Tag Filtering**: Dropdown filter to view quotes by specific tags with count indicators
   - **Duplicate Management**: Smart duplicate detection and cleanup with intelligent selection
   - **Tag Management System**: Dedicated Tags Editor with individual tag CRUD operations
   - **Import System**: Copy/paste TSV import from Google Sheets with real-time progress tracking
@@ -178,6 +184,30 @@ The admin dashboard includes a powerful copy/paste import feature for Google She
 - **Batch Visibility**: Clear indication of processing stages and completion status
 
 **Access Method**: Admin Dashboard → Menu → "Import Quotes"
+
+### Admin Dashboard Tag Filtering
+The admin dashboard includes a powerful tag filtering system for efficient quote management:
+
+**Filter Features**:
+- **Dropdown Filter**: Located in the header below user info for easy access
+- **All Tags Available**: Shows every tag currently used in your quote database
+- **Quote Counts**: Each tag displays the number of quotes using it (e.g., "Leadership (12)")
+- **Smart Selection**: Bold highlighting for the currently selected filter
+- **Clear Button**: Quick reset to "All" quotes with a single click
+- **Auto-Reset**: Filter automatically resets if a tag is completely removed from all quotes
+
+**Filter Benefits**:
+- **Efficient Editing**: Quickly find all quotes with a specific tag for bulk editing
+- **Tag Consolidation**: Identify and merge similar tags (e.g., "Entrepreneurism" vs "Entrepreneurship")
+- **Category Review**: Review all quotes in a particular category at once
+- **Context-Aware UI**: Empty state messages change based on active filter
+- **Persistent State**: Filter remains active while editing, creating, or deleting quotes
+
+**Use Cases**:
+- Finding quotes with typos or inconsistent tags
+- Reviewing all quotes in a specific category
+- Consolidating similar or duplicate tags
+- Managing tag consistency across the database
 
 ### Admin Dashboard Sorting System
 The admin dashboard provides comprehensive sorting capabilities for efficient quote management:

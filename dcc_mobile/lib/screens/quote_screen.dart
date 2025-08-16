@@ -388,7 +388,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'DCC Quote App',
+          'Quote Me',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: Theme.of(context).appBarTheme.foregroundColor,
@@ -428,8 +428,8 @@ class _QuoteScreenState extends State<QuoteScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFFFFF8DC), // Cream
-              const Color(0xFFFFFAF0), // Slightly lighter cream
+              const Color(0xFFE8EAF6), // Light indigo
+              const Color(0xFFE8EAF6), // Light indigo (consistent)
             ],
           ),
         ),
@@ -485,7 +485,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                             end: Alignment.bottomRight,
                             colors: [
                               Colors.white,
-                              const Color(0xFFFFF8DC).withOpacity(0.3),
+                              const Color(0xFFE8EAF6).withOpacity(0.5),
                             ],
                           ),
                         ),
@@ -503,7 +503,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                                 _quote!,
                                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                                   fontStyle: FontStyle.italic,
-                                  color: const Color(0xFF800000),
+                                  color: const Color(0xFF3F51B5),
                                   height: 1.4,
                                 ),
                                 textAlign: TextAlign.center,
@@ -519,7 +519,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                                   '— $_author',
                                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF800000),
+                                    color: const Color(0xFF3F51B5),
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -583,7 +583,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         Text(
                           'Ready for inspiration?',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: const Color(0xFF800000),
+                            color: const Color(0xFF3F51B5),
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
@@ -592,7 +592,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         Text(
                           'Press the button below to get a motivational quote!',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: const Color(0xFF800000).withOpacity(0.8),
+                            color: const Color(0xFF3F51B5).withOpacity(0.8),
                           ),
                           textAlign: TextAlign.center,
                         ),

@@ -65,6 +65,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _importProgress = 0;
   int _importTotal = 0;
   String _importStatus = '';
+  String _selectedTagFilter = 'All';
+  List<String> _availableTags = ['All'];
 
   static final String _baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
 
@@ -108,6 +110,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
   }
 
+  void _updateAvailableTags() {
+    Set<String> tagsSet = {};
+    for (Quote quote in _quotes) {
+      tagsSet.addAll(quote.tags);
+    }
+    List<String> sortedTags = tagsSet.toList()..sort();
+    
+    // Check if the selected filter still exists in the new tags list
+    // If not, reset to 'All'
+    if (_selectedTagFilter != 'All' && !tagsSet.contains(_selectedTagFilter)) {
+      _selectedTagFilter = 'All';
+    }
+    
+    setState(() {
+      _availableTags = ['All', ...sortedTags];
+    });
+  }
+
+  List<Quote> get _filteredQuotes {
+    if (_selectedTagFilter == 'All') {
+      return _quotes;
+    }
+    return _quotes.where((quote) => quote.tags.contains(_selectedTagFilter)).toList();
+  }
+
   void _setSortField(SortField field) {
     setState(() {
       if (_sortField == field) {
@@ -132,7 +159,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const Icon(
               Icons.cloud_upload,
               size: 64,
-              color: Color(0xFF800000),
+              color: Color(0xFF3F51B5),
             ),
             const SizedBox(height: 24),
             const Text(
@@ -140,7 +167,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF800000),
+                color: Color(0xFF3F51B5),
               ),
             ),
             const SizedBox(height: 16),
@@ -154,7 +181,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   LinearProgressIndicator(
                     value: progress,
                     backgroundColor: Colors.grey.shade300,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF800000)),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3F51B5)),
                     minHeight: 8,
                   ),
                   const SizedBox(height: 8),
@@ -175,10 +202,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFD700).withOpacity(0.1),
+                color: const Color(0xFF5C6BC0).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: const Color(0xFFFFD700).withOpacity(0.3),
+                  color: const Color(0xFF5C6BC0).withOpacity(0.3),
                 ),
               ),
               child: Text(
@@ -246,6 +273,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         setState(() {
           _quotes = quotes;
           _sortQuotes();
+          _updateAvailableTags();
           _isLoading = false;
         });
       } else if (response.statusCode == 401) {
@@ -662,7 +690,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
-        backgroundColor: const Color(0xFF800000),
+        backgroundColor: const Color(0xFF3F51B5),
         foregroundColor: Colors.white,
         actions: [
           // Sorting buttons
@@ -749,7 +777,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 value: 'import_quotes',
                 child: Row(
                   children: [
-                    Icon(Icons.file_upload, color: Color(0xFF800000)),
+                    Icon(Icons.file_upload, color: Color(0xFF3F51B5)),
                     SizedBox(width: 8),
                     Text('Import Quotes'),
                   ],
@@ -759,7 +787,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 value: 'tags_editor',
                 child: Row(
                   children: [
-                    Icon(Icons.local_offer, color: Color(0xFF800000)),
+                    Icon(Icons.local_offer, color: Color(0xFF3F51B5)),
                     SizedBox(width: 8),
                     Text('Manage Tags'),
                   ],
@@ -801,7 +829,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showQuoteDialog(),
-        backgroundColor: const Color(0xFF800000),
+        backgroundColor: const Color(0xFF3F51B5),
         foregroundColor: Colors.white,
         child: const Icon(Icons.add),
       ),
@@ -811,28 +839,122 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: const Color(0xFFFFD700).withOpacity(0.1),
-            child: Row(
+            color: const Color(0xFF5C6BC0).withOpacity(0.1),
+            child: Column(
               children: [
-                const Icon(
-                  Icons.admin_panel_settings,
-                  color: Color(0xFF800000),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.admin_panel_settings,
+                      color: Color(0xFF3F51B5),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Signed in as: ${_userEmail ?? 'Loading...'}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF3F51B5),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${_filteredQuotes.length} ${_selectedTagFilter != 'All' ? 'filtered' : 'total'} quotes',
+                      style: const TextStyle(
+                        color: Color(0xFF3F51B5),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Signed in as: ${_userEmail ?? 'Loading...'}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF800000),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${_quotes.length} quotes',
-                  style: const TextStyle(
-                    color: Color(0xFF800000),
-                    fontWeight: FontWeight.w500,
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.filter_list,
+                      color: Color(0xFF3F51B5),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Filter by tag:',
+                      style: TextStyle(
+                        color: Color(0xFF3F51B5),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFF3F51B5).withOpacity(0.3),
+                          ),
+                        ),
+                        child: DropdownButton<String>(
+                          value: _availableTags.contains(_selectedTagFilter) ? _selectedTagFilter : 'All',
+                          isExpanded: true,
+                          underline: const SizedBox(),
+                          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF3F51B5)),
+                          onChanged: (String? newValue) {
+                            if (newValue != null) {
+                              setState(() {
+                                _selectedTagFilter = newValue;
+                              });
+                            }
+                          },
+                          items: _availableTags.map<DropdownMenuItem<String>>((String tag) {
+                            return DropdownMenuItem<String>(
+                              value: tag,
+                              child: Row(
+                                children: [
+                                  if (tag != 'All') ...[
+                                    Icon(
+                                      Icons.local_offer,
+                                      size: 16,
+                                      color: const Color(0xFF3F51B5).withOpacity(0.6),
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Text(
+                                    tag,
+                                    style: TextStyle(
+                                      color: const Color(0xFF3F51B5),
+                                      fontWeight: tag == _selectedTagFilter ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                  if (tag != 'All' && _selectedTagFilter != tag) ...[
+                                    const Spacer(),
+                                    Text(
+                                      '(${_quotes.where((q) => q.tags.contains(tag)).length})',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    if (_selectedTagFilter != 'All') ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedTagFilter = 'All';
+                          });
+                        },
+                        icon: const Icon(Icons.clear, color: Color(0xFF3F51B5)),
+                        tooltip: 'Clear filter',
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -843,7 +965,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF800000)),
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3F51B5)),
                     ),
                   )
                 : _isImporting
@@ -875,28 +997,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ],
                         ),
                       )
-                    : _quotes.isEmpty
-                        ? const Center(
+                    : _filteredQuotes.isEmpty
+                        ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.format_quote,
                                   size: 64,
                                   color: Colors.grey,
                                 ),
-                                SizedBox(height: 16),
+                                const SizedBox(height: 16),
                                 Text(
-                                  'No quotes found',
-                                  style: TextStyle(
+                                  _selectedTagFilter != 'All' 
+                                    ? 'No quotes found with tag "$_selectedTagFilter"'
+                                    : 'No quotes found',
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     color: Colors.grey,
                                   ),
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
                                 Text(
-                                  'Tap the + button to add your first quote',
-                                  style: TextStyle(
+                                  _selectedTagFilter != 'All'
+                                    ? 'Try selecting a different tag or clear the filter'
+                                    : 'Tap the + button to add your first quote',
+                                  style: const TextStyle(
                                     color: Colors.grey,
                                   ),
                                 ),
@@ -905,9 +1031,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           )
                         : ListView.builder(
                             padding: const EdgeInsets.all(8),
-                            itemCount: _quotes.length,
+                            itemCount: _filteredQuotes.length,
                             itemBuilder: (context, index) {
-                              final quote = _quotes[index];
+                              final quote = _filteredQuotes[index];
                               return Card(
                                 margin: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -930,7 +1056,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                         '— ${quote.author}',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          color: Color(0xFF800000),
+                                          color: Color(0xFF3F51B5),
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -942,7 +1068,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                                     tag,
                                                     style: const TextStyle(fontSize: 10),
                                                   ),
-                                                  backgroundColor: const Color(0xFFFFD700)
+                                                  backgroundColor: const Color(0xFF5C6BC0)
                                                       .withOpacity(0.3),
                                                   materialTapTargetSize:
                                                       MaterialTapTargetSize.shrinkWrap,
@@ -1135,10 +1261,10 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFD700).withOpacity(0.1),
+                  color: const Color(0xFF5C6BC0).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: const Color(0xFFFFD700).withOpacity(0.3),
+                    color: const Color(0xFF5C6BC0).withOpacity(0.3),
                   ),
                 ),
                 child: Wrap(
@@ -1147,7 +1273,7 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
                   children: _selectedTags.map((tag) {
                     return Chip(
                       label: Text(tag),
-                      backgroundColor: const Color(0xFF800000).withOpacity(0.1),
+                      backgroundColor: const Color(0xFF3F51B5).withOpacity(0.1),
                       deleteIcon: const Icon(Icons.close, size: 18),
                       onDeleted: () {
                         setState(() {
@@ -1179,7 +1305,7 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
                 IconButton(
                   onPressed: _addNewTag,
                   icon: const Icon(Icons.add_circle),
-                  color: const Color(0xFF800000),
+                  color: const Color(0xFF3F51B5),
                 ),
               ],
             ),
@@ -1217,8 +1343,8 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
                             }
                           });
                         },
-                        selectedColor: const Color(0xFFFFD700).withOpacity(0.3),
-                        checkmarkColor: const Color(0xFF800000),
+                        selectedColor: const Color(0xFF5C6BC0).withOpacity(0.3),
+                        checkmarkColor: const Color(0xFF3F51B5),
                       );
                     }).toList(),
                   ),
@@ -1238,7 +1364,7 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
             widget.onSave(_selectedTags.toList());
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF800000),
+            backgroundColor: const Color(0xFF3F51B5),
             foregroundColor: Colors.white,
           ),
           child: Text(widget.isEditing ? 'Update' : 'Create'),
@@ -1353,7 +1479,7 @@ class _ImportDialogState extends State<_ImportDialog> {
     return AlertDialog(
       title: const Row(
         children: [
-          Icon(Icons.file_upload, color: Color(0xFF800000)),
+          Icon(Icons.file_upload, color: Color(0xFF3F51B5)),
           SizedBox(width: 8),
           Text('Import Quotes'),
         ],
@@ -1404,7 +1530,7 @@ class _ImportDialogState extends State<_ImportDialog> {
                 ElevatedButton(
                   onPressed: _parseData,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF800000),
+                    backgroundColor: const Color(0xFF3F51B5),
                     foregroundColor: Colors.white,
                   ),
                   child: const Text('Parse Data'),
@@ -1505,7 +1631,7 @@ class _ImportDialogState extends State<_ImportDialog> {
                 }
               : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF800000),
+            backgroundColor: const Color(0xFF3F51B5),
             foregroundColor: Colors.white,
           ),
           child: Text('Import ${_parsedQuotes.length} Quotes'),
@@ -1660,7 +1786,7 @@ class _ImportResultsDialogState extends State<_ImportResultsDialog> {
               Navigator.of(context).pop();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF800000),
+              backgroundColor: const Color(0xFF3F51B5),
               foregroundColor: Colors.white,
             ),
             child: const Text('Save'),
@@ -1772,7 +1898,7 @@ class _ImportResultsDialogState extends State<_ImportResultsDialog> {
                           ],
                         ),
                         trailing: IconButton(
-                          icon: const Icon(Icons.edit, color: Color(0xFF800000)),
+                          icon: const Icon(Icons.edit, color: Color(0xFF3F51B5)),
                           onPressed: () => _editFailedQuote(index),
                         ),
                       ),
@@ -1842,7 +1968,7 @@ class _ImportResultsDialogState extends State<_ImportResultsDialog> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF800000),
+              backgroundColor: const Color(0xFF3F51B5),
               foregroundColor: Colors.white,
             ),
             child: Text('Retry Selected ($selectedCount)'),

@@ -85,7 +85,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFF800000), // Maroon
+              const Color(0xFF3F51B5), // Maroon
               const Color(0xFF600000), // Darker maroon
             ],
           ),
@@ -106,7 +106,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       color: Colors.white.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFFFFD700), // Gold
+                        color: const Color(0xFF5C6BC0), // Gold
                         width: 2,
                       ),
                     ),
@@ -115,7 +115,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                         Icon(
                           Icons.admin_panel_settings,
                           size: 64,
-                          color: const Color(0xFFFFD700), // Gold
+                          color: const Color(0xFF5C6BC0), // Gold
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -160,7 +160,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           Text(
                             'Admin Sign In',
                             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: const Color(0xFF800000),
+                              color: const Color(0xFF3F51B5),
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,
@@ -182,7 +182,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(
-                                  color: Color(0xFF800000),
+                                  color: Color(0xFF3F51B5),
                                   width: 2,
                                 ),
                               ),
@@ -226,7 +226,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(
-                                  color: Color(0xFF800000),
+                                  color: Color(0xFF3F51B5),
                                   width: 2,
                                 ),
                               ),
@@ -276,7 +276,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           ElevatedButton(
                             onPressed: _isLoading ? null : _signIn,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF800000),
+                              backgroundColor: const Color(0xFF3F51B5),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(

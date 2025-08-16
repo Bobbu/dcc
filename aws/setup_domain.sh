@@ -5,7 +5,7 @@
 
 set -e
 
-echo "🌐 DCC Custom Domain Setup"
+echo "🌐 Quote Me Custom Domain Setup"
 echo "========================="
 echo ""
 

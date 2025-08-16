@@ -1,6 +1,6 @@
-# DCC Quote Management System
+# Quote Me - Quote Management System
 
-A comprehensive, enterprise-grade quote management platform featuring secure AWS backend infrastructure and a feature-rich Flutter mobile application with complete admin capabilities.
+A comprehensive, enterprise-grade quote management platform featuring secure AWS backend infrastructure and a feature-rich Flutter mobile application with complete admin capabilities. "Quote Me" delivers inspirational quotes at your fingertips with advanced voice features and professional admin management.
 
 ## Architecture
 
@@ -50,7 +50,7 @@ A comprehensive, enterprise-grade quote management platform featuring secure AWS
   - Persistent settings across app sessions
   - Automatic retry with exponential backoff for server errors
   - Comprehensive error handling with friendly messaging
-  - Corporate maroon and gold branding throughout
+  - Modern dark indigo and light indigo accent branding throughout
 
 ## Project Structure
 
@@ -68,7 +68,7 @@ dcc/
 │   │   └── admin_handler.py    # Admin CRUD operations with validation
 │   ├── setup_domain.sh     # Custom domain configuration script
 │   └── deploy.sh           # Deployment automation
-├── dcc_mobile/             # Flutter mobile application
+├── dcc_mobile/             # Flutter mobile application (Quote Me app)
 │   ├── .env                # Environment configuration (API keys, Cognito settings)
 │   ├── lib/
 │   │   ├── main.dart       # App entry point with Amplify initialization
@@ -272,7 +272,7 @@ The import system handles tab-separated values, automatically detects headers, i
 - **State Management**: Persistent settings and authentication across app sessions
 - **Security Integration**: JWT token management with automatic renewal
 - **Environment Management**: Secure configuration with no hardcoded credentials
-- **Corporate Branding**: Consistent maroon (#800000) and gold (#FFD700) theming
+- **Modern Branding**: Consistent dark indigo (#3F51B5) and light indigo accent (#5C6BC0) theming
 
 ## API Usage
 

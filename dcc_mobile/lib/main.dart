@@ -13,34 +13,36 @@ Future<void> main() async {
     print('Failed to configure auth service: $e');
   }
   
-  runApp(const DccApp());
+  runApp(const QuoteMeApp());
 }
 
-class DccApp extends StatelessWidget {
-  const DccApp({super.key});
+class QuoteMeApp extends StatelessWidget {
+  const QuoteMeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'DCC Quote App',
+      title: 'Quote Me',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF800000), // Maroon
-          primary: const Color(0xFF800000), // Maroon
-          secondary: const Color(0xFFFFD700), // Gold
-          surface: const Color(0xFFFFF8DC), // Cream background
+          seedColor: const Color(0xFF3F51B5), // Dark Indigo
+          primary: const Color(0xFF3F51B5), // Dark Indigo
+          secondary: const Color(0xFF5C6BC0), // Lighter Indigo accent
+          surface: Colors.white, // Clean white background
           onPrimary: Colors.white,
-          onSecondary: const Color(0xFF800000), // Maroon text on gold
+          onSecondary: Colors.white,
+          onSurface: const Color(0xFF3F51B5), // Dark Indigo text
           brightness: Brightness.light,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF800000), // Maroon app bar
+          backgroundColor: Color(0xFF3F51B5), // Dark Indigo app bar
           foregroundColor: Colors.white,
           elevation: 2,
+          centerTitle: true,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF800000), // Maroon button
+            backgroundColor: const Color(0xFF3F51B5), // Dark Indigo button
             foregroundColor: Colors.white,
             elevation: 3,
             shape: RoundedRectangleBorder(
@@ -48,7 +50,7 @@ class DccApp extends StatelessWidget {
             ),
           ),
         ),
-        scaffoldBackgroundColor: const Color(0xFFFFF8DC), // Cream background
+        scaffoldBackgroundColor: const Color(0xFFE8EAF6), // Light indigo background
         useMaterial3: true,
       ),
       home: const QuoteScreen(),

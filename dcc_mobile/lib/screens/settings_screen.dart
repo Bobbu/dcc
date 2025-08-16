@@ -151,8 +151,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFFFFF8DC), // Cream
-              const Color(0xFFFFFAF0), // Slightly lighter cream
+              const Color(0xFFE8EAF6), // Light indigo
+              const Color(0xFFE8EAF6), // Light indigo (consistent)
             ],
           ),
         ),
@@ -169,7 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       Colors.white,
-                      const Color(0xFFFFF8DC).withOpacity(0.3),
+                      const Color(0xFFE8EAF6).withOpacity(0.3),
                     ],
                   ),
                 ),
@@ -189,7 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(
                             'Audio Settings',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF800000),
+                              color: const Color(0xFF3F51B5),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -200,13 +200,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: Text(
                           'Enable Audio Playback',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: const Color(0xFF800000),
+                            color: const Color(0xFF3F51B5),
                           ),
                         ),
                         subtitle: Text(
                           'Automatically read quotes aloud when loaded',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF800000).withOpacity(0.7),
+                            color: const Color(0xFF3F51B5).withOpacity(0.7),
                           ),
                         ),
                         value: _audioEnabled,
@@ -236,7 +236,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       Colors.white,
-                      const Color(0xFFFFF8DC).withOpacity(0.3),
+                      const Color(0xFFE8EAF6).withOpacity(0.3),
                     ],
                   ),
                 ),
@@ -256,7 +256,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(
                             'Voice Selection',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF800000),
+                              color: const Color(0xFF3F51B5),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -266,7 +266,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         'Choose a voice for text-to-speech',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF800000).withOpacity(0.7),
+                          color: const Color(0xFF3F51B5).withOpacity(0.7),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -295,9 +295,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFD700).withOpacity(0.1),
+                                  color: const Color(0xFF5C6BC0).withOpacity(0.1),
                                   border: Border.all(
-                                    color: const Color(0xFFFFD700).withOpacity(0.3),
+                                    color: const Color(0xFF5C6BC0).withOpacity(0.3),
                                   ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -313,7 +313,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       child: Text(
                                         'Current: ${_selectedVoice!['name']} (${_selectedVoice!['locale']})',
                                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: const Color(0xFF800000),
+                                          color: const Color(0xFF3F51B5),
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -343,14 +343,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     title: Text(
                                       voiceMap['name']!,
                                       style: TextStyle(
-                                        color: const Color(0xFF800000),
+                                        color: const Color(0xFF3F51B5),
                                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                       ),
                                     ),
                                     subtitle: Text(
                                       voiceMap['locale']!,
                                       style: TextStyle(
-                                        color: const Color(0xFF800000).withOpacity(0.7),
+                                        color: const Color(0xFF3F51B5).withOpacity(0.7),
                                         fontSize: 12,
                                       ),
                                     ),
@@ -399,7 +399,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       Colors.white,
-                      const Color(0xFFFFF8DC).withOpacity(0.3),
+                      const Color(0xFFE8EAF6).withOpacity(0.3),
                     ],
                   ),
                 ),
@@ -419,7 +419,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(
                             'Quote Categories',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF800000),
+                              color: const Color(0xFF3F51B5),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -429,7 +429,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         'Select the types of quotes you\'d like to see',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF800000).withOpacity(0.7),
+                          color: const Color(0xFF3F51B5).withOpacity(0.7),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -471,24 +471,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF800000).withOpacity(0.1),
+                                color: const Color(0xFF3F51B5).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                  color: const Color(0xFF800000).withOpacity(0.3),
+                                  color: const Color(0xFF3F51B5).withOpacity(0.3),
                                 ),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     Icons.cloud_sync,
-                                    color: const Color(0xFF800000),
+                                    color: const Color(0xFF3F51B5),
                                     size: 16,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     'Dynamic tags loaded from server',
                                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: const Color(0xFF800000),
+                                      color: const Color(0xFF3F51B5),
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),

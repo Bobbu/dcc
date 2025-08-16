@@ -6,7 +6,7 @@
 
 set -e  # Exit on any error
 
-echo "🔍 DCC Environment Updater"
+echo "🔍 Quote Me Environment Updater"
 echo "=========================="
 echo ""
 
