@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:ui' show Rect;
 import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +15,7 @@ import 'settings_screen.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
 import 'admin_dashboard_screen.dart';
+
 
 class QuoteScreen extends StatefulWidget {
   const QuoteScreen({super.key});
@@ -36,6 +38,8 @@ class _QuoteScreenState extends State<QuoteScreen> {
   bool _audioEnabled = true;
   Set<String> _selectedCategories = {'All'};
   Map<String, String>? _selectedVoice;
+  double _speechRate = 0.5;
+  double _pitch = 1.0;
   
   // Auth state
   bool _isSignedIn = false;
@@ -128,9 +132,14 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
 
   void _setTtsSettings() async {
-    await flutterTts.setSpeechRate(0.5); // Slower rate for better comprehension
+    await flutterTts.setSpeechRate(_speechRate);
     await flutterTts.setVolume(1.0);
-    await flutterTts.setPitch(1.0);
+    await flutterTts.setPitch(_pitch);
+    
+    // Apply voice if one is selected
+    if (_selectedVoice != null) {
+      await flutterTts.setVoice(_selectedVoice!);
+    }
   }
 
   void _speakQuote() async {
@@ -227,12 +236,14 @@ class _QuoteScreenState extends State<QuoteScreen> {
       if (voiceName != null && voiceLocale != null) {
         _selectedVoice = {'name': voiceName, 'locale': voiceLocale};
       }
+      
+      // Load TTS parameters
+      _speechRate = prefs.getDouble('speech_rate') ?? 0.5;
+      _pitch = prefs.getDouble('pitch') ?? 1.0;
     });
     
-    // Apply voice if one is selected
-    if (_selectedVoice != null) {
-      await flutterTts.setVoice(_selectedVoice!);
-    }
+    // Apply all TTS settings
+    _setTtsSettings();
   }
 
   Future<void> _saveSettings() async {
@@ -245,6 +256,10 @@ class _QuoteScreenState extends State<QuoteScreen> {
       await prefs.setString('selected_voice_name', _selectedVoice!['name']!);
       await prefs.setString('selected_voice_locale', _selectedVoice!['locale']!);
     }
+    
+    // Save TTS parameters
+    await prefs.setDouble('speech_rate', _speechRate);
+    await prefs.setDouble('pitch', _pitch);
   }
 
   void _openSettings() {
@@ -255,17 +270,19 @@ class _QuoteScreenState extends State<QuoteScreen> {
           audioEnabled: _audioEnabled,
           selectedCategories: _selectedCategories,
           selectedVoice: _selectedVoice,
-          onSettingsChanged: (audioEnabled, categories, voice) {
+          speechRate: _speechRate,
+          pitch: _pitch,
+          onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch) {
             setState(() {
               _audioEnabled = audioEnabled;
               _selectedCategories = categories;
               _selectedVoice = voice;
+              _speechRate = speechRate;
+              _pitch = pitch;
             });
             _saveSettings();
-            // Apply voice change immediately
-            if (voice != null) {
-              flutterTts.setVoice(voice);
-            }
+            // Apply all TTS settings immediately
+            _setTtsSettings();
           },
         ),
       ),
@@ -299,6 +316,12 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
 
   Future<void> _shareQuote() async {
+    print('🔄 Starting share process...');
+    print('  Platform: ${kIsWeb ? 'Web' : Platform.operatingSystem}');
+    if (!kIsWeb) {
+      print('  Platform version: ${Platform.operatingSystemVersion}');
+    }
+    
     if (_quote == null || _author == null || _currentQuoteId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -321,7 +344,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     }
     
     shareText.writeln();
-    shareText.writeln('View this quote: https://dcc.anystupididea.com/quote/$_currentQuoteId');
+    shareText.writeln('View this quote: https://quote-me.anystupididea.com/quote/$_currentQuoteId');
     shareText.writeln();
     shareText.writeln('Shared from Quote Me');
     
@@ -329,11 +352,17 @@ class _QuoteScreenState extends State<QuoteScreen> {
       await Share.share(
         shareText.toString(),
         subject: 'Quote by $_author',
+        sharePositionOrigin: const Rect.fromLTWH(0, 0, 100, 100), // Required for iPad popover positioning
       );
+      print('✅ Share completed successfully');
     } catch (e) {
-      // Handle web fallback or other errors
+      print('❌ Share error details:');
+      print('  Error type: ${e.runtimeType}');
+      print('  Error message: $e');
+      print('  Stack trace: ${StackTrace.current}');
+      
       if (kIsWeb) {
-        // Copy to clipboard as fallback for web
+        // Web fallback: try clipboard
         try {
           await Clipboard.setData(ClipboardData(text: shareText.toString()));
           if (mounted) {
@@ -355,14 +384,27 @@ class _QuoteScreenState extends State<QuoteScreen> {
           }
         }
       } else {
-        // Non-web platform error
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Unable to share quote. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+        // Native device fallback: try clipboard then show error
+        try {
+          await Clipboard.setData(ClipboardData(text: shareText.toString()));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Share failed. Quote copied to clipboard instead.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        } catch (clipboardError) {
+          print('❌ Clipboard error: $clipboardError');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Unable to share quote. Please try again.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       }
     }
@@ -496,9 +538,9 @@ class _QuoteScreenState extends State<QuoteScreen> {
         actions: [
           IconButton(
             icon: Icon(
-              !kIsWeb && (Platform.isIOS || Platform.isMacOS) 
-                ? CupertinoIcons.share 
-                : Icons.share,
+              (!kIsWeb && Platform.isAndroid) 
+                ? Icons.share 
+                : CupertinoIcons.share,
             ),
             onPressed: _shareQuote,
             tooltip: 'Share Quote',

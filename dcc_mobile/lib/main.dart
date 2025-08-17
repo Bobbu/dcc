@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'screens/quote_screen.dart';
+import 'screens/quote_detail_screen.dart';
 import 'services/auth_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Configure URL strategy for web
+  if (kIsWeb) {
+    usePathUrlStrategy();
+  }
+  
   await dotenv.load(fileName: ".env");
   
   try {
@@ -21,7 +31,7 @@ class QuoteMeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Quote Me',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -53,8 +63,31 @@ class QuoteMeApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFE8EAF6), // Light indigo background
         useMaterial3: true,
       ),
-      home: const QuoteScreen(),
+      routerConfig: _router,
     );
   }
 }
+
+// GoRouter configuration
+final GoRouter _router = GoRouter(
+  initialLocation: '/',
+  debugLogDiagnostics: true,
+  routes: <RouteBase>[
+    GoRoute(
+      path: '/',
+      builder: (BuildContext context, GoRouterState state) {
+        print('🏠 Navigating to home screen');
+        return const QuoteScreen();
+      },
+    ),
+    GoRoute(
+      path: '/quote/:id',
+      builder: (BuildContext context, GoRouterState state) {
+        final quoteId = state.pathParameters['id']!;
+        print('📖 Navigating to quote detail screen with ID: $quoteId');
+        return QuoteDetailScreen(quoteId: quoteId);
+      },
+    ),
+  ],
+);
 

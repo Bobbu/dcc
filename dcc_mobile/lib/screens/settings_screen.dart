@@ -6,13 +6,17 @@ class SettingsScreen extends StatefulWidget {
   final bool audioEnabled;
   final Set<String> selectedCategories;
   final Map<String, String>? selectedVoice;
-  final Function(bool, Set<String>, Map<String, String>?) onSettingsChanged;
+  final double speechRate;
+  final double pitch;
+  final Function(bool, Set<String>, Map<String, String>?, double, double) onSettingsChanged;
 
   const SettingsScreen({
     super.key,
     required this.audioEnabled,
     required this.selectedCategories,
     this.selectedVoice,
+    this.speechRate = 0.5,
+    this.pitch = 1.0,
     required this.onSettingsChanged,
   });
 
@@ -24,6 +28,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _audioEnabled;
   late Set<String> _selectedCategories;
   Map<String, String>? _selectedVoice;
+  late double _speechRate;
+  late double _pitch;
   List<Map<String, dynamic>> _availableVoices = [];
   bool _voicesLoaded = false;
   late FlutterTts _testTts;
@@ -43,6 +49,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _audioEnabled = widget.audioEnabled;
     _selectedCategories = Set<String>.from(widget.selectedCategories);
     _selectedVoice = widget.selectedVoice;
+    _speechRate = widget.speechRate;
+    _pitch = widget.pitch;
     
     // Initialize test TTS
     _testTts = FlutterTts();
@@ -120,13 +128,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _updateSettings() {
-    widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice);
+    widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch);
+  }
+  
+  // Helper methods for TTS options
+  String _getSpeechRateLabel(double rate) {
+    if (rate <= 0.2) return 'Very Slow';
+    if (rate <= 0.5) return 'Moderate';
+    if (rate <= 0.6) return 'Normal';
+    return 'Fast';
+  }
+  
+  String _getPitchLabel(double pitch) {
+    if (pitch < 0.9) return 'Low';
+    if (pitch > 1.1) return 'High';
+    return 'Normal';
+  }
+  
+  double _getSpeechRateValue(String label) {
+    switch (label) {
+      case 'Very Slow': return 0.15;
+      case 'Moderate': return 0.45;
+      case 'Normal': return 0.55;
+      case 'Fast': return 0.75;
+      default: return 0.55;
+    }
+  }
+  
+  double _getPitchValue(String label) {
+    switch (label) {
+      case 'Low': return 0.6;
+      case 'Normal': return 1.0;
+      case 'High': return 1.4;
+      default: return 1.0;
+    }
   }
   
   Future<void> _testVoice(Map<String, String> voice) async {
     try {
       await _testTts.stop();
       await _testTts.setVoice(voice);
+      await _testTts.setSpeechRate(_speechRate);
+      await _testTts.setPitch(_pitch);
       await _testTts.speak("Hello! This is a test of the ${voice['name']} voice.");
     } catch (e) {
       print('Error testing voice: $e');
@@ -381,6 +424,162 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ],
                         ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Speech Rate Section
+            Card(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white,
+                      const Color(0xFFE8EAF6).withOpacity(0.3),
+                    ],
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.speed,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Speech Rate',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: const Color(0xFF3F51B5),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Control how fast the voice speaks',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF3F51B5).withOpacity(0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        children: ['Very Slow', 'Moderate', 'Normal', 'Fast'].map((label) {
+                          final isSelected = _getSpeechRateLabel(_speechRate) == label;
+                          return ChoiceChip(
+                            label: Text(label),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              if (selected) {
+                                setState(() {
+                                  _speechRate = _getSpeechRateValue(label);
+                                });
+                                _updateSettings();
+                              }
+                            },
+                            selectedColor: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                            checkmarkColor: Theme.of(context).colorScheme.primary,
+                            labelStyle: TextStyle(
+                              color: isSelected 
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Pitch Section
+            Card(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white,
+                      const Color(0xFFE8EAF6).withOpacity(0.3),
+                    ],
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.tune,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Voice Pitch',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: const Color(0xFF3F51B5),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Adjust the pitch/tone of the voice',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF3F51B5).withOpacity(0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        children: ['Low', 'Normal', 'High'].map((label) {
+                          final isSelected = _getPitchLabel(_pitch) == label;
+                          return ChoiceChip(
+                            label: Text(label),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              if (selected) {
+                                setState(() {
+                                  _pitch = _getPitchValue(label);
+                                });
+                                _updateSettings();
+                              }
+                            },
+                            selectedColor: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                            checkmarkColor: Theme.of(context).colorScheme.primary,
+                            labelStyle: TextStyle(
+                              color: isSelected 
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ],
                   ),
                 ),

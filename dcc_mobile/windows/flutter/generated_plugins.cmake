@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   amplify_db_common
+  app_links
   flutter_tts
   share_plus
   url_launcher_windows

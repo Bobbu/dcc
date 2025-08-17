@@ -15,7 +15,7 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **User Authentication**: Self-registration with email verification and unified login
 - **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading and filtering with O(1) performance
-- **Advanced Audio**: Text-to-speech with 20-50+ voice options
+- **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High)
 - **Admin Dashboard**: Complete quote management interface with tag filtering
 - **Tag Management**: Dedicated editor for individual tag operations
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
@@ -224,6 +224,32 @@ quote-me/
     ├── test_admin_api.sh
     └── test_tag_*.py
 ```
+
+## 🎵 Audio Features
+
+The Quote Me app includes a comprehensive text-to-speech system for enhanced accessibility and user experience:
+
+### Voice Controls
+- **Voice Selection**: Choose from 20-50+ available voices on your device
+- **Voice Testing**: Test voices in real-time before selection
+- **Persistent Settings**: Voice preferences saved across app sessions
+
+### Speech Rate Options
+- **Very Slow** (0.15): Deliberate pace for careful listening
+- **Moderate** (0.45): Comfortable default speaking pace  
+- **Normal** (0.55): Natural conversational speed
+- **Fast** (0.75): Brisk but comprehensible playback
+
+### Pitch Controls
+- **Low** (0.6): Deeper, more authoritative tone
+- **Normal** (1.0): Standard voice pitch
+- **High** (1.4): Lighter, more energetic tone
+
+### Advanced Features
+- **Smart Interruption**: Stop/start controls with state management
+- **Simulator Compatibility**: Enhanced compatibility with iOS Simulator TTS
+- **Automatic Playback**: Optional auto-speak when quotes load
+- **Settings Integration**: All audio settings accessible via dedicated settings screen
 
 ## 📊 Performance & Security
 

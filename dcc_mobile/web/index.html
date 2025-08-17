@@ -46,12 +46,88 @@
 <meta name="twitter:image" content="https://quote-me.anystupididea.com/images/preview.png">
 
 
+  <!-- Material Icons for web -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  
+  <!-- Comprehensive Cupertino Icons font loading strategy with cache busting -->
+  <link rel="preload" href="assets/packages/cupertino_icons/assets/CupertinoIcons.ttf?v=2" as="font" type="font/ttf" crossorigin>
+  
+  <style>
+    /* Explicit font-face declaration for Cupertino Icons with cache busting */
+    @font-face {
+      font-family: 'CupertinoIcons';
+      src: url('assets/packages/cupertino_icons/assets/CupertinoIcons.ttf?v=2') format('truetype');
+      font-display: swap;
+      font-weight: normal;
+      font-style: normal;
+    }
+    
+    /* Force immediate font loading */
+    .cupertino-icons-preload {
+      font-family: 'CupertinoIcons';
+      position: absolute;
+      left: -9999px;
+      top: -9999px;
+      visibility: hidden;
+    }
+  </style>
+  
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- Hidden element to force Cupertino Icons font loading -->
+  <div class="cupertino-icons-preload">&#xF3FD;</div>
+  
+  <script>
+    // Force font loading before Flutter starts
+    document.fonts.ready.then(function() {
+      console.log('Fonts loaded successfully');
+    }).catch(function(error) {
+      console.log('Font loading error:', error);
+    });
+    
+    // Additional font loading strategy with cache busting
+    if (document.fonts && document.fonts.load) {
+      document.fonts.load('16px CupertinoIcons').then(function() {
+        console.log('CupertinoIcons font loaded successfully');
+      }).catch(function(error) {
+        console.log('CupertinoIcons font loading error:', error);
+      });
+    }
+    
+    // Chrome-specific workaround: Force font refresh and reload
+    if (navigator.userAgent.includes('Chrome')) {
+      // Try multiple strategies for Chrome
+      setTimeout(function() {
+        // Strategy 1: Force style recalculation
+        document.body.style.display = 'none';
+        document.body.offsetHeight; // Trigger reflow
+        document.body.style.display = '';
+        
+        // Strategy 2: Force font reload
+        document.fonts.load('16px CupertinoIcons').then(function() {
+          // Strategy 3: Trigger font-face refresh
+          var style = document.createElement('style');
+          style.textContent = '.chrome-font-fix { font-family: CupertinoIcons; }';
+          document.head.appendChild(style);
+          setTimeout(function() { document.head.removeChild(style); }, 10);
+          console.log('Chrome font refresh strategies applied');
+        });
+      }, 50);
+      
+      // Additional Chrome strategy: Listen for Flutter app load
+      window.addEventListener('flutter-first-frame', function() {
+        setTimeout(function() {
+          document.fonts.load('16px CupertinoIcons');
+          console.log('Chrome post-Flutter font reload');
+        }, 100);
+      });
+    }
+  </script>
+  
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

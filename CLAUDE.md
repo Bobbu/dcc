@@ -182,7 +182,12 @@ open -a Simulator
   - **Background**: Light indigo (#E8EAF6) for a cohesive, modern appearance
   - **Text**: White on dark backgrounds, indigo on light backgrounds for optimal contrast
 - **Advanced Features**:
-  - **Audio System**: Voice selection, testing, smart interruption controls, and simulator compatibility
+  - **Audio System**: Advanced text-to-speech with comprehensive controls:
+    - Voice selection from 20-50+ available voices with real-time testing
+    - Speech rate control: Very Slow (0.15), Moderate (0.45), Normal (0.55), Fast (0.75)
+    - Voice pitch control: Low (0.6), Normal (1.0), High (1.4)
+    - Smart interruption controls and simulator compatibility
+    - Persistent settings with immediate application to quote playback
   - **Dynamic Tag Filtering**: Real-time tag loading with 3-tag minimum for variety
   - **Admin Management**: Complete quote CRUD with real-time updates and advanced sorting
   - **Quote Sorting**: AppBar toggle buttons for sorting by Quote, Author, or Created Date (ascending/descending)
