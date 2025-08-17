@@ -110,10 +110,10 @@ open -a Simulator
 
 ### API Component (`aws/`)
 - **SAM Template**: `template.yaml` defines complete serverless infrastructure
-  - API Gateway with dual authentication (API Key + Cognito JWT)
-  - Lambda functions for public quotes and admin CRUD operations
+  - API Gateway with dual authentication (API Key for public, Cognito JWT for authenticated users)
+  - Lambda functions for public quotes, user registration, and admin CRUD operations
   - DynamoDB table with Global Secondary Index for multi-tag querying
-  - Cognito User Pool with admin group for role-based access
+  - Cognito User Pool with self-registration and role-based groups (Users, Admins)
   - Custom domain support with SSL certificates
 - **Lambda Functions**:
   - `quote_handler.py`: Public quote API with tag validation, filtering + dynamic tags endpoint (GET /tags)
@@ -123,6 +123,10 @@ open -a Simulator
   - `admin_handler.py`: Admin CRUD operations with comprehensive tags management and data integrity
     - Tag rename/delete operations automatically update all affected quotes
     - Maintains tags metadata cache for O(1) retrieval
+  - `auth_handler.py`: User registration and email confirmation
+    - Self-service user registration with email verification
+    - Automatic assignment to Users group upon registration
+    - Handles password validation and Cognito integration
   - `options_handler.py`: CORS preflight handler for web browser compatibility
     - Handles OPTIONS requests without authentication
     - Returns proper CORS headers for cross-origin requests
@@ -136,8 +140,10 @@ open -a Simulator
 - **Response Format**: JSON with `quote`, `author`, `tags`, and `id` fields
 - **Security Features**:
   - API Key authentication for public endpoints (rate limited)
-  - Cognito JWT authentication for admin endpoints (no rate limits)
-  - Admin group membership verification
+  - Cognito JWT authentication for registered user endpoints (no rate limits)
+  - Role-based access control with Users and Admins groups
+  - Self-registration with email verification required
+  - Password complexity requirements (8+ chars, upper, lower, number, special char)
   - CORS configured for web and mobile app access
   - OPTIONS handlers for browser preflight requests
 - **Rate Limits**: 1 req/sec sustained, 5 req/sec burst, 1,000 req/day for public API
@@ -148,16 +154,19 @@ open -a Simulator
 - **Platform Support**: iOS, Android, and Web (https://quote-me.anystupididea.com)
 - **Architecture**: Clean separation with screens in dedicated folders and services
 - **Screen Components**:
-  - `quote_screen.dart`: Main app with responsive layout and category filtering
+  - `quote_screen.dart`: Main app with responsive layout, category filtering, and unified authentication menu
   - `settings_screen.dart`: Dynamic tag loading with voice testing and server synchronization
-  - `admin_login_screen.dart`: Secure admin authentication with indigo-themed UI
+  - `login_screen.dart`: Unified authentication for all users with role-based navigation
+  - `registration_screen.dart`: Self-service user registration with email verification
   - `admin_dashboard_screen.dart`: Full quote management interface with CRUD operations and tag filtering
   - `tags_editor_screen.dart`: Dedicated tag management interface with individual tag CRUD operations
 - **Authentication Service**: `lib/services/auth_service.dart`
   - AWS Amplify Cognito integration for secure authentication
-  - Admin group membership verification
+  - Self-registration and email verification support
+  - Role-based group membership verification (Users, Admins)
   - JWT token management for API calls
   - Persistent authentication state management
+  - Unified login for all user types
 - **Dependencies**:
   - `http: ^1.1.0`: API communication with authentication headers
   - `flutter_tts: ^4.0.2`: Advanced text-to-speech with voice selection
@@ -348,11 +357,17 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 ## Current API Endpoints
 
 ### Public API (Rate Limited)
-**Quote Retrieval:**
+**Random Quote Retrieval:**
 - **Custom Domain**: `https://dcc.anystupididea.com/quote`
 - **Direct URL**: `https://iasj16a8jl.execute-api.us-east-1.amazonaws.com/prod/quote`
 - **Authentication**: API Key required (`x-api-key` header)
 - **Features**: Tag filtering via `?tags=Motivation,Business` query parameter
+
+**Specific Quote Retrieval:**
+- **Custom Domain**: `https://dcc.anystupididea.com/quote/{id}`
+- **Direct URL**: `https://iasj16a8jl.execute-api.us-east-1.amazonaws.com/prod/quote/{id}`
+- **Authentication**: API Key required (`x-api-key` header)
+- **Features**: Returns specific quote by ID, or "Requested quote was not found." if not found
 
 **Dynamic Tags Retrieval:**
 - **Custom Domain**: `https://dcc.anystupididea.com/tags`
@@ -361,9 +376,22 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - **Features**: Returns all available tags from database (zero-scan performance)
 - **Response**: `{"tags": ["All", "Action", "Business", ...], "count": 23}`
 
-### Admin API (JWT Protected)
+### Authentication API (No Rate Limits)
+**User Registration:**
+- **Endpoint**: `POST https://dcc.anystupididea.com/auth/register`
+- **Authentication**: None required
+- **Body**: `{"email": "user@example.com", "password": "Password123!", "name": "Optional Name"}`
+- **Features**: Self-service user registration with automatic Users group assignment
+
+**Email Verification:**
+- **Endpoint**: `POST https://dcc.anystupididea.com/auth/confirm`
+- **Authentication**: None required
+- **Body**: `{"email": "user@example.com", "code": "123456"}`
+- **Features**: Email verification to complete registration
+
+### Admin API (JWT Protected - Admin Group Required)
 - **Base URL**: `https://dcc.anystupididea.com/admin/`
-- **Authentication**: Cognito IdToken required (`Authorization: Bearer {token}`)
+- **Authentication**: Cognito IdToken required (`Authorization: Bearer {token}`) + Admin group membership
 - **Quote Management Endpoints**:
   - `GET /admin/quotes` - List all quotes with metadata
   - `POST /admin/quotes` - Create new quote (auto-updates tags metadata)
@@ -378,24 +406,37 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - **Tags Metadata Management**: All CRUD operations automatically maintain tags metadata cache with full data integrity
 - **Quote Synchronization**: Tag rename/delete operations automatically update all affected quotes
 
-### Admin Credentials
-- **Email**: `admin@dcc.com`
-- **Password**: `AdminPass123!`
+### User Management
+**Registration Process:**
+1. Users register via the mobile app or web interface
+2. Email verification required (6-digit code sent to email)
+3. Automatic assignment to "Users" group upon verification
+4. Password requirements: 8+ characters, uppercase, lowercase, number, special character
+
+**Admin Access:**
+- Existing admin account: `admin@dcc.com` / `AdminPass123!`
+- Admin users must be manually added to "Admins" group via AWS Console
+- New users register as regular users by default
+
+**Cognito Configuration:**
 - **User Pool**: `us-east-1_ecyuILBAu`
 - **Client ID**: `2idvhvlhgbheglr0hptel5j55`
+- **Groups**: "Users" (default), "Admins" (manual assignment)
 
 ## Important Notes
 
 ### Production Features
 - **Database**: DynamoDB with 20+ curated quotes and dynamic tag system (zero-scan performance)
-- **Authentication**: Enterprise-grade Cognito integration with role-based access control
-- **Security**: Dual-layer API security (API keys + JWT) with admin group verification and CORS support
+- **Authentication**: Enterprise-grade Cognito integration with self-registration and role-based access control
+- **Security**: Multi-layer API security (API keys for public + JWT for authenticated users) with group-based permissions and CORS support
+- **User Management**: Self-service registration with email verification and automatic group assignment
 - **Performance**: Rate limiting, CloudWatch monitoring, tags metadata caching, custom domain with CDN
-- **Cross-Platform**: Mobile (iOS/Android) and Web (https://quote-me.anystupididea.com) with real-time tag synchronization
+- **Cross-Platform**: Mobile (iOS/Android) and Web (https://quote-me.anystupididea.com) with unified authentication
 - **Web Deployment**: Automated CloudFormation infrastructure with S3, CloudFront, Route53, and SSL
 
 ### Advanced Capabilities
 - **Audio System**: Professional TTS with 20-50+ voice options, testing, and smart controls
+- **User Authentication**: Unified login system with self-registration and role-based features
 - **Admin Management**: Complete quote lifecycle management with real-time updates and advanced sorting
 - **Quote Sorting**: Three-field sorting (Quote, Author, Date) with ascending/descending toggles in AppBar
 - **Duplicate Management**: Intelligent duplicate detection with smart cleanup and preservation logic
@@ -411,6 +452,7 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - **Responsive Design**: Perfect layout across all device orientations and screen sizes
 - **Error Handling**: Comprehensive error management with user-friendly messaging
 - **State Management**: Persistent settings and authentication across app sessions
+- **Smart Navigation**: Context-aware menu system showing different options based on user authentication status
 
 ### Resilience & Error Handling
 - **Automatic Retry Logic**: 500 errors trigger up to 3 retries with exponential backoff (500ms, 1000ms, 1500ms)

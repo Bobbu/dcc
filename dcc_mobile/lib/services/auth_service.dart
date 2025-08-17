@@ -123,14 +123,8 @@ class AuthService {
         password: password,
       );
       
-      if (result.isSignedIn) {
-        // Verify user is in admin group
-        final isAdmin = await isUserInAdminGroup();
-        if (!isAdmin) {
-          await signOut();
-          throw Exception('Access denied: Admin privileges required');
-        }
-      }
+      // No longer checking for admin group here - 
+      // let the calling code decide what to do based on user role
       
       return result;
     } catch (e) {
@@ -146,6 +140,55 @@ class AuthService {
     } catch (e) {
       print('Sign out error: $e');
       rethrow;
+    }
+  }
+
+  static Future<bool> isUserInUsersGroup() async {
+    try {
+      final session = await Amplify.Auth.fetchAuthSession();
+      if (session is CognitoAuthSession) {
+        final tokens = session.userPoolTokensResult.value;
+        final groups = tokens.accessToken.groups;
+        return groups.contains('Users');
+      }
+      return false;
+    } catch (e) {
+      print('Error checking users group membership: $e');
+      return false;
+    }
+  }
+
+  static Future<List<String>> getUserGroups() async {
+    try {
+      final session = await Amplify.Auth.fetchAuthSession();
+      if (session is CognitoAuthSession) {
+        final tokens = session.userPoolTokensResult.value;
+        return tokens.accessToken.groups;
+      }
+      return [];
+    } catch (e) {
+      print('Error getting user groups: $e');
+      return [];
+    }
+  }
+
+  static Future<String?> getUserEmail() async {
+    try {
+      final attributes = await getUserAttributes();
+      return attributes?['email'];
+    } catch (e) {
+      print('Error getting user email: $e');
+      return null;
+    }
+  }
+
+  static Future<String?> getUserName() async {
+    try {
+      final attributes = await getUserAttributes();
+      return attributes?['name'] ?? attributes?['email']?.split('@').first;
+    } catch (e) {
+      print('Error getting user name: $e');
+      return null;
     }
   }
 }

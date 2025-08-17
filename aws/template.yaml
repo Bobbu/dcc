@@ -45,6 +45,12 @@ Resources:
             Path: /tags
             Method: GET
             RestApiId: !Ref ApiGatewayApi
+        QuoteByIdApi:
+          Type: Api
+          Properties:
+            Path: /quote/{id}
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
 
   # OPTIONS Handler for CORS
   OptionsFunction:
@@ -68,6 +74,14 @@ Resources:
           Type: Api
           Properties:
             Path: /tags
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsQuoteById:
+          Type: Api
+          Properties:
+            Path: /quote/{id}
             Method: OPTIONS
             RestApiId: !Ref ApiGatewayApi
             Auth:
@@ -109,6 +123,63 @@ Resources:
           Properties:
             Path: /admin/tags/unused
             Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAuthRegister:
+          Type: Api
+          Properties:
+            Path: /auth/register
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAuthConfirm:
+          Type: Api
+          Properties:
+            Path: /auth/confirm
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+
+  # Auth Lambda function for registration and confirmation
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-auth-handler
+      CodeUri: lambda/
+      Handler: auth_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          USER_POOL_CLIENT_ID: !Ref UserPoolClient
+      Policies:
+        - Statement:
+            - Sid: CognitoAccess
+              Effect: Allow
+              Action:
+                - cognito-idp:SignUp
+                - cognito-idp:ConfirmSignUp
+                - cognito-idp:AdminAddUserToGroup
+                - cognito-idp:AdminGetUser
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        Register:
+          Type: Api
+          Properties:
+            Path: /auth/register
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        Confirm:
+          Type: Api
+          Properties:
+            Path: /auth/confirm
+            Method: POST
             RestApiId: !Ref ApiGatewayApi
             Auth:
               ApiKeyRequired: false
@@ -275,16 +346,20 @@ Resources:
       KeyType: API_KEY
       UsagePlanId: !Ref UsagePlan
 
-  # Cognito User Pool for admin authentication
+  # Cognito User Pool for user authentication
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: dcc-admin-pool
+      UserPoolName: dcc-user-pool
       AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true
+        AllowAdminCreateUserOnly: false  # Allow self-registration
       Policies:
         PasswordPolicy:
           MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
       UsernameAttributes:
         - email
       AutoVerifiedAttributes:
@@ -295,11 +370,13 @@ Resources:
     Type: AWS::Cognito::UserPoolClient
     Properties:
       UserPoolId: !Ref UserPool
-      ClientName: dcc-admin-client
+      ClientName: dcc-app-client
       GenerateSecret: false
       ExplicitAuthFlows:
-        - ADMIN_NO_SRP_AUTH
-        - USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_CUSTOM_AUTH
       TokenValidityUnits:
         AccessToken: hours
         IdToken: hours
@@ -307,6 +384,9 @@ Resources:
       AccessTokenValidity: 1
       IdTokenValidity: 1
       RefreshTokenValidity: 30
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders:
+        - COGNITO
 
   # Admin Group
   AdminGroup:
@@ -316,6 +396,15 @@ Resources:
       UserPoolId: !Ref UserPool
       Description: Admin users for quote management
       Precedence: 1
+
+  # Users Group
+  UsersGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Users
+      UserPoolId: !Ref UserPool
+      Description: Regular authenticated users
+      Precedence: 10
 
   # DynamoDB table for quotes
   QuotesTable:

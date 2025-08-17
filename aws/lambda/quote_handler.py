@@ -46,6 +46,25 @@ def get_quotes_by_tags(tags):
         print(f"Error querying DynamoDB: {e}")
         return []
 
+def get_quote_by_id(quote_id):
+    """Get a specific quote by its ID."""
+    try:
+        # Ensure we don't try to fetch metadata records
+        if quote_id == 'TAGS_METADATA':
+            return None
+            
+        response = table.get_item(Key={'id': quote_id})
+        item = response.get('Item')
+        
+        # Double-check it's not a metadata record
+        if item and item.get('id') != 'TAGS_METADATA':
+            return item
+        return None
+        
+    except Exception as e:
+        print(f"Error fetching quote by ID {quote_id}: {e}")
+        return None
+
 def get_tags_metadata():
     """Get the current list of valid tags from metadata."""
     try:
@@ -138,6 +157,7 @@ def lambda_handler(event, context):
     
     Routes:
     - GET /quote: Returns a random quote with its author, filtered by tags if specified.
+    - GET /quote/{id}: Returns a specific quote by ID.
     - GET /tags: Returns all available tags.
     
     Query parameters for /quote:
@@ -146,28 +166,53 @@ def lambda_handler(event, context):
     try:
         # Route based on path
         path = event.get('path', '/quote')
+        path_parameters = event.get('pathParameters') or {}
         
         if path == '/tags':
             return handle_tags_request()
         
-        # Default to quote handling
-        # Parse tags from query parameters
-        requested_tags = parse_tags_from_query(event)
+        # Check if this is a request for a specific quote by ID
+        quote_id = path_parameters.get('id')
+        if quote_id:
+            # Handle specific quote request
+            selected_quote = get_quote_by_id(quote_id)
+            
+            if not selected_quote:
+                # Quote not found
+                error_response = {
+                    "error": "Quote not found",
+                    "message": "Requested quote was not found."
+                }
+                
+                return {
+                    "statusCode": 404,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                        "Access-Control-Allow-Methods": "GET,OPTIONS"
+                    },
+                    "body": json.dumps(error_response)
+                }
+        else:
+            # Handle random quote request with optional tag filtering
+            # Parse tags from query parameters
+            requested_tags = parse_tags_from_query(event)
+            
+            # Get quotes matching the tags
+            quotes = get_quotes_by_tags(requested_tags)
+            
+            if not quotes:
+                # Fallback to all quotes if no matches found
+                quotes = get_quotes_by_tags(['All'])
+            
+            if not quotes:
+                raise Exception("No quotes found in database")
+            
+            # Select a random quote
+            selected_quote = random.choice(quotes)
         
-        # Get quotes matching the tags
-        quotes = get_quotes_by_tags(requested_tags)
-        
-        if not quotes:
-            # Fallback to all quotes if no matches found
-            quotes = get_quotes_by_tags(['All'])
-        
-        if not quotes:
-            raise Exception("No quotes found in database")
-        
-        # Select a random quote
-        selected_quote = random.choice(quotes)
-        
-        # Prepare the response
+        # Prepare the response (same format for both random and specific quotes)
         response_body = {
             "quote": selected_quote["quote"],
             "author": selected_quote["author"],

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:share_plus/share_plus.dart';
 import 'settings_screen.dart';
-import 'admin_login_screen.dart';
+import 'login_screen.dart';
 import '../services/auth_service.dart';
 import 'admin_dashboard_screen.dart';
 
@@ -20,6 +25,8 @@ class QuoteScreen extends StatefulWidget {
 class _QuoteScreenState extends State<QuoteScreen> {
   String? _quote;
   String? _author;
+  String? _currentQuoteId;
+  List<String> _currentTags = [];
   bool _isLoading = false;
   String? _error;
   bool _isSpeaking = false;
@@ -29,6 +36,11 @@ class _QuoteScreenState extends State<QuoteScreen> {
   bool _audioEnabled = true;
   Set<String> _selectedCategories = {'All'};
   Map<String, String>? _selectedVoice;
+  
+  // Auth state
+  bool _isSignedIn = false;
+  bool _isAdmin = false;
+  String? _userName;
 
   static final String apiEndpoint = dotenv.env['API_ENDPOINT'] ?? '';
   static final String apiKey = dotenv.env['API_KEY'] ?? '';
@@ -38,6 +50,20 @@ class _QuoteScreenState extends State<QuoteScreen> {
     super.initState();
     _initTts();
     _loadSettings();
+    _checkAuthStatus();
+  }
+  
+  Future<void> _checkAuthStatus() async {
+    final isSignedIn = await AuthService.isSignedIn();
+    if (isSignedIn) {
+      final isAdmin = await AuthService.isUserInAdminGroup();
+      final userName = await AuthService.getUserName();
+      setState(() {
+        _isSignedIn = true;
+        _isAdmin = isAdmin;
+        _userName = userName;
+      });
+    }
   }
 
   void _initTts() {
@@ -265,9 +291,79 @@ class _QuoteScreenState extends State<QuoteScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const AdminLoginScreen(),
+            builder: (context) => const LoginScreen(),
           ),
         );
+      }
+    }
+  }
+
+  Future<void> _shareQuote() async {
+    if (_quote == null || _author == null || _currentQuoteId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No quote to share yet. Please wait for a quote to load.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    final shareText = StringBuffer();
+    
+    // Build share text with Option B format
+    shareText.writeln('"$_quote"');
+    shareText.writeln('- $_author');
+    
+    // Add tags if available
+    if (_currentTags.isNotEmpty) {
+      shareText.writeln('Tags: ${_currentTags.join(", ")}');
+    }
+    
+    shareText.writeln();
+    shareText.writeln('View this quote: https://dcc.anystupididea.com/quote/$_currentQuoteId');
+    shareText.writeln();
+    shareText.writeln('Shared from Quote Me');
+    
+    try {
+      await Share.share(
+        shareText.toString(),
+        subject: 'Quote by $_author',
+      );
+    } catch (e) {
+      // Handle web fallback or other errors
+      if (kIsWeb) {
+        // Copy to clipboard as fallback for web
+        try {
+          await Clipboard.setData(ClipboardData(text: shareText.toString()));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Quote copied to clipboard!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } catch (clipboardError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Unable to share quote. Please try again.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        // Non-web platform error
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to share quote. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -324,6 +420,8 @@ class _QuoteScreenState extends State<QuoteScreen> {
         setState(() {
           _quote = data['quote'];
           _author = data['author'];
+          _currentQuoteId = data['id'];
+          _currentTags = List<String>.from(data['tags'] ?? []);
           _isLoading = false;
         });
         
@@ -397,27 +495,105 @@ class _QuoteScreenState extends State<QuoteScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: Icon(
+              !kIsWeb && (Platform.isIOS || Platform.isMacOS) 
+                ? CupertinoIcons.share 
+                : Icons.share,
+            ),
+            onPressed: _shareQuote,
+            tooltip: 'Share Quote',
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _openSettings,
             tooltip: 'Settings',
           ),
           PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'admin') {
-                _openAdmin();
+            onSelected: (value) async {
+              switch (value) {
+                case 'admin':
+                  _openAdmin();
+                  break;
+                case 'login':
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                  );
+                  if (result == true) {
+                    _checkAuthStatus();
+                  }
+                  break;
+                case 'logout':
+                  await AuthService.signOut();
+                  setState(() {
+                    _isSignedIn = false;
+                    _isAdmin = false;
+                    _userName = null;
+                  });
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Signed out successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                  break;
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'admin',
-                child: Row(
-                  children: [
-                    Icon(Icons.admin_panel_settings),
-                    SizedBox(width: 8),
-                    Text('Admin'),
-                  ],
+              if (_isSignedIn) ...[
+                if (_userName != null)
+                  PopupMenuItem(
+                    enabled: false,
+                    child: Row(
+                      children: [
+                        Icon(Icons.person, color: Colors.grey),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Hi, $_userName',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_userName != null)
+                  const PopupMenuDivider(),
+                if (_isAdmin)
+                  const PopupMenuItem(
+                    value: 'admin',
+                    child: Row(
+                      children: [
+                        Icon(Icons.admin_panel_settings),
+                        SizedBox(width: 8),
+                        Text('Admin Dashboard'),
+                      ],
+                    ),
+                  ),
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout),
+                      SizedBox(width: 8),
+                      Text('Sign Out'),
+                    ],
+                  ),
                 ),
-              ),
+              ] else ...[
+                const PopupMenuItem(
+                  value: 'login',
+                  child: Row(
+                    children: [
+                      Icon(Icons.login),
+                      SizedBox(width: 8),
+                      Text('Sign In / Sign Up'),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ],

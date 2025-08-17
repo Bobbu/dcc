@@ -12,6 +12,8 @@ A comprehensive quote management system with enterprise-grade features, includin
 ### Mobile & Web Applications
 - **Cross-Platform**: iOS, Android, and Web support via Flutter
 - **Professional UI**: Dark indigo theme (#3F51B5) with clean, modern design
+- **User Authentication**: Self-registration with email verification and unified login
+- **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading and filtering with O(1) performance
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options
 - **Admin Dashboard**: Complete quote management interface with tag filtering
@@ -21,7 +23,8 @@ A comprehensive quote management system with enterprise-grade features, includin
 
 ### Backend Infrastructure
 - **Serverless Architecture**: AWS Lambda + API Gateway + DynamoDB
-- **Dual Authentication**: Public API (API Key) + Admin API (JWT)
+- **Multi-Layer Authentication**: Public API (API Key), User registration (no auth), Admin API (JWT)
+- **User Management**: Self-service registration with Cognito and role-based groups
 - **Custom Domain**: SSL-secured endpoints via Route53 and CloudFront
 - **High Performance**: Tags metadata caching for zero-scan operations
 - **CORS Support**: Full web application compatibility
@@ -40,8 +43,8 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **AWS SAM**: Infrastructure as Code
 - **Lambda**: Python 3.10 serverless functions with OPTIONS handlers
 - **DynamoDB**: NoSQL database with metadata caching
-- **API Gateway**: RESTful API with CORS and dual authentication
-- **Cognito**: User authentication and authorization
+- **API Gateway**: RESTful API with CORS and multi-layer authentication
+- **Cognito**: User authentication, self-registration, and role-based authorization
 - **CloudFront**: CDN for web distribution and API caching
 - **Route53**: DNS management with automatic SSL
 - **ACM**: SSL certificate management
@@ -117,15 +120,37 @@ curl -H "X-Api-Key: YOUR_API_KEY" \
   "https://dcc.anystupididea.com/quote?tags=Motivation,Business"
 ```
 
+**Get Specific Quote by ID**
+```bash
+curl -H "X-Api-Key: YOUR_API_KEY" \
+  https://dcc.anystupididea.com/quote/ab9ff501-e2ee-468e-bef7-5f82f1eec5a4
+```
+
 **Get Available Tags**
 ```bash
 curl -H "X-Api-Key: YOUR_API_KEY" \
   https://dcc.anystupididea.com/tags
 ```
 
+### User Registration
+
+**Register New User**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Password123!","name":"Your Name"}' \
+  https://dcc.anystupididea.com/auth/register
+```
+
+**Verify Email**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","code":"123456"}' \
+  https://dcc.anystupididea.com/auth/confirm
+```
+
 ### Admin Endpoints
 
-**Authenticate**
+**Authenticate (existing admin)**
 ```bash
 aws cognito-idp admin-initiate-auth \
   --user-pool-id us-east-1_ecyuILBAu \
@@ -182,8 +207,9 @@ quote-me/
 ├── aws/                   # Backend infrastructure
 │   ├── template.yaml      # SAM template
 │   ├── lambda/
-│   │   ├── quote_handler.py
-│   │   ├── admin_handler.py
+│   │   ├── quote_handler.py    # Public API
+│   │   ├── admin_handler.py    # Admin API
+│   │   ├── auth_handler.py     # Registration/verification
 │   │   └── options_handler.py  # CORS handler
 │   └── samconfig.toml
 ├── dcc_mobile/           # Flutter app
@@ -209,8 +235,10 @@ quote-me/
 - **Auto-scaling**: Handles traffic spikes automatically
 
 ### Security
-- **Authentication**: AWS Cognito with JWT tokens
-- **API Security**: Dual-layer (API Keys + JWT)
+- **Authentication**: AWS Cognito with JWT tokens and self-registration
+- **API Security**: Multi-layer (API Keys for public + JWT for authenticated users)
+- **User Management**: Email verification required, role-based access control
+- **Password Policy**: 8+ chars with complexity requirements
 - **HTTPS Only**: SSL/TLS encryption enforced
 - **CORS**: Properly configured for web access
 - **Rate Limiting**: DDoS protection via API Gateway
@@ -277,7 +305,9 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 
 ## 🎯 Roadmap
 
-- [ ] User accounts and favorites
+- [x] User registration and authentication
+- [x] Role-based access control
+- [ ] User favorites and personal collections
 - [ ] Social sharing features
 - [ ] Daily quote notifications
 - [ ] Quote collections/categories

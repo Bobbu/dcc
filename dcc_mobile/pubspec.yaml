@@ -40,6 +40,7 @@ dependencies:
   flutter_dotenv: ^5.1.0
   amplify_flutter: ^2.0.0
   amplify_auth_cognito: ^2.0.0
+  share_plus: ^7.2.1
 
 dev_dependencies:
   flutter_test:
