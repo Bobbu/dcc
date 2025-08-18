@@ -20,3 +20,6 @@ dist/
 # AWS deployment artifacts
 .aws-sam/
 samconfig.toml
+
+# experoments
+experiments/

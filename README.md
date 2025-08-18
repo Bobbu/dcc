@@ -16,7 +16,7 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading and filtering with O(1) performance
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High)
-- **Admin Dashboard**: Complete quote management interface with tag filtering
+- **Admin Dashboard**: Complete quote management interface with tag filtering and export functionality
 - **Tag Management**: Dedicated editor for individual tag operations
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
 - **Duplicate Detection**: Intelligent duplicate cleanup with preservation logic

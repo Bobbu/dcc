@@ -189,7 +189,7 @@ open -a Simulator
     - Smart interruption controls and simulator compatibility
     - Persistent settings with immediate application to quote playback
   - **Dynamic Tag Filtering**: Real-time tag loading with 3-tag minimum for variety
-  - **Admin Management**: Complete quote CRUD with real-time updates and advanced sorting
+  - **Admin Management**: Complete quote CRUD with real-time updates, advanced sorting, and tag export functionality
   - **Quote Sorting**: AppBar toggle buttons for sorting by Quote, Author, or Created Date (ascending/descending)
   - **Tag Filtering**: Dropdown filter to view quotes by specific tags with count indicators
   - **Duplicate Management**: Smart duplicate detection and cleanup with intelligent selection

@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../helpers/download_helper_stub.dart'
+    if (dart.library.html) '../helpers/download_helper_web.dart';
 import '../services/auth_service.dart';
+import '../services/openai_service.dart';
 import 'tags_editor_screen.dart';
 
 class Quote {
@@ -670,6 +675,214 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  Future<void> _exportTags() async {
+    try {
+      // Fetch all available tags from the API
+      final headers = await _getAuthHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/admin/tags'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List<String> tags = List<String>.from(data['tags'] ?? []);
+        
+        // Remove 'All' if it exists (it's not a real tag)
+        tags.removeWhere((tag) => tag == 'All');
+        
+        // Sort tags alphabetically
+        tags.sort();
+        
+        // Create the JSON structure
+        final jsonData = {
+          'tags': tags,
+        };
+        
+        // Convert to pretty formatted JSON
+        final jsonString = const JsonEncoder.withIndent('  ').convert(jsonData);
+        
+        if (kIsWeb) {
+          // Web platform: trigger file download
+          downloadFile(jsonString, 'quote-me-tags.json');
+          
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Downloaded quote-me-tags.json with ${tags.length} tags'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          // Mobile platform: copy to clipboard with option to share
+          await Clipboard.setData(ClipboardData(text: jsonString));
+          
+          // Show dialog with preview and instructions
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.download, color: Color(0xFF3F51B5)),
+                    SizedBox(width: 8),
+                    Text('Tags Exported'),
+                  ],
+                ),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${tags.length} tags exported and copied to clipboard.'),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'To save as a file:\n'
+                        '1. Open a text editor or notes app\n'
+                        '2. Paste the content\n'
+                        '3. Save as "quote-me-tags.json"',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: SizedBox(
+                          height: 150,
+                          child: SingleChildScrollView(
+                            child: Text(
+                              jsonString,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Close'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+      } else {
+        _showMessage('Failed to fetch tags: ${response.statusCode}', isError: true);
+      }
+    } catch (e) {
+      print('❌ Error exporting tags: $e');
+      _showMessage('Error exporting tags: $e', isError: true);
+    }
+  }
+
+  void _showGenerateTagsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => _GenerateTagsDialog(
+        onGenerate: _generateTagsForTagless,
+      ),
+    );
+  }
+
+  Future<void> _generateTagsForTagless() async {
+    // Find quotes without any tags
+    final taglessQuotes = _filteredQuotes.where((quote) => quote.tags.isEmpty).toList();
+    
+    if (taglessQuotes.isEmpty) {
+      _showMessage('No quotes found without tags!', isError: false);
+      return;
+    }
+
+    // Get all existing tags from the system for context
+    final existingTags = await _getAllTags();
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _GenerateTagsProgressDialog(
+        quotes: taglessQuotes,
+        existingTags: existingTags,
+        onComplete: (results) {
+          Navigator.of(context).pop(); // Close progress dialog
+          _showGenerateTagsResults(results);
+          _loadQuotes(); // Refresh the quotes list
+        },
+      ),
+    );
+  }
+
+  Future<List<String>> _getAllTags() async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/admin/tags'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List<String> tags = List<String>.from(data['tags'] ?? []);
+        tags.removeWhere((tag) => tag == 'All');
+        return tags;
+      }
+    } catch (e) {
+      print('❌ Error fetching existing tags: $e');
+    }
+    return [];
+  }
+
+  void _showGenerateTagsResults(Map<String, dynamic> results) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Colors.purple),
+            SizedBox(width: 8),
+            Text('Tag Generation Complete'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Successfully generated tags for ${results['successful']} quotes'),
+            if (results['failed'] > 0)
+              Text('Failed to generate tags for ${results['failed']} quotes'),
+            if (results['errors'] != null && results['errors'].isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Text('Errors:', style: TextStyle(fontWeight: FontWeight.bold)),
+              ...results['errors'].map<Widget>((error) => Text(
+                '• $error',
+                style: const TextStyle(fontSize: 12, color: Colors.red),
+              )),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showQuoteDialog({Quote? quote}) {
     final isEditing = quote != null;
     final quoteController = TextEditingController(text: quote?.quote ?? '');
@@ -776,6 +989,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 _showCleanupTagsDialog();
               } else if (value == 'cleanup_duplicates') {
                 _showCleanupDuplicatesDialog();
+              } else if (value == 'export_tags') {
+                _exportTags();
+              } else if (value == 'generate_tags') {
+                _showGenerateTagsDialog();
               } else if (value == 'logout') {
                 _signOut();
               }
@@ -828,6 +1045,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.content_copy, color: Colors.red),
                     SizedBox(width: 8),
                     Text('Clean Duplicate Quotes'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'export_tags',
+                child: Row(
+                  children: [
+                    Icon(Icons.download, color: Color(0xFF3F51B5)),
+                    SizedBox(width: 8),
+                    Text('Export Tags'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'generate_tags',
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: Colors.purple),
+                    SizedBox(width: 8),
+                    Text('Generate Tags for Tagless'),
                   ],
                 ),
               ),
@@ -2188,6 +2425,376 @@ class _DuplicateCleanupDialogState extends State<_DuplicateCleanupDialog> {
           ),
           child: Text('Delete $_selectedCount Duplicates'),
         ),
+      ],
+    );
+  }
+}
+
+// Dialog for confirming tag generation
+class _GenerateTagsDialog extends StatelessWidget {
+  final VoidCallback onGenerate;
+
+  const _GenerateTagsDialog({
+    required this.onGenerate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.auto_awesome, color: Colors.purple),
+          SizedBox(width: 8),
+          Text('Generate Tags for Tagless Quotes'),
+        ],
+      ),
+      content: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'This will use AI to automatically generate up to 5 relevant tags for quotes that currently have no tags.',
+            style: TextStyle(fontSize: 16),
+          ),
+          SizedBox(height: 12),
+          Text(
+            'Features:',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 4),
+          Text('• Analyzes quote content and author'),
+          Text('• Generates 1-5 relevant tags per quote'),
+          Text('• Prefers existing tags when applicable'),
+          Text('• Uses professional tag formatting'),
+          SizedBox(height: 12),
+          Text(
+            'Note: This requires an OpenAI API key to be configured.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            onGenerate();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.purple,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Generate Tags'),
+        ),
+      ],
+    );
+  }
+}
+
+// Progress dialog for tag generation with real-time updates
+class _GenerateTagsProgressDialog extends StatefulWidget {
+  final List<Quote> quotes;
+  final List<String> existingTags;
+  final Function(Map<String, dynamic>) onComplete;
+
+  const _GenerateTagsProgressDialog({
+    required this.quotes,
+    required this.existingTags,
+    required this.onComplete,
+  });
+
+  @override
+  State<_GenerateTagsProgressDialog> createState() => _GenerateTagsProgressDialogState();
+}
+
+class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog> {
+  int _currentIndex = 0;
+  int _successful = 0;
+  int _failed = 0;
+  List<String> _errors = [];
+  List<String> _recentTags = [];
+  bool _isProcessing = true;
+  String _currentStatus = 'Initializing...';
+
+  @override
+  void initState() {
+    super.initState();
+    _startTagGeneration();
+  }
+
+  Future<void> _startTagGeneration() async {
+    const batchDelay = Duration(seconds: 5); // 5 second delay to avoid rate limits
+    const batchSize = 5; // Process 5 quotes at a time
+    
+    int startIndex = 0;
+    
+    while (startIndex < widget.quotes.length && mounted) {
+      final endIndex = (startIndex + batchSize).clamp(0, widget.quotes.length);
+      final currentBatch = widget.quotes.sublist(startIndex, endIndex);
+      
+      // Process current batch
+      for (int i = 0; i < currentBatch.length && mounted; i++) {
+        final quote = currentBatch[i];
+        final globalIndex = startIndex + i;
+        
+        setState(() {
+          _currentIndex = globalIndex;
+          _currentStatus = 'Generating tags for quote ${globalIndex + 1} of ${widget.quotes.length}...';
+        });
+
+        try {
+          // Generate tags using OpenAI
+          final tags = await OpenAIService.generateTagsForQuote(
+            quote: quote.quote,
+            author: quote.author,
+            existingTags: widget.existingTags,
+          );
+
+          if (tags.isNotEmpty) {
+            // Update the quote with generated tags
+            await _updateQuoteWithTags(quote, tags);
+            setState(() {
+              _successful++;
+              _recentTags.addAll(tags);
+              // Keep only last 15 tags to show recent examples
+              if (_recentTags.length > 15) {
+                _recentTags = _recentTags.sublist(_recentTags.length - 15);
+              }
+            });
+          } else {
+            setState(() {
+              _failed++;
+              _errors.add('No tags generated for: "${quote.quote.substring(0, 50)}..."');
+            });
+          }
+        } catch (e) {
+          setState(() {
+            _failed++;
+            _errors.add('Error for "${quote.quote.substring(0, 50)}...": ${e.toString()}');
+          });
+          print('❌ Error generating tags for quote ${quote.id}: $e');
+        }
+
+        // Add delay between requests to avoid rate limiting
+        if (i < currentBatch.length - 1 && mounted) {
+          for (int countdown = 5; countdown > 0 && mounted; countdown--) {
+            setState(() {
+              _currentStatus = 'Waiting ${countdown}s before next quote to avoid rate limits...';
+            });
+            await Future.delayed(const Duration(seconds: 1));
+          }
+        }
+      }
+      
+      // Move to next batch
+      startIndex = endIndex;
+      
+      // If there are more quotes to process, pause and ask for confirmation
+      if (startIndex < widget.quotes.length && mounted) {
+        setState(() {
+          _isProcessing = false;
+          _currentStatus = 'Batch complete! Processed ${endIndex} of ${widget.quotes.length} quotes.';
+        });
+        
+        // Wait for user input before continuing
+        final shouldContinue = await _showContinueDialog();
+        if (!shouldContinue || !mounted) {
+          break;
+        }
+        
+        setState(() {
+          _isProcessing = true;
+          _currentStatus = 'Resuming tag generation...';
+        });
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+        _currentStatus = 'Complete!';
+      });
+
+      // Wait a moment then return results
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        widget.onComplete({
+          'successful': _successful,
+          'failed': _failed,
+          'errors': _errors,
+        });
+      }
+    }
+  }
+
+  Future<bool> _showContinueDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.pause_circle_outline, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Batch Complete'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Processed batch successfully!'),
+            const SizedBox(height: 8),
+            Text('✅ Successful: $_successful'),
+            Text('❌ Failed: $_failed'),
+            const SizedBox(height: 8),
+            Text('${widget.quotes.length - (_currentIndex + 1)} quotes remaining.'),
+            if (_recentTags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Recent tags generated:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  _recentTags.toSet().toList().join(', '),
+                  style: const TextStyle(fontSize: 11, color: Colors.purple),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            const Text('Continue with next batch of 5 quotes?'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Stop Here'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    
+    return result ?? false;
+  }
+
+  Future<void> _updateQuoteWithTags(Quote quote, List<String> tags) async {
+    try {
+      final authService = AuthService();
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${await AuthService.getIdToken()}',
+      };
+
+      final baseUrl = dotenv.env['API_URL'] ?? 'https://dcc.anystupididea.com';
+      final response = await http.put(
+        Uri.parse('$baseUrl/admin/quotes/${quote.id}'),
+        headers: headers,
+        body: json.encode({
+          'quote': quote.quote,
+          'author': quote.author,
+          'tags': tags,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update quote: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error updating quote with tags: $e');
+      rethrow;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = widget.quotes.isEmpty ? 1.0 : (_currentIndex + 1) / widget.quotes.length;
+    
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.auto_awesome, color: Colors.purple),
+          SizedBox(width: 8),
+          Text('Generating Tags'),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_currentStatus),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey.shade300,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.purple),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Progress: ${_currentIndex + (_isProcessing ? 0 : 1)} of ${widget.quotes.length}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 16),
+                const SizedBox(width: 4),
+                Text('Successful: $_successful'),
+                const SizedBox(width: 16),
+                Icon(Icons.error, color: Colors.red, size: 16),
+                const SizedBox(width: 4),
+                Text('Failed: $_failed'),
+              ],
+            ),
+            if (_errors.isNotEmpty && _errors.length <= 3) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Recent errors:',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              ..._errors.take(3).map((error) => Text(
+                '• $error',
+                style: const TextStyle(fontSize: 10, color: Colors.red),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              )),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        if (!_isProcessing)
+          TextButton(
+            onPressed: () {
+              widget.onComplete({
+                'successful': _successful,
+                'failed': _failed,
+                'errors': _errors,
+              });
+            },
+            child: const Text('Close'),
+          )
+        else
+          const TextButton(
+            onPressed: null,
+            child: Text('Processing...'),
+          ),
       ],
     );
   }
