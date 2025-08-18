@@ -1,0 +1,21 @@
+# AWS SAM build artifacts
+.aws-sam/
+
+# Environment variables for deployment - NEVER COMMIT
+.env.deployment
+.env.local
+.env.prod
+!.env.deployment.sample
+
+
+# Temporary files
+*.tmp
+*.log
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

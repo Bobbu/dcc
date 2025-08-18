@@ -19,8 +19,9 @@ The architecture follows modern cloud-native patterns with JWT authentication, D
 # Navigate to AWS directory
 cd aws
 
-# Deploy complete stack (API Gateway, Lambda, DynamoDB, Cognito)
-sam build && sam deploy
+# Deploy complete stack (API Gateway, Lambda, DynamoDB, Cognito, OpenAI)
+# Requires .env.deployment file with OpenAI API key
+source .env.deployment && sam build && sam deploy --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY"
 
 # Update environment files with latest AWS outputs
 cd ..
@@ -111,7 +112,7 @@ open -a Simulator
 ### API Component (`aws/`)
 - **SAM Template**: `template.yaml` defines complete serverless infrastructure
   - API Gateway with dual authentication (API Key for public, Cognito JWT for authenticated users)
-  - Lambda functions for public quotes, user registration, and admin CRUD operations
+  - Lambda functions for public quotes, user registration, admin CRUD operations, and AI tag generation
   - DynamoDB table with Global Secondary Index for multi-tag querying
   - Cognito User Pool with self-registration and role-based groups (Users, Admins)
   - Custom domain support with SSL certificates
@@ -131,6 +132,11 @@ open -a Simulator
     - Handles OPTIONS requests without authentication
     - Returns proper CORS headers for cross-origin requests
     - Enables web application functionality
+  - `openai_handler.py`: Secure OpenAI API proxy for enterprise tag generation
+    - Proxies requests to OpenAI GPT-4o-mini for intelligent tag generation
+    - Keeps OpenAI API key secure in Lambda environment variables
+    - Handles rate limiting and error recovery for AI requests
+    - Admin authentication required for all tag generation operations
 - **Database**: DynamoDB with tags metadata caching for zero-scan performance
   - TAGS_METADATA record maintains complete tag list for O(1) retrieval
   - Admin operations automatically update tags metadata with full data integrity
@@ -194,6 +200,12 @@ open -a Simulator
   - **Tag Filtering**: Dropdown filter to view quotes by specific tags with count indicators
   - **Duplicate Management**: Smart duplicate detection and cleanup with intelligent selection
   - **Tag Management System**: Dedicated Tags Editor with individual tag CRUD operations
+  - **AI Tag Generation**: OpenAI GPT-4o-mini integration for intelligent tag generation:
+    - Enterprise-grade security with AWS Lambda proxy pattern
+    - Batch processing with user-controlled flow (5 quotes at a time with pause/continue)
+    - Real-time progress tracking with countdown timers and quote context display
+    - Smart tag selection preferring existing tags over creating new ones
+    - Cross-platform support (iOS, Android, Web) with CORS-compliant implementation
   - **Import System**: Copy/paste TSV import from Google Sheets with real-time progress tracking
   - **Progress Tracking**: Batch processing with visual progress bar and status updates
   - **Tag Cleanup System**: Automated removal of unused tags from metadata with confirmation dialog
@@ -318,6 +330,32 @@ The admin dashboard includes intelligent duplicate detection and cleanup functio
 
 **Access Method**: Admin Dashboard → Menu → "Clean Duplicate Quotes"
 
+### AI Tag Generation System
+The admin dashboard includes an intelligent AI-powered tag generation feature powered by OpenAI GPT-4o-mini:
+
+**Core Features**:
+- **Batch Processing**: Processes quotes in batches of 5 with user-controlled flow
+- **Smart Tag Selection**: Prioritizes existing tags over creating new ones for consistency
+- **Progress Display**: Real-time progress tracking with countdown timers and quote context
+- **Enterprise Security**: OpenAI API key secured in AWS Lambda, never exposed to client
+- **Cross-Platform**: Works seamlessly on iOS, Android, and Web with CORS compliance
+- **User Control**: Pause/continue functionality between batches for user oversight
+
+**Processing Flow**:
+- **Tag Analysis**: AI analyzes quote content and author to suggest relevant tags
+- **Existing Tag Priority**: System prefers selecting from existing database tags
+- **Batch Safety**: 5-second delays between batches prevent rate limiting
+- **Context Display**: Shows current quote being processed during countdown delays
+- **Progress Tracking**: Visual progress bar with "Processing quote X of Y" status
+
+**Technical Implementation**:
+- **Secure Proxy**: AWS Lambda endpoint hides OpenAI API credentials
+- **Rate Limiting**: Built-in delays and error handling for API stability
+- **Error Recovery**: Graceful handling of network issues and API failures
+- **Real-time Updates**: Live progress display with quote and author context
+
+**Access Method**: Admin Dashboard → Menu → "Generate tags for the tagless"
+
 ### Tags Editor System
 The dedicated Tags Editor provides comprehensive tag management capabilities separate from quote management:
 
@@ -408,6 +446,12 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
   - `PUT /admin/tags/{tag}` - Update/rename tag (automatically updates all quotes using the tag)
   - `DELETE /admin/tags/{tag}` - Delete individual tag (removes from all quotes using it)
   - `DELETE /admin/tags/unused` - Clean up unused tags (removes tags not used by any quotes)
+- **AI Tag Generation Endpoint**:
+  - `POST /admin/generate-tags` - Generate intelligent tags for quotes using OpenAI GPT-4o-mini
+    - Secure proxy endpoint hiding OpenAI API key in Lambda environment
+    - Body: `{"quote": "quote text", "author": "author name", "existingTags": ["tag1", "tag2"]}`
+    - Returns: `{"tags": ["tag1", "tag2", "tag3"]}` (up to 5 tags)
+    - Admin authentication and group membership required
 - **Tags Metadata Management**: All CRUD operations automatically maintain tags metadata cache with full data integrity
 - **Quote Synchronization**: Tag rename/delete operations automatically update all affected quotes
 
@@ -451,6 +495,12 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - **Individual Tag Management**: Dedicated Tags Editor for adding, renaming, and deleting individual tags
 - **Data Integrity Enforcement**: Tag operations automatically synchronize with all affected quotes
 - **Automated Tag Cleanup**: Admin can remove unused tags with one-click cleanup and detailed reporting
+- **AI Tag Generation**: OpenAI GPT-4o-mini integration for intelligent tag generation:
+  - Enterprise-grade security with OpenAI API key stored securely in AWS Lambda
+  - Batch processing with user-controlled flow (5 quotes at a time)
+  - Real-time progress display showing quote context during processing delays
+  - Intelligent tag selection preferring existing tags over new ones
+  - Cross-platform support with CORS-compliant AWS Lambda proxy
 - **Import Progress**: Batch processing with real-time status updates and visual feedback
 - **Rate Limiting Protection**: Built-in delays and batch processing prevent API overload
 - **Metadata Filtering**: TAGS_METADATA records are properly filtered from quote listings

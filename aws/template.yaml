@@ -12,6 +12,11 @@ Parameters:
     Type: String
     Default: ""
     Description: ACM Certificate ARN for the custom domain (leave empty to skip custom domain setup)
+  
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API key for tag generation (stored securely in Lambda environment)
 
 Conditions:
   HasCustomDomain: !Not [!Equals [!Ref CertificateArn, ""]]
@@ -138,6 +143,14 @@ Resources:
           Type: Api
           Properties:
             Path: /auth/confirm
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminGenerateTags:
+          Type: Api
+          Properties:
+            Path: /admin/generate-tags
             Method: OPTIONS
             RestApiId: !Ref ApiGatewayApi
             Auth:
@@ -277,6 +290,29 @@ Resources:
           Properties:
             Path: /admin/tags/{tag}
             Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # OpenAI proxy function for secure tag generation
+  OpenAIFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-openai-handler
+      CodeUri: ./
+      Handler: openai_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Events:
+        GenerateTags:
+          Type: Api
+          Properties:
+            Path: /admin/generate-tags
+            Method: POST
             RestApiId: !Ref ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer

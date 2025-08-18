@@ -1,2 +1,2 @@
-# No external dependencies required for this simple Lambda
-# Python standard library is sufficient
+# Dependencies for Lambda functions
+requests==2.31.0

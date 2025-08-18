@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../helpers/download_helper_stub.dart'
     if (dart.library.html) '../helpers/download_helper_web.dart';
 import '../services/auth_service.dart';
-import '../services/openai_service.dart';
+import '../services/openai_proxy_service.dart';
 import 'tags_editor_screen.dart';
 
 class Quote {
@@ -2518,6 +2518,9 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
   List<String> _recentTags = [];
   bool _isProcessing = true;
   String _currentStatus = 'Initializing...';
+  String _lastQuote = '';
+  String _lastAuthor = '';
+  List<String> _lastGeneratedTags = [];
 
   @override
   void initState() {
@@ -2546,8 +2549,8 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
         });
 
         try {
-          // Generate tags using OpenAI
-          final tags = await OpenAIService.generateTagsForQuote(
+          // Generate tags using our secure AWS proxy
+          final tags = await OpenAIProxyService.generateTagsForQuote(
             quote: quote.quote,
             author: quote.author,
             existingTags: widget.existingTags,
@@ -2563,6 +2566,10 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
               if (_recentTags.length > 15) {
                 _recentTags = _recentTags.sublist(_recentTags.length - 15);
               }
+              // Store the last processed quote details for display during delay
+              _lastQuote = quote.quote;
+              _lastAuthor = quote.author;
+              _lastGeneratedTags = tags;
             });
           } else {
             setState(() {
@@ -2762,6 +2769,63 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
                 Text('Failed: $_failed'),
               ],
             ),
+            if (_lastQuote.isNotEmpty && _lastGeneratedTags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade50,
+                  border: Border.all(color: Colors.purple.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Last processed:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '"${_lastQuote.length > 80 ? '${_lastQuote.substring(0, 80)}...' : _lastQuote}"',
+                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '— $_lastAuthor',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 2,
+                      children: _lastGeneratedTags.map((tag) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.purple.shade300),
+                        ),
+                        child: Text(
+                          tag,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.purple.shade800,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      )).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (_errors.isNotEmpty && _errors.length <= 3) ...[
               const SizedBox(height: 8),
               Text(
