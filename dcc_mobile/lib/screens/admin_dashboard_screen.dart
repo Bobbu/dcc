@@ -4,11 +4,14 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:intl/intl.dart';
 import '../helpers/download_helper_stub.dart'
     if (dart.library.html) '../helpers/download_helper_web.dart';
 import '../services/auth_service.dart';
 import '../services/openai_proxy_service.dart';
+import '../services/logger_service.dart';
 import 'tags_editor_screen.dart';
+import '../themes.dart';
 
 class Quote {
   final String id;
@@ -57,7 +60,7 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-enum SortField { quote, author, createdAt }
+enum SortField { quote, author, createdAt, updatedAt }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<Quote> _quotes = [];
@@ -72,6 +75,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _importStatus = '';
   String _selectedTagFilter = 'All';
   List<String> _availableTags = ['All'];
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   static final String _baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
 
@@ -81,6 +86,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _checkAdminAccess();
     _loadUserInfo();
     _loadQuotes();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      final formatter = DateFormat("MMM d, yyyy 'at' h:mm a");
+      return formatter.format(date);
+    } catch (e) {
+      return dateString; // Return original if parsing fails
+    }
   }
 
   Future<void> _checkAdminAccess() async {
@@ -128,6 +149,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         case SortField.createdAt:
           comparison = a.createdAt.compareTo(b.createdAt);
           break;
+        case SortField.updatedAt:
+          comparison = a.updatedAt.compareTo(b.updatedAt);
+          break;
       }
       return _sortAscending ? comparison : -comparison;
     });
@@ -152,10 +176,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   List<Quote> get _filteredQuotes {
-    if (_selectedTagFilter == 'All') {
-      return _quotes;
+    List<Quote> filtered = _quotes;
+    
+    // Apply tag filter
+    if (_selectedTagFilter != 'All') {
+      filtered = filtered.where((quote) => quote.tags.contains(_selectedTagFilter)).toList();
     }
-    return _quotes.where((quote) => quote.tags.contains(_selectedTagFilter)).toList();
+    
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      filtered = filtered.where((quote) =>
+        quote.quote.toLowerCase().contains(query) ||
+        quote.author.toLowerCase().contains(query)
+      ).toList();
+    }
+    
+    return filtered;
   }
 
   void _setSortField(SortField field) {
@@ -179,18 +216,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.cloud_upload,
               size: 64,
-              color: Color(0xFF3F51B5),
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Importing Quotes',
-              style: TextStyle(
-                fontSize: 24,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF3F51B5),
               ),
             ),
             const SizedBox(height: 16),
@@ -204,7 +239,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   LinearProgressIndicator(
                     value: progress,
                     backgroundColor: Colors.grey.shade300,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3F51B5)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).colorScheme.primary,
+                    ),
                     minHeight: 8,
                   ),
                   const SizedBox(height: 8),
@@ -225,10 +262,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF5C6BC0).withOpacity(0.1),
+                color: Theme.of(context).colorScheme.secondary.withValues(alpha: 51),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: const Color(0xFF5C6BC0).withOpacity(0.3),
+                  color: Theme.of(context).colorScheme.secondary.withValues(alpha: 153),
                 ),
               ),
               child: Text(
@@ -481,7 +518,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.cleaning_services, color: Colors.orange),
             SizedBox(width: 8),
@@ -724,9 +761,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             showDialog(
               context: context,
               builder: (context) => AlertDialog(
-                title: const Row(
+                title: Row(
                   children: [
-                    Icon(Icons.download, color: Color(0xFF3F51B5)),
+                    Icon(Icons.download, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 8),
                     Text('Tags Exported'),
                   ],
@@ -784,7 +821,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _showMessage('Failed to fetch tags: ${response.statusCode}', isError: true);
       }
     } catch (e) {
-      print('❌ Error exporting tags: $e');
+      LoggerService.error('Error exporting tags', error: e);
       _showMessage('Error exporting tags: $e', isError: true);
     }
   }
@@ -809,6 +846,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     // Get all existing tags from the system for context
     final existingTags = await _getAllTags();
+    
+    if (!mounted) return;
     
     showDialog(
       context: context,
@@ -840,7 +879,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return tags;
       }
     } catch (e) {
-      print('❌ Error fetching existing tags: $e');
+      LoggerService.error('Error fetching existing tags', error: e);
     }
     return [];
   }
@@ -849,7 +888,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.auto_awesome, color: Colors.purple),
             SizedBox(width: 8),
@@ -921,58 +960,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
-        backgroundColor: const Color(0xFF3F51B5),
-        foregroundColor: Colors.white,
         actions: [
-          // Sorting buttons
-          IconButton(
-            onPressed: () => _setSortField(SortField.quote),
-            icon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.format_quote, size: 16),
-                Icon(
-                  _sortField == SortField.quote 
-                    ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
-                    : Icons.unfold_more,
-                  size: 12,
-                ),
-              ],
-            ),
-            tooltip: 'Sort by Quote ${_sortField == SortField.quote ? (_sortAscending ? '(A-Z)' : '(Z-A)') : ''}',
-          ),
-          IconButton(
-            onPressed: () => _setSortField(SortField.author),
-            icon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.person, size: 16),
-                Icon(
-                  _sortField == SortField.author 
-                    ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
-                    : Icons.unfold_more,
-                  size: 12,
-                ),
-              ],
-            ),
-            tooltip: 'Sort by Author ${_sortField == SortField.author ? (_sortAscending ? '(A-Z)' : '(Z-A)') : ''}',
-          ),
-          IconButton(
-            onPressed: () => _setSortField(SortField.createdAt),
-            icon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.schedule, size: 16),
-                Icon(
-                  _sortField == SortField.createdAt 
-                    ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
-                    : Icons.unfold_more,
-                  size: 12,
-                ),
-              ],
-            ),
-            tooltip: 'Sort by Date ${_sortField == SortField.createdAt ? (_sortAscending ? '(Old-New)' : '(New-Old)') : ''}',
-          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'refresh') {
@@ -1008,21 +996,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'import_quotes',
                 child: Row(
                   children: [
-                    Icon(Icons.file_upload, color: Color(0xFF3F51B5)),
+                    Icon(Icons.file_upload, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 8),
                     Text('Import Quotes'),
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'tags_editor',
                 child: Row(
                   children: [
-                    Icon(Icons.local_offer, color: Color(0xFF3F51B5)),
+                    Icon(Icons.local_offer, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 8),
                     Text('Manage Tags'),
                   ],
@@ -1048,11 +1036,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'export_tags',
                 child: Row(
                   children: [
-                    Icon(Icons.download, color: Color(0xFF3F51B5)),
+                    Icon(Icons.download, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 8),
                     Text('Export Tags'),
                   ],
@@ -1084,8 +1072,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showQuoteDialog(),
-        backgroundColor: const Color(0xFF3F51B5),
-        foregroundColor: Colors.white,
         child: const Icon(Icons.add),
       ),
       body: Column(
@@ -1094,29 +1080,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: const Color(0xFF5C6BC0).withOpacity(0.1),
+            color: Theme.of(context).colorScheme.secondary.withValues(alpha: 51),
             child: Column(
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.admin_panel_settings,
-                      color: Color(0xFF3F51B5),
+                      color: Theme.of(context).colorScheme.onSecondary,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'Signed in as: ${_userEmail ?? 'Loading...'}',
-                      style: const TextStyle(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF3F51B5),
+                        color: Theme.of(context).colorScheme.onSecondary,
                       ),
                     ),
                     const Spacer(),
                     Text(
                       '${_filteredQuotes.length} ${_selectedTagFilter != 'All' ? 'filtered' : 'total'} quotes',
-                      style: const TextStyle(
-                        color: Color(0xFF3F51B5),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.onSecondary,
                       ),
                     ),
                   ],
@@ -1124,17 +1110,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.filter_list,
-                      color: Color(0xFF3F51B5),
+                      color: Theme.of(context).colorScheme.onSecondary,
                       size: 20,
                     ),
                     const SizedBox(width: 8),
-                    const Text(
+                    Text(
                       'Filter by tag:',
-                      style: TextStyle(
-                        color: Color(0xFF3F51B5),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.onSecondary,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1145,14 +1131,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: const Color(0xFF3F51B5).withOpacity(0.3),
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 77),
                           ),
                         ),
                         child: DropdownButton<String>(
                           value: _availableTags.contains(_selectedTagFilter) ? _selectedTagFilter : 'All',
                           isExpanded: true,
                           underline: const SizedBox(),
-                          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF3F51B5)),
+                          icon: Icon(Icons.arrow_drop_down, color: Theme.of(context).colorScheme.primary),
                           onChanged: (String? newValue) {
                             if (newValue != null) {
                               setState(() {
@@ -1169,14 +1155,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     Icon(
                                       Icons.local_offer,
                                       size: 16,
-                                      color: const Color(0xFF3F51B5).withOpacity(0.6),
+                                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 153),
                                     ),
                                     const SizedBox(width: 8),
                                   ],
                                   Text(
                                     tag,
                                     style: TextStyle(
-                                      color: const Color(0xFF3F51B5),
+                                      color: Theme.of(context).colorScheme.primary,
                                       fontWeight: tag == _selectedTagFilter ? FontWeight.bold : FontWeight.normal,
                                     ),
                                   ),
@@ -1205,10 +1191,159 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             _selectedTagFilter = 'All';
                           });
                         },
-                        icon: const Icon(Icons.clear, color: Color(0xFF3F51B5)),
+                        icon: Icon(Icons.clear, color: Theme.of(context).colorScheme.primary),
                         tooltip: 'Clear filter',
                       ),
                     ],
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Search field
+                Row(
+                  children: [
+                    Icon(
+                      Icons.search,
+                      color: Theme.of(context).colorScheme.onSecondary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Search:',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.onSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search quotes or authors...',
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () {
+                                    setState(() {
+                                      _searchController.clear();
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                )
+                              : null,
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              _searchQuery = value;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Sort buttons row
+                Row(
+                  children: [
+                    Icon(
+                      Icons.sort,
+                      color: Theme.of(context).colorScheme.onSecondary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Sort by:',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.onSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Quote sort button
+                    ElevatedButton.icon(
+                      onPressed: () => _setSortField(SortField.quote),
+                      icon: Icon(
+                        _sortField == SortField.quote 
+                          ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                          : Icons.format_quote,
+                        size: 18,
+                      ),
+                      label: Text('Quote'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _sortField == SortField.quote 
+                          ? Theme.of(context).colorScheme.primary 
+                          : Theme.of(context).colorScheme.secondary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Author sort button
+                    ElevatedButton.icon(
+                      onPressed: () => _setSortField(SortField.author),
+                      icon: Icon(
+                        _sortField == SortField.author 
+                          ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                          : Icons.person,
+                        size: 18,
+                      ),
+                      label: Text('Author'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _sortField == SortField.author 
+                          ? Theme.of(context).colorScheme.primary 
+                          : Theme.of(context).colorScheme.secondary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Created date sort button
+                    ElevatedButton.icon(
+                      onPressed: () => _setSortField(SortField.createdAt),
+                      icon: Icon(
+                        _sortField == SortField.createdAt 
+                          ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                          : Icons.add_circle_outline,
+                        size: 18,
+                      ),
+                      label: Text('Created'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _sortField == SortField.createdAt 
+                          ? Theme.of(context).colorScheme.primary 
+                          : Theme.of(context).colorScheme.secondary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Updated date sort button
+                    ElevatedButton.icon(
+                      onPressed: () => _setSortField(SortField.updatedAt),
+                      icon: Icon(
+                        _sortField == SortField.updatedAt 
+                          ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                          : Icons.edit_calendar,
+                        size: 18,
+                      ),
+                      label: Text('Updated'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _sortField == SortField.updatedAt 
+                          ? Theme.of(context).colorScheme.primary 
+                          : Theme.of(context).colorScheme.secondary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -1218,9 +1353,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           // Content
           Expanded(
             child: _isLoading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3F51B5)),
+                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                     ),
                   )
                 : _isImporting
@@ -1292,43 +1427,65 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               return Card(
                                 margin: const EdgeInsets.symmetric(
                                   horizontal: 8,
-                                  vertical: 4,
+                                  vertical: 8,
                                 ),
                                 child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
                                   title: Text(
                                     quote.quote,
-                                    style: const TextStyle(
+                                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                       fontStyle: FontStyle.italic,
                                     ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   subtitle: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 8),
                                       Text(
                                         '— ${quote.author}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF3F51B5),
+                                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                          color: Theme.of(context).colorScheme.primary,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 8),
                                       Wrap(
                                         spacing: 4,
                                         children: quote.tags
                                             .map((tag) => Chip(
-                                                  label: Text(
-                                                    tag,
-                                                    style: const TextStyle(fontSize: 10),
-                                                  ),
-                                                  backgroundColor: const Color(0xFF5C6BC0)
-                                                      .withOpacity(0.3),
+                                                  label: Text(tag),
                                                   materialTapTargetSize:
                                                       MaterialTapTargetSize.shrinkWrap,
                                                 ))
                                             .toList(),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.schedule,
+                                            size: AppThemes.dateIconSize(context),
+                                            color: AppThemes.dateIconColor(context),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Created: ${_formatDate(quote.createdAt)}',
+                                            style: AppThemes.dateText(context),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Icon(
+                                            Icons.edit,
+                                            size: AppThemes.dateIconSize(context),
+                                            color: AppThemes.dateIconColor(context),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Updated: ${_formatDate(quote.updatedAt)}',
+                                            style: AppThemes.dateText(context),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -1458,7 +1615,7 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
         });
       }
     } catch (e) {
-      print('Error loading tags: $e');
+      LoggerService.error('Error loading tags', error: e);
       setState(() {
         _isLoadingTags = false;
       });
@@ -1513,31 +1670,20 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
             
             // Selected tags display
             if (_selectedTags.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF5C6BC0).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFF5C6BC0).withOpacity(0.3),
-                  ),
-                ),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _selectedTags.map((tag) {
-                    return Chip(
-                      label: Text(tag),
-                      backgroundColor: const Color(0xFF3F51B5).withOpacity(0.1),
-                      deleteIcon: const Icon(Icons.close, size: 18),
-                      onDeleted: () {
-                        setState(() {
-                          _selectedTags.remove(tag);
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _selectedTags.map((tag) {
+                  return Chip(
+                    label: Text(tag),
+                    deleteIcon: const Icon(Icons.close, size: 18),
+                    onDeleted: () {
+                      setState(() {
+                        _selectedTags.remove(tag);
+                      });
+                    },
+                  );
+                }).toList(),
               ),
               const SizedBox(height: 12),
             ],
@@ -1560,7 +1706,7 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
                 IconButton(
                   onPressed: _addNewTag,
                   icon: const Icon(Icons.add_circle),
-                  color: const Color(0xFF3F51B5),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ],
             ),
@@ -1598,8 +1744,8 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
                             }
                           });
                         },
-                        selectedColor: const Color(0xFF5C6BC0).withOpacity(0.3),
-                        checkmarkColor: const Color(0xFF3F51B5),
+                        selectedColor: Theme.of(context).colorScheme.secondary.withValues(alpha: 153),
+                        checkmarkColor: Theme.of(context).colorScheme.primary,
                       );
                     }).toList(),
                   ),
@@ -1618,10 +1764,6 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
             Navigator.of(context).pop();
             widget.onSave(_selectedTags.toList());
           },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF3F51B5),
-            foregroundColor: Colors.white,
-          ),
           child: Text(widget.isEditing ? 'Update' : 'Create'),
         ),
       ],
@@ -1732,9 +1874,9 @@ class _ImportDialogState extends State<_ImportDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
-          Icon(Icons.file_upload, color: Color(0xFF3F51B5)),
+          Icon(Icons.file_upload, color: Theme.of(context).colorScheme.primary),
           SizedBox(width: 8),
           Text('Import Quotes'),
         ],
@@ -1784,10 +1926,6 @@ class _ImportDialogState extends State<_ImportDialog> {
               children: [
                 ElevatedButton(
                   onPressed: _parseData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3F51B5),
-                    foregroundColor: Colors.white,
-                  ),
                   child: const Text('Parse Data'),
                 ),
                 if (_parsedQuotes.isNotEmpty) ...[
@@ -1885,10 +2023,6 @@ class _ImportDialogState extends State<_ImportDialog> {
                   widget.onImport(_parsedQuotes);
                 }
               : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF3F51B5),
-            foregroundColor: Colors.white,
-          ),
           child: Text('Import ${_parsedQuotes.length} Quotes'),
         ),
       ],
@@ -2040,10 +2174,6 @@ class _ImportResultsDialogState extends State<_ImportResultsDialog> {
               });
               Navigator.of(context).pop();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3F51B5),
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Save'),
           ),
         ],
@@ -2139,7 +2269,7 @@ class _ImportResultsDialogState extends State<_ImportResultsDialog> {
                           },
                         ),
                         title: Text(
-                          '"${quote.quote.length > 50 ? quote.quote.substring(0, 50) + '...' : quote.quote}"',
+                          '"${quote.quote.length > 50 ? '${quote.quote.substring(0, 50)}...' : quote.quote}"',
                           style: const TextStyle(fontSize: 14),
                         ),
                         subtitle: Column(
@@ -2153,7 +2283,7 @@ class _ImportResultsDialogState extends State<_ImportResultsDialog> {
                           ],
                         ),
                         trailing: IconButton(
-                          icon: const Icon(Icons.edit, color: Color(0xFF3F51B5)),
+                          icon: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
                           onPressed: () => _editFailedQuote(index),
                         ),
                       ),
@@ -2191,7 +2321,7 @@ class _ImportResultsDialogState extends State<_ImportResultsDialog> {
                         dense: true,
                         leading: const Icon(Icons.check_circle, color: Colors.green, size: 20),
                         title: Text(
-                          '"${quote.quote.length > 50 ? quote.quote.substring(0, 50) + '...' : quote.quote}"',
+                          '"${quote.quote.length > 50 ? '${quote.quote.substring(0, 50)}...' : quote.quote}"',
                           style: const TextStyle(fontSize: 14),
                         ),
                         subtitle: Text('— ${quote.author}'),
@@ -2222,10 +2352,6 @@ class _ImportResultsDialogState extends State<_ImportResultsDialog> {
                 widget.onRetry(quotesToRetry);
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3F51B5),
-              foregroundColor: Colors.white,
-            ),
             child: Text('Retry Selected ($selectedCount)'),
           ),
       ],
@@ -2351,7 +2477,7 @@ class _DuplicateCleanupDialogState extends State<_DuplicateCleanupDialog> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '"${group.first.quote.length > 100 ? group.first.quote.substring(0, 100) + '...' : group.first.quote}"',
+                            '"${group.first.quote.length > 100 ? '${group.first.quote.substring(0, 100)}...' : group.first.quote}"',
                             style: const TextStyle(
                               fontStyle: FontStyle.italic,
                               fontSize: 12,
@@ -2383,7 +2509,7 @@ class _DuplicateCleanupDialogState extends State<_DuplicateCleanupDialog> {
                               subtitle: quote.tags.isNotEmpty 
                                 ? Text(
                                     'Tags: ${quote.tags.join(', ')}',
-                                    style: const TextStyle(fontSize: 10),
+                                    style: Theme.of(context).textTheme.bodySmall,
                                   )
                                 : null,
                               value: isSelected,
@@ -2393,7 +2519,7 @@ class _DuplicateCleanupDialogState extends State<_DuplicateCleanupDialog> {
                                 });
                               },
                             );
-                          }).toList(),
+                          }),
                         ],
                       ),
                     ),
@@ -2441,7 +2567,7 @@ class _GenerateTagsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
           Icon(Icons.auto_awesome, color: Colors.purple),
           SizedBox(width: 8),
@@ -2514,7 +2640,7 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
   int _currentIndex = 0;
   int _successful = 0;
   int _failed = 0;
-  List<String> _errors = [];
+  final List<String> _errors = [];
   List<String> _recentTags = [];
   bool _isProcessing = true;
   String _currentStatus = 'Initializing...';
@@ -2529,7 +2655,6 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
   }
 
   Future<void> _startTagGeneration() async {
-    const batchDelay = Duration(seconds: 5); // 5 second delay to avoid rate limits
     const batchSize = 5; // Process 5 quotes at a time
     
     int startIndex = 0;
@@ -2582,7 +2707,7 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
             _failed++;
             _errors.add('Error for "${quote.quote.substring(0, 50)}...": ${e.toString()}');
           });
-          print('❌ Error generating tags for quote ${quote.id}: $e');
+          LoggerService.error('Error generating tags for quote ${quote.id}', error: e);
         }
 
         // Add delay between requests to avoid rate limiting
@@ -2603,7 +2728,7 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
       if (startIndex < widget.quotes.length && mounted) {
         setState(() {
           _isProcessing = false;
-          _currentStatus = 'Batch complete! Processed ${endIndex} of ${widget.quotes.length} quotes.';
+          _currentStatus = 'Batch complete! Processed $endIndex of ${widget.quotes.length} quotes.';
         });
         
         // Wait for user input before continuing
@@ -2625,8 +2750,19 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
         _currentStatus = 'Complete!';
       });
 
-      // Wait a moment then return results
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Show the last processed quote and its tags for 5 seconds before dismissing
+      if (_lastQuote.isNotEmpty && _lastGeneratedTags.isNotEmpty) {
+        for (int countdown = 5; countdown > 0 && mounted; countdown--) {
+          setState(() {
+            _currentStatus = 'Complete! Closing in ${countdown}s...';
+          });
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      } else {
+        // If no quotes were processed, just wait briefly
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      
       if (mounted) {
         widget.onComplete({
           'successful': _successful,
@@ -2642,7 +2778,7 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.pause_circle_outline, color: Colors.orange),
             SizedBox(width: 8),
@@ -2701,7 +2837,6 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
 
   Future<void> _updateQuoteWithTags(Quote quote, List<String> tags) async {
     try {
-      final authService = AuthService();
       final headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ${await AuthService.getIdToken()}',
@@ -2722,7 +2857,7 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
         throw Exception('Failed to update quote: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error updating quote with tags: $e');
+      LoggerService.error('Error updating quote with tags', error: e);
       rethrow;
     }
   }
@@ -2732,7 +2867,7 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
     final progress = widget.quotes.isEmpty ? 1.0 : (_currentIndex + 1) / widget.quotes.length;
     
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
           Icon(Icons.auto_awesome, color: Colors.purple),
           SizedBox(width: 8),
@@ -2834,7 +2969,7 @@ class _GenerateTagsProgressDialogState extends State<_GenerateTagsProgressDialog
               ),
               ..._errors.take(3).map((error) => Text(
                 '• $error',
-                style: const TextStyle(fontSize: 10, color: Colors.red),
+                style: AppThemes.errorText(context).copyWith(fontSize: 10),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               )),

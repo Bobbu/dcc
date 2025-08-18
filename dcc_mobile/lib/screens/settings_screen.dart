@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../services/api_service.dart';
+import '../services/logger_service.dart';
+import '../themes.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool audioEnabled;
@@ -93,9 +95,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _availableVoices = voices.map((voice) => Map<String, dynamic>.from(voice)).toList();
         _voicesLoaded = true;
+        
+        // Auto-select Daniel voice if available and no voice is currently selected
+        if (_selectedVoice == null && _availableVoices.isNotEmpty) {
+          final danielVoice = _availableVoices.firstWhere(
+            (voice) => voice['name']?.toString().toLowerCase() == 'daniel',
+            orElse: () => <String, dynamic>{},
+          );
+          
+          if (danielVoice.isNotEmpty) {
+            _selectedVoice = {
+              'name': danielVoice['name']?.toString() ?? '',
+              'locale': danielVoice['locale']?.toString() ?? '',
+            };
+            // Trigger settings update to save the default voice
+            widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch);
+          }
+        }
       });
     } catch (e) {
-      print('Error loading voices: $e');
+      LoggerService.error('Error loading voices', error: e);
       setState(() {
         _voicesLoaded = true;
       });
@@ -104,7 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   Future<void> _loadCategories() async {
     try {
-      print('📋 Loading dynamic tags from public API...');
+      LoggerService.debug('📋 Loading dynamic tags from public API...');
       
       // Load tags from public API (no authentication required)
       final apiTags = await ApiService.getTags();
@@ -114,10 +133,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _categoriesLoaded = true;
       });
       
-      print('✅ Loaded ${apiTags.length} dynamic tags: $apiTags');
+      LoggerService.debug('✅ Loaded ${apiTags.length} dynamic tags: $apiTags');
       
     } catch (e) {
-      print('❌ Failed to load dynamic tags, using fallback categories: $e');
+      LoggerService.error('❌ Failed to load dynamic tags, using fallback categories', error: e);
       
       // Use fallback categories if API fails
       setState(() {
@@ -172,7 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _testTts.setPitch(_pitch);
       await _testTts.speak("Hello! This is a test of the ${voice['name']} voice.");
     } catch (e) {
-      print('Error testing voice: $e');
+      LoggerService.error('Error testing voice', error: e);
     }
   }
 
@@ -212,7 +231,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       Colors.white,
-                      const Color(0xFFE8EAF6).withOpacity(0.3),
+                      const Color(0xFFE8EAF6).withValues(alpha: 77),
                     ],
                   ),
                 ),
@@ -232,7 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(
                             'Audio Settings',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF3F51B5),
+                              color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -243,17 +262,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: Text(
                           'Enable Audio Playback',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: const Color(0xFF3F51B5),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         subtitle: Text(
                           'Automatically read quotes aloud when loaded',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF3F51B5).withOpacity(0.7),
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         value: _audioEnabled,
-                        activeColor: Theme.of(context).colorScheme.primary,
+                        activeThumbColor: Theme.of(context).colorScheme.primary,
                         onChanged: (value) {
                           setState(() {
                             _audioEnabled = value;
@@ -279,7 +296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       Colors.white,
-                      const Color(0xFFE8EAF6).withOpacity(0.3),
+                      const Color(0xFFE8EAF6).withValues(alpha: 77),
                     ],
                   ),
                 ),
@@ -299,7 +316,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(
                             'Voice Selection',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF3F51B5),
+                              color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -308,9 +325,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'Choose a voice for text-to-speech',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF3F51B5).withOpacity(0.7),
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 16),
                       if (!_voicesLoaded)
@@ -338,9 +353,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF5C6BC0).withOpacity(0.1),
+                                  color: Theme.of(context).colorScheme.primary,
                                   border: Border.all(
-                                    color: const Color(0xFF5C6BC0).withOpacity(0.3),
+                                    color: Theme.of(context).colorScheme.primary,
                                   ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -348,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   children: [
                                     Icon(
                                       Icons.check_circle,
-                                      color: Theme.of(context).colorScheme.primary,
+                                      color: Theme.of(context).colorScheme.onPrimary,
                                       size: 20,
                                     ),
                                     const SizedBox(width: 8),
@@ -356,7 +371,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       child: Text(
                                         'Current: ${_selectedVoice!['name']} (${_selectedVoice!['locale']})',
                                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: const Color(0xFF3F51B5),
+                                          color: Theme.of(context).colorScheme.onPrimary,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -385,31 +400,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     dense: true,
                                     title: Text(
                                       voiceMap['name']!,
-                                      style: TextStyle(
-                                        color: const Color(0xFF3F51B5),
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                                       ),
                                     ),
                                     subtitle: Text(
                                       voiceMap['locale']!,
-                                      style: TextStyle(
-                                        color: const Color(0xFF3F51B5).withOpacity(0.7),
-                                        fontSize: 12,
-                                      ),
+                                      style: Theme.of(context).textTheme.bodyMedium,
                                     ),
-                                    leading: Radio<String>(
-                                      value: '${voiceMap['name']}_${voiceMap['locale']}',
-                                      groupValue: _selectedVoice != null 
-                                          ? '${_selectedVoice!['name']}_${_selectedVoice!['locale']}'
-                                          : null,
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _selectedVoice = voiceMap;
-                                        });
-                                        _updateSettings();
-                                      },
-                                      activeColor: Theme.of(context).colorScheme.primary,
+                                    leading: Icon(
+                                      isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                                      color: Theme.of(context).colorScheme.primary,
                                     ),
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedVoice = voiceMap;
+                                      });
+                                      _updateSettings();
+                                    },
                                     trailing: IconButton(
                                       icon: Icon(
                                         _isTestSpeaking ? Icons.stop : Icons.play_arrow,
@@ -442,7 +450,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       Colors.white,
-                      const Color(0xFFE8EAF6).withOpacity(0.3),
+                      const Color(0xFFE8EAF6).withValues(alpha: 77),
                     ],
                   ),
                 ),
@@ -462,7 +470,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(
                             'Speech Rate',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF3F51B5),
+                              color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -471,9 +479,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'Control how fast the voice speaks',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF3F51B5).withOpacity(0.7),
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 16),
                       Wrap(
@@ -491,14 +497,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 _updateSettings();
                               }
                             },
-                            selectedColor: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
-                            checkmarkColor: Theme.of(context).colorScheme.primary,
-                            labelStyle: TextStyle(
-                              color: isSelected 
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.primary.withOpacity(0.7),
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
                           );
                         }).toList(),
                       ),
@@ -520,7 +518,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       Colors.white,
-                      const Color(0xFFE8EAF6).withOpacity(0.3),
+                      const Color(0xFFE8EAF6).withValues(alpha: 77),
                     ],
                   ),
                 ),
@@ -540,7 +538,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(
                             'Voice Pitch',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF3F51B5),
+                              color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -549,9 +547,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'Adjust the pitch/tone of the voice',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF3F51B5).withOpacity(0.7),
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 16),
                       Wrap(
@@ -569,14 +565,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 _updateSettings();
                               }
                             },
-                            selectedColor: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
-                            checkmarkColor: Theme.of(context).colorScheme.primary,
-                            labelStyle: TextStyle(
-                              color: isSelected 
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.primary.withOpacity(0.7),
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
                           );
                         }).toList(),
                       ),
@@ -598,7 +586,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       Colors.white,
-                      const Color(0xFFE8EAF6).withOpacity(0.3),
+                      const Color(0xFFE8EAF6).withValues(alpha: 77),
                     ],
                   ),
                 ),
@@ -618,7 +606,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(
                             'Quote Categories',
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: const Color(0xFF3F51B5),
+                              color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -627,9 +615,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'Select the types of quotes you\'d like to see',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF3F51B5).withOpacity(0.7),
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 8),
                       // Show warning if less than 3 categories selected and not "All"
@@ -670,24 +656,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF3F51B5).withOpacity(0.1),
+                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 51),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                  color: const Color(0xFF3F51B5).withOpacity(0.3),
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 153),
                                 ),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     Icons.cloud_sync,
-                                    color: const Color(0xFF3F51B5),
+                                    color: Theme.of(context).colorScheme.primary,
                                     size: 16,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     'Dynamic tags loaded from server',
                                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: const Color(0xFF3F51B5),
+                                      color: Theme.of(context).colorScheme.primary,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -700,7 +686,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               runSpacing: 8,
                               children: _availableCategories.map((category) {
                           final isSelected = _selectedCategories.contains(category);
-                          final isAllSelected = _selectedCategories.contains('All');
                           final isAll = category == 'All';
                           
                           return FilterChip(
@@ -758,14 +743,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               });
                               _updateSettings();
                             },
-                            selectedColor: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
-                            checkmarkColor: Theme.of(context).colorScheme.primary,
-                            labelStyle: TextStyle(
-                              color: isSelected 
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.primary.withOpacity(0.7),
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
                           );
                               }).toList(),
                             ),

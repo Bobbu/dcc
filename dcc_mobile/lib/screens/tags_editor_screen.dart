@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/auth_service.dart';
+import '../themes.dart';
 
 class TagsEditorScreen extends StatefulWidget {
   const TagsEditorScreen({super.key});
@@ -184,9 +185,9 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.add, color: Color(0xFF3F51B5)),
+            Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
             SizedBox(width: 8),
             Text('Add New Tag'),
           ],
@@ -213,10 +214,6 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                 _addTag(tagName);
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3F51B5),
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Add'),
           ),
         ],
@@ -230,9 +227,9 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.edit, color: Color(0xFF3F51B5)),
+            Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
             SizedBox(width: 8),
             Text('Edit Tag'),
           ],
@@ -258,10 +255,6 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                 _updateTag(currentTag, newTag);
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3F51B5),
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Update'),
           ),
         ],
@@ -344,26 +337,22 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tags Editor'),
-        backgroundColor: const Color(0xFF3F51B5),
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             onPressed: _showCleanupDialog,
-            icon: const Icon(Icons.cleaning_services),
+            icon: Icon(Icons.cleaning_services),
             tooltip: 'Clean Unused Tags',
           ),
           IconButton(
             onPressed: _loadTags,
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh),
             tooltip: 'Refresh',
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddTagDialog,
-        backgroundColor: const Color(0xFF3F51B5),
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
+        child: Icon(Icons.add),
       ),
       body: Column(
         children: [
@@ -371,28 +360,25 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: const Color(0xFF5C6BC0).withValues(alpha: 0.1),
+            color: Theme.of(context).colorScheme.secondary.withValues(alpha: 51),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.local_offer,
-                  color: Color(0xFF3F51B5),
+                  color: Theme.of(context).colorScheme.onSecondary,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'Tag Management',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF3F51B5),
-                    fontSize: 16,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSecondary,
                   ),
                 ),
                 const Spacer(),
                 Text(
                   '${_tags.length} tags',
-                  style: const TextStyle(
-                    color: Color(0xFF3F51B5),
-                    fontWeight: FontWeight.w500,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSecondary,
                   ),
                 ),
               ],
@@ -402,9 +388,9 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
           // Content
           Expanded(
             child: _isLoading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3F51B5)),
+                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                     ),
                   )
                 : _error != null
@@ -420,10 +406,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                             const SizedBox(height: 16),
                             Text(
                               _error!,
-                              style: TextStyle(
-                                color: Colors.red.shade700,
-                                fontSize: 16,
-                              ),
+                              style: AppThemes.errorText(context).copyWith(fontSize: 16),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 16),
@@ -435,29 +418,24 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                         ),
                       )
                     : _tags.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
                                   Icons.local_offer_outlined,
                                   size: 64,
-                                  color: Colors.grey,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
-                                SizedBox(height: 16),
+                                const SizedBox(height: 16),
                                 Text(
                                   'No tags found',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.grey,
-                                  ),
+                                  style: Theme.of(context).textTheme.headlineMedium,
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
                                 Text(
                                   'Tap the + button to add your first tag',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ],
                             ),
@@ -473,30 +451,13 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                                   vertical: 4,
                                 ),
                                 child: ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF5C6BC0).withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Text(
-                                      tag,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF3F51B5),
-                                      ),
-                                    ),
+                                  leading: Chip(
+                                    label: Text(tag),
                                   ),
                                   title: Text(
                                     'Tag: $tag',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                    style: Theme.of(context).textTheme.headlineSmall,
                                   ),
-                                  subtitle: const Text('Tap to edit or delete'),
                                   trailing: PopupMenuButton<String>(
                                     onSelected: (value) {
                                       if (value == 'edit') {

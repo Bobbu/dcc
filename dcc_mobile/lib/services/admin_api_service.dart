@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'auth_service.dart';
+import 'logger_service.dart';
 
 class AdminApiService {
   static final String baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
@@ -20,7 +21,7 @@ class AdminApiService {
 
   static Future<List<String>> getTags() async {
     try {
-      print('📡 Fetching tags from admin API...');
+      LoggerService.debug('📡 Fetching tags from admin API...');
       
       final headers = await _getAuthHeaders();
       final response = await http.get(
@@ -28,13 +29,13 @@ class AdminApiService {
         headers: headers,
       );
 
-      print('📡 Tags response status: ${response.statusCode}');
-      print('📡 Tags response body: ${response.body}');
+      LoggerService.debug('📡 Tags response status: ${response.statusCode}');
+      LoggerService.debug('📡 Tags response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final tags = List<String>.from(data['tags'] ?? []);
-        print('✅ Successfully loaded ${tags.length} tags from API');
+        LoggerService.info('✅ Successfully loaded ${tags.length} tags from API');
         return tags;
       } else if (response.statusCode == 401) {
         throw Exception('Authentication required or expired');
@@ -44,14 +45,14 @@ class AdminApiService {
         throw Exception('Failed to load tags: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error fetching tags: $e');
+      LoggerService.error('❌ Error fetching tags: $e', error: e);
       rethrow;
     }
   }
 
   static Future<List<Map<String, dynamic>>> getQuotes() async {
     try {
-      print('📡 Fetching quotes from admin API...');
+      LoggerService.debug('📡 Fetching quotes from admin API...');
       
       final headers = await _getAuthHeaders();
       final response = await http.get(
@@ -62,7 +63,7 @@ class AdminApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
-        print('✅ Successfully loaded ${quotes.length} quotes from API');
+        LoggerService.info('✅ Successfully loaded ${quotes.length} quotes from API');
         return quotes;
       } else if (response.statusCode == 401) {
         throw Exception('Authentication required or expired');
@@ -72,7 +73,7 @@ class AdminApiService {
         throw Exception('Failed to load quotes: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error fetching quotes: $e');
+      LoggerService.error('❌ Error fetching quotes: $e', error: e);
       rethrow;
     }
   }
@@ -83,7 +84,7 @@ class AdminApiService {
     required List<String> tags,
   }) async {
     try {
-      print('📡 Creating new quote via admin API...');
+      LoggerService.debug('📡 Creating new quote via admin API...');
       
       final headers = await _getAuthHeaders();
       final body = json.encode({
@@ -100,7 +101,7 @@ class AdminApiService {
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
-        print('✅ Quote created successfully');
+        LoggerService.info('✅ Quote created successfully');
         return data;
       } else if (response.statusCode == 401) {
         throw Exception('Authentication required or expired');
@@ -111,7 +112,7 @@ class AdminApiService {
         throw Exception(errorData['error'] ?? 'Failed to create quote');
       }
     } catch (e) {
-      print('❌ Error creating quote: $e');
+      LoggerService.error('❌ Error creating quote: $e', error: e);
       rethrow;
     }
   }
@@ -123,7 +124,7 @@ class AdminApiService {
     required List<String> tags,
   }) async {
     try {
-      print('📡 Updating quote via admin API...');
+      LoggerService.debug('📡 Updating quote via admin API...');
       
       final headers = await _getAuthHeaders();
       final body = json.encode({
@@ -140,7 +141,7 @@ class AdminApiService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('✅ Quote updated successfully');
+        LoggerService.info('✅ Quote updated successfully');
         return data;
       } else if (response.statusCode == 401) {
         throw Exception('Authentication required or expired');
@@ -153,14 +154,14 @@ class AdminApiService {
         throw Exception(errorData['error'] ?? 'Failed to update quote');
       }
     } catch (e) {
-      print('❌ Error updating quote: $e');
+      LoggerService.error('❌ Error updating quote: $e', error: e);
       rethrow;
     }
   }
 
   static Future<void> deleteQuote(String id) async {
     try {
-      print('📡 Deleting quote via admin API...');
+      LoggerService.debug('📡 Deleting quote via admin API...');
       
       final headers = await _getAuthHeaders();
       final response = await http.delete(
@@ -169,7 +170,7 @@ class AdminApiService {
       );
 
       if (response.statusCode == 200) {
-        print('✅ Quote deleted successfully');
+        LoggerService.info('✅ Quote deleted successfully');
       } else if (response.statusCode == 401) {
         throw Exception('Authentication required or expired');
       } else if (response.statusCode == 403) {
@@ -180,7 +181,7 @@ class AdminApiService {
         throw Exception('Failed to delete quote: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error deleting quote: $e');
+      LoggerService.error('❌ Error deleting quote: $e', error: e);
       rethrow;
     }
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/auth_service.dart';
+import 'logger_service.dart';
 
 /// Service for generating tags using our secure AWS proxy endpoint
 /// This keeps the OpenAI API key on the server side only
@@ -50,7 +51,7 @@ class OpenAIProxyService {
         throw Exception('Failed to generate tags: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error generating tags via proxy: $e');
+      LoggerService.error('❌ Error generating tags via proxy: $e', error: e);
       rethrow;
     }
   }

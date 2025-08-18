@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'admin_dashboard_screen.dart';
 import 'registration_screen.dart';
+import '../themes.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,6 +44,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           // Check if user is admin
           final isAdmin = await AuthService.isUserInAdminGroup();
+          
+          if (!mounted) return;
           
           if (isAdmin) {
             // Navigate to admin dashboard
@@ -118,10 +121,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 25),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 77),
                         width: 2,
                       ),
                     ),
@@ -144,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Text(
                           'Your Daily Inspiration',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 204),
                           ),
                         ),
                       ],
@@ -161,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 25),
                           blurRadius: 10,
                           offset: const Offset(0, 5),
                         ),
@@ -277,10 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Expanded(
                                     child: Text(
                                       _errorMessage!,
-                                      style: TextStyle(
-                                        color: Colors.red.shade700,
-                                        fontSize: 14,
-                                      ),
+                                      style: AppThemes.errorText(context),
                                     ),
                                   ),
                                 ],
@@ -291,8 +291,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ElevatedButton(
                             onPressed: _isLoading ? null : _signIn,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF3F51B5),
-                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -315,12 +313,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     Text('Signing In...'),
                                   ],
                                 )
-                              : const Text(
+                              : Text(
                                   'Sign In',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: Theme.of(context).textTheme.labelLarge,
                                 ),
                           ),
 
@@ -396,16 +391,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Icon(
                           Icons.arrow_back,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 204),
                           size: 18,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Back to Quotes',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 16,
-                          ),
+                          style: AppThemes.linkText(context).copyWith(color: Colors.white.withValues(alpha: 204)),
                         ),
                       ],
                     ),

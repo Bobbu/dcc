@@ -4,10 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:io' show Platform;
-import 'dart:ui' show Rect;
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:share_plus/share_plus.dart';
+import '../services/logger_service.dart';
+import '../themes.dart';
 import 'quote_screen.dart';
 
 
@@ -46,7 +47,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
     });
 
     try {
-      print('🔍 Fetching quote with ID: ${widget.quoteId}');
+      LoggerService.debug('🔍 Fetching quote with ID: ${widget.quoteId}');
       
       final response = await http.get(
         Uri.parse('$baseApiUrl/quote/${widget.quoteId}'),
@@ -56,7 +57,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         },
       );
 
-      print('📡 Quote detail response: ${response.statusCode}');
+      LoggerService.debug('📡 Quote detail response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -78,7 +79,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         });
       }
     } catch (e) {
-      print('❌ Error fetching quote: $e');
+      LoggerService.error('❌ Error fetching quote', error: e);
       setState(() {
         _error = 'Network error. Please check your connection.';
         _isLoading = false;
@@ -89,10 +90,10 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
   Future<void> _shareQuote() async {
     if (_quote == null || _author == null) return;
     
-    print('🔄 Starting share process...');
-    print('  Platform: ${kIsWeb ? 'Web' : Platform.operatingSystem}');
+    LoggerService.debug('🔄 Starting share process...');
+    LoggerService.debug('  Platform: ${kIsWeb ? 'Web' : Platform.operatingSystem}');
     if (!kIsWeb) {
-      print('  Platform version: ${Platform.operatingSystemVersion}');
+      LoggerService.debug('  Platform version: ${Platform.operatingSystemVersion}');
     }
     
     final shareText = StringBuffer();
@@ -115,12 +116,12 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         subject: 'Quote by $_author',
         sharePositionOrigin: const Rect.fromLTWH(0, 0, 100, 100), // Required for iPad popover positioning
       );
-      print('✅ Share completed successfully');
+      LoggerService.debug('✅ Share completed successfully');
     } catch (e) {
-      print('❌ Share error details:');
-      print('  Error type: ${e.runtimeType}');
-      print('  Error message: $e');
-      print('  Stack trace: ${StackTrace.current}');
+      LoggerService.error('❌ Share error details');
+      LoggerService.error('  Error type: ${e.runtimeType}');
+      LoggerService.error('  Error message: $e');
+      LoggerService.error('  Stack trace: ${StackTrace.current}');
       
       if (kIsWeb) {
         // Web fallback: try clipboard
@@ -157,7 +158,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
             );
           }
         } catch (clipboardError) {
-          print('❌ Clipboard error: $clipboardError');
+          LoggerService.error('❌ Clipboard error', error: clipboardError);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -191,8 +192,6 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF3F51B5),
-        foregroundColor: Colors.white,
         actions: [
           if (!_isLoading && _quote != null)
             IconButton(
@@ -219,20 +218,17 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         ),
         child: SafeArea(
           child: _isLoading
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircularProgressIndicator(
+                      const CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3F51B5)),
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Text(
                         'Loading quote...',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF3F51B5),
-                        ),
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
                     ],
                   ),
@@ -275,8 +271,6 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                 ElevatedButton(
                                   onPressed: _fetchQuote,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF3F51B5),
-                                    foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 24,
                                       vertical: 12,
@@ -294,9 +288,9 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                       vertical: 12,
                                     ),
                                   ),
-                                  child: const Text(
+                                  child: Text(
                                     'Browse Quotes',
-                                    style: TextStyle(color: Color(0xFF3F51B5)),
+                                    style: AppThemes.linkText(context),
                                   ),
                                 ),
                               ],
@@ -322,7 +316,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                 borderRadius: BorderRadius.circular(16),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
+                                    color: Colors.black.withValues(alpha: 25),
                                     blurRadius: 10,
                                     offset: const Offset(0, 4),
                                   ),
@@ -367,10 +361,10 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                             vertical: 6,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF3F51B5).withOpacity(0.1),
+                                            color: const Color(0xFF3F51B5).withValues(alpha: 25),
                                             borderRadius: BorderRadius.circular(16),
                                             border: Border.all(
-                                              color: const Color(0xFF3F51B5).withOpacity(0.3),
+                                              color: const Color(0xFF3F51B5).withValues(alpha: 77),
                                             ),
                                           ),
                                           child: Text(
@@ -404,8 +398,6 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                   ),
                                   label: const Text('Share'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF3F51B5),
-                                    foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 24,
                                       vertical: 12,
@@ -434,10 +426,10 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF3F51B5).withOpacity(0.1),
+                                color: const Color(0xFF3F51B5).withValues(alpha: 25),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: const Color(0xFF3F51B5).withOpacity(0.3),
+                                  color: const Color(0xFF3F51B5).withValues(alpha: 77),
                                 ),
                               ),
                               child: const Column(

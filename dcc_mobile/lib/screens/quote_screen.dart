@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'dart:ui' show Rect;
 import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +13,8 @@ import 'package:share_plus/share_plus.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
+import '../services/logger_service.dart';
+import '../themes.dart';
 import 'admin_dashboard_screen.dart';
 
 
@@ -70,11 +71,28 @@ class _QuoteScreenState extends State<QuoteScreen> {
     }
   }
 
+  Future<void> _handleLogout() async {
+    await AuthService.signOut();
+    if (mounted) {
+      setState(() {
+        _isSignedIn = false;
+        _isAdmin = false;
+        _userName = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Signed out successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   void _initTts() {
     flutterTts = FlutterTts();
     
     flutterTts.setStartHandler(() {
-      print('🔊 TTS Start Handler triggered');
+      LoggerService.debug('🔊 TTS Start Handler triggered');
       if (mounted) {
         setState(() {
           _isSpeaking = true;
@@ -83,7 +101,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     });
 
     flutterTts.setCompletionHandler(() {
-      print('✅ TTS Completion Handler triggered');
+      LoggerService.debug('✅ TTS Completion Handler triggered');
       if (mounted) {
         setState(() {
           _isSpeaking = false;
@@ -92,7 +110,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     });
 
     flutterTts.setErrorHandler((msg) {
-      print('❌ TTS Error Handler triggered: $msg');
+      LoggerService.debug('❌ TTS Error Handler triggered: $msg');
       if (mounted) {
         setState(() {
           _isSpeaking = false;
@@ -101,7 +119,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     });
 
     flutterTts.setCancelHandler(() {
-      print('🛑 TTS Cancel Handler triggered');
+      LoggerService.debug('🛑 TTS Cancel Handler triggered');
       if (mounted) {
         setState(() {
           _isSpeaking = false;
@@ -110,7 +128,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     });
 
     flutterTts.setPauseHandler(() {
-      print('⏸️ TTS Pause Handler triggered');
+      LoggerService.debug('⏸️ TTS Pause Handler triggered');
       if (mounted) {
         setState(() {
           _isSpeaking = false;
@@ -119,7 +137,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     });
 
     flutterTts.setContinueHandler(() {
-      print('▶️ TTS Continue Handler triggered');
+      LoggerService.debug('▶️ TTS Continue Handler triggered');
       if (mounted) {
         setState(() {
           _isSpeaking = true;
@@ -143,12 +161,12 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
 
   void _speakQuote() async {
-    print('🔊 _speakQuote() called - _audioEnabled=$_audioEnabled, _quote=${_quote != null}, _author=${_author != null}');
+    LoggerService.debug('🔊 _speakQuote() called - _audioEnabled=$_audioEnabled, _quote=${_quote != null}, _author=${_author != null}');
     
     if (_audioEnabled && _quote != null && _author != null) {
-      String textToSpeak = '$_quote, by $_author';
+      String textToSpeak = '$_quote, ... $_author';
       final previewLength = textToSpeak.length > 50 ? 50 : textToSpeak.length;
-      print('🎤 About to speak: "${textToSpeak.substring(0, previewLength)}..."');
+      LoggerService.debug('🎤 About to speak: "${textToSpeak.substring(0, previewLength)}..."');
       
       // Manually set speaking state (in case TTS handlers don't fire in simulator)
       if (mounted) {
@@ -159,7 +177,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
       
       try {
         await flutterTts.speak(textToSpeak);
-        print('✅ TTS speak() called successfully');
+        LoggerService.debug('✅ TTS speak() called successfully');
         
         // For simulator compatibility: auto-reset speaking state after estimated time
         // Calculate rough duration: assume 150 words per minute
@@ -169,7 +187,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
         
         Timer(Duration(milliseconds: maxDurationMs), () {
           if (mounted && _isSpeaking) {
-            print('⏰ Auto-resetting speaking state after timeout');
+            LoggerService.debug('⏰ Auto-resetting speaking state after timeout');
             setState(() {
               _isSpeaking = false;
             });
@@ -177,7 +195,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
         });
         
       } catch (e) {
-        print('❌ Error in _speakQuote: $e');
+        LoggerService.debug('❌ Error in _speakQuote: $e');
         if (mounted) {
           setState(() {
             _isSpeaking = false;
@@ -185,16 +203,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
         }
       }
     } else {
-      print('⏹️ Not speaking because: audioEnabled=$_audioEnabled, quote=${_quote != null}, author=${_author != null}');
+      LoggerService.debug('⏹️ Not speaking because: audioEnabled=$_audioEnabled, quote=${_quote != null}, author=${_author != null}');
     }
   }
 
   void _stopSpeaking() async {
-    print('🛑 _stopSpeaking() called - current _isSpeaking=$_isSpeaking');
+    LoggerService.debug('🛑 _stopSpeaking() called - current _isSpeaking=$_isSpeaking');
     
     try {
       await flutterTts.stop();
-      print('✅ TTS stop() called successfully in _stopSpeaking');
+      LoggerService.debug('✅ TTS stop() called successfully in _stopSpeaking');
       
       // Force state update in case handlers don't fire
       if (mounted) {
@@ -203,7 +221,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
         });
       }
     } catch (e) {
-      print('❌ Error stopping TTS in _stopSpeaking: $e');
+      LoggerService.debug('❌ Error stopping TTS in _stopSpeaking: $e');
       // Still update state even if stop failed
       if (mounted) {
         setState(() {
@@ -218,7 +236,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     try {
       flutterTts.stop();
     } catch (e) {
-      print('Error stopping TTS in dispose: $e');
+      LoggerService.debug('Error stopping TTS in dispose: $e');
     }
     super.dispose();
   }
@@ -316,10 +334,10 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
 
   Future<void> _shareQuote() async {
-    print('🔄 Starting share process...');
-    print('  Platform: ${kIsWeb ? 'Web' : Platform.operatingSystem}');
+    LoggerService.debug('🔄 Starting share process...');
+    LoggerService.debug('  Platform: ${kIsWeb ? 'Web' : Platform.operatingSystem}');
     if (!kIsWeb) {
-      print('  Platform version: ${Platform.operatingSystemVersion}');
+      LoggerService.debug('  Platform version: ${Platform.operatingSystemVersion}');
     }
     
     if (_quote == null || _author == null || _currentQuoteId == null) {
@@ -354,12 +372,12 @@ class _QuoteScreenState extends State<QuoteScreen> {
         subject: 'Quote by $_author',
         sharePositionOrigin: const Rect.fromLTWH(0, 0, 100, 100), // Required for iPad popover positioning
       );
-      print('✅ Share completed successfully');
+      LoggerService.debug('✅ Share completed successfully');
     } catch (e) {
-      print('❌ Share error details:');
-      print('  Error type: ${e.runtimeType}');
-      print('  Error message: $e');
-      print('  Stack trace: ${StackTrace.current}');
+      LoggerService.debug('❌ Share error details:');
+      LoggerService.debug('  Error type: ${e.runtimeType}');
+      LoggerService.debug('  Error message: $e');
+      LoggerService.debug('  Stack trace: ${StackTrace.current}');
       
       if (kIsWeb) {
         // Web fallback: try clipboard
@@ -396,7 +414,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
             );
           }
         } catch (clipboardError) {
-          print('❌ Clipboard error: $clipboardError');
+          LoggerService.debug('❌ Clipboard error: $clipboardError');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -411,15 +429,15 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
 
   Future<void> _getQuote({int retryCount = 0}) async {
-    print('🎯 _getQuote() called - Current state: _isLoading=$_isLoading, _isSpeaking=$_isSpeaking, retry=$retryCount');
+    LoggerService.debug('🎯 _getQuote() called - Current state: _isLoading=$_isLoading, _isSpeaking=$_isSpeaking, retry=$retryCount');
     
     // Stop any currently playing audio - wrap in try-catch to handle interruption errors
     try {
-      print('🔇 Attempting to stop TTS...');
+      LoggerService.debug('🔇 Attempting to stop TTS...');
       await flutterTts.stop();
-      print('✅ TTS stop completed successfully');
+      LoggerService.debug('✅ TTS stop completed successfully');
     } catch (e) {
-      print('❌ Error stopping TTS: $e');
+      LoggerService.debug('❌ Error stopping TTS: $e');
       // Continue anyway - the error shouldn't prevent getting a new quote
     }
     
@@ -437,8 +455,8 @@ class _QuoteScreenState extends State<QuoteScreen> {
         url += '?tags=$tags';
       }
       
-      print('🌐 Making API request to: $url');
-      print('📋 Selected categories: $_selectedCategories');
+      LoggerService.debug('🌐 Making API request to: $url');
+      LoggerService.debug('📋 Selected categories: $_selectedCategories');
       
       final response = await http.get(
         Uri.parse(url),
@@ -448,16 +466,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
         },
       );
       
-      print('📡 API Response: ${response.statusCode}');
+      LoggerService.debug('📡 API Response: ${response.statusCode}');
       if (response.statusCode != 200) {
-        print('❌ API Error Body: ${response.body}');
+        LoggerService.debug('❌ API Error Body: ${response.body}');
       }
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final quoteText = data['quote']?.toString() ?? 'null';
         final previewLength = quoteText.length > 50 ? 50 : quoteText.length;
-        print('✅ Quote received: "${quoteText.substring(0, previewLength)}..."');
+        LoggerService.debug('✅ Quote received: "${quoteText.substring(0, previewLength)}..."');
         
         setState(() {
           _quote = data['quote'];
@@ -468,12 +486,12 @@ class _QuoteScreenState extends State<QuoteScreen> {
         });
         
         // Automatically speak the new quote
-        print('🔊 About to speak quote, _audioEnabled=$_audioEnabled');
+        LoggerService.debug('🔊 About to speak quote, _audioEnabled=$_audioEnabled');
         _speakQuote();
       } else if (response.statusCode == 500 && retryCount < 3) {
         // Retry for 500 errors with exponential backoff
         final delay = Duration(milliseconds: 500 * (retryCount + 1));
-        print('🔄 Got 500 error, retrying in ${delay.inMilliseconds}ms (attempt ${retryCount + 1}/3)');
+        LoggerService.debug('🔄 Got 500 error, retrying in ${delay.inMilliseconds}ms (attempt ${retryCount + 1}/3)');
         
         setState(() {
           _error = 'Server issue, retrying...';
@@ -493,20 +511,20 @@ class _QuoteScreenState extends State<QuoteScreen> {
           errorMessage = 'Failed to load quote (${response.statusCode})';
         }
         
-        print('❌ Setting error: $errorMessage');
+        LoggerService.debug('❌ Setting error: $errorMessage');
         setState(() {
           _error = errorMessage;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('❌ Network/Parse error in _getQuote: $e');
-      print('❌ Error type: ${e.runtimeType}');
+      LoggerService.debug('❌ Network/Parse error in _getQuote: $e');
+      LoggerService.debug('❌ Error type: ${e.runtimeType}');
       
       // Retry network errors if we haven't retried too many times
       if (retryCount < 3) {
         final delay = Duration(milliseconds: 500 * (retryCount + 1));
-        print('🔄 Network error, retrying in ${delay.inMilliseconds}ms (attempt ${retryCount + 1}/3)');
+        LoggerService.debug('🔄 Network error, retrying in ${delay.inMilliseconds}ms (attempt ${retryCount + 1}/3)');
         
         setState(() {
           _error = 'Connection issue, retrying...';
@@ -529,10 +547,6 @@ class _QuoteScreenState extends State<QuoteScreen> {
       appBar: AppBar(
         title: Text(
           'Quote Me',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).appBarTheme.foregroundColor,
-          ),
         ),
         centerTitle: true,
         actions: [
@@ -557,31 +571,20 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   _openAdmin();
                   break;
                 case 'login':
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LoginScreen(),
-                    ),
-                  );
-                  if (result == true) {
-                    _checkAuthStatus();
+                  if (mounted) {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
+                    );
+                    if (result == true) {
+                      _checkAuthStatus();
+                    }
                   }
                   break;
                 case 'logout':
-                  await AuthService.signOut();
-                  setState(() {
-                    _isSignedIn = false;
-                    _isAdmin = false;
-                    _userName = null;
-                  });
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Signed out successfully'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
+                  await _handleLogout();
                   break;
               }
             },
@@ -596,7 +599,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         const SizedBox(width: 8),
                         Text(
                           'Hi, $_userName',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ],
                     ),
@@ -683,11 +686,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                     ),
                     child: Text(
                       _error!,
-                      style: TextStyle(
-                        color: Colors.red.shade700,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: AppThemes.errorText(context),
                       textAlign: TextAlign.center,
                     ),
                   )
@@ -703,7 +702,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                             end: Alignment.bottomRight,
                             colors: [
                               Colors.white,
-                              const Color(0xFFE8EAF6).withOpacity(0.5),
+                              const Color(0xFFE8EAF6).withValues(alpha: 128),
                             ],
                           ),
                         ),
@@ -719,28 +718,21 @@ class _QuoteScreenState extends State<QuoteScreen> {
                               const SizedBox(height: 16),
                               Text(
                                 _quote!,
-                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                                   fontStyle: FontStyle.italic,
-                                  color: const Color(0xFF3F51B5),
+                                  color: Theme.of(context).colorScheme.primary,
                                   height: 1.4,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 20),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.secondary.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(20),
+                              Text(
+                                '— $_author',
+                                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
-                                child: Text(
-                                  '— $_author',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF3F51B5),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
+                                textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),
                               Row(
@@ -749,7 +741,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                                   IconButton(
                                     onPressed: _audioEnabled 
                                       ? () {
-                                          print('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
+                                          LoggerService.debug('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
                                           if (_isSpeaking) {
                                             _stopSpeaking();
                                           } else {
@@ -765,7 +757,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                                           : Icons.volume_off,
                                       color: _audioEnabled 
                                         ? Theme.of(context).colorScheme.primary
-                                        : Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                        : Theme.of(context).colorScheme.primary.withValues(alpha: 77),
                                     ),
                                     tooltip: _audioEnabled
                                       ? (_isSpeaking ? 'Stop Reading' : 'Read Quote Aloud')
@@ -783,10 +775,10 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 204),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                        color: Theme.of(context).colorScheme.secondary.withValues(alpha: 77),
                         width: 1,
                       ),
                     ),
@@ -801,7 +793,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         Text(
                           'Ready for inspiration?',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: const Color(0xFF3F51B5),
+                            color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
@@ -809,9 +801,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Press the button below to get a motivational quote!',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: const Color(0xFF3F51B5).withOpacity(0.8),
-                          ),
+                          style: Theme.of(context).textTheme.bodyLarge,
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -823,14 +813,11 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   icon: const Icon(Icons.refresh, size: 20),
                   label: Text(
                     _isLoading ? 'Loading...' : 'Get Quote',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.labelLarge,
                   ),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    shadowColor: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                    shadowColor: Theme.of(context).colorScheme.secondary.withValues(alpha: 77),
                     elevation: 4,
                   ),
                 ),

@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'logger_service.dart';
 
 class OpenAIService {
   static const String _baseUrl = 'https://api.openai.com/v1/chat/completions';
   
   static String get _apiKey {
     final key = dotenv.env['OPENAI_API_KEY'] ?? '';
-    print('🔑 OpenAI API Key loaded: ${key.isNotEmpty ? "✅ Found (${key.length} chars)" : "❌ Missing"}');
+    LoggerService.debug('🔑 OpenAI API Key loaded: ${key.isNotEmpty ? "✅ Found (${key.length} chars)" : "❌ Missing"}');
     return key;
   }
 
@@ -19,15 +20,15 @@ class OpenAIService {
   }) async {
     final apiKey = _apiKey;
     if (apiKey.isEmpty) {
-      print('❌ OpenAI API key not found in environment variables');
-      print('Available env vars: ${dotenv.env.keys.toList()}');
+      LoggerService.error('❌ OpenAI API key not found in environment variables');
+      LoggerService.debug('Available env vars: ${dotenv.env.keys.toList()}');
       throw Exception('OpenAI API key not configured - check .env file');
     }
 
     try {
       // Create a comprehensive prompt for tag generation
       final prompt = _buildTagGenerationPrompt(quote, author, existingTags);
-      print("🔑 The prompt will be: ${prompt}");
+      LoggerService.debug("🔑 The prompt will be: $prompt");
       
       final response = await http.post(
         Uri.parse(_baseUrl),
@@ -65,7 +66,7 @@ class OpenAIService {
         throw Exception('OpenAI API request failed: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('❌ Error generating tags: $e');
+      LoggerService.error('❌ Error generating tags: $e', error: e);
       rethrow;
     }
   }
@@ -123,8 +124,8 @@ Example response: ["Thinking", "Wisdom", "Reflection"]
       
       return tags;
     } catch (e) {
-      print('❌ Error parsing tags from response: $e');
-      print('Response content: $content');
+      LoggerService.error('❌ Error parsing tags from response: $e', error: e);
+      LoggerService.debug('Response content: $content');
       
       // Fallback: try to extract words that look like tags
       return _extractTagsFallback(content);
@@ -172,7 +173,7 @@ Example response: ["Thinking", "Wisdom", "Reflection"]
       );
       return true;
     } catch (e) {
-      print('❌ OpenAI connection test failed: $e');
+      LoggerService.error('❌ OpenAI connection test failed: $e', error: e);
       return false;
     }
   }

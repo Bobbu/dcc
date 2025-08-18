@@ -1,6 +1,7 @@
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'logger_service.dart';
 
 class AuthService {
   static bool _isConfigured = false;
@@ -43,9 +44,9 @@ class AuthService {
 ''');
       
       _isConfigured = true;
-      print('✅ Amplify configured successfully');
+      LoggerService.info('✅ Amplify configured successfully');
     } catch (e) {
-      print('❌ Failed to configure Amplify: $e');
+      LoggerService.error('❌ Failed to configure Amplify: $e', error: e);
       rethrow;
     }
   }
@@ -55,7 +56,7 @@ class AuthService {
       final session = await Amplify.Auth.fetchAuthSession();
       return session.isSignedIn;
     } catch (e) {
-      print('Error checking sign-in status: $e');
+      LoggerService.error('Error checking sign-in status: $e', error: e);
       return false;
     }
   }
@@ -67,7 +68,7 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      print('Error getting current user: $e');
+      LoggerService.error('Error getting current user: $e', error: e);
       return null;
     }
   }
@@ -81,7 +82,7 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      print('Error getting ID token: $e');
+      LoggerService.error('Error getting ID token: $e', error: e);
       return null;
     }
   }
@@ -93,7 +94,7 @@ class AuthService {
         attributes.map((attr) => MapEntry(attr.userAttributeKey.key, attr.value))
       );
     } catch (e) {
-      print('Error fetching user attributes: $e');
+      LoggerService.error('Error fetching user attributes: $e', error: e);
       return null;
     }
   }
@@ -108,7 +109,7 @@ class AuthService {
       }
       return false;
     } catch (e) {
-      print('Error checking admin group membership: $e');
+      LoggerService.error('Error checking admin group membership: $e', error: e);
       return false;
     }
   }
@@ -128,7 +129,7 @@ class AuthService {
       
       return result;
     } catch (e) {
-      print('Sign in error: $e');
+      LoggerService.error('Sign in error: $e', error: e);
       rethrow;
     }
   }
@@ -136,9 +137,9 @@ class AuthService {
   static Future<void> signOut() async {
     try {
       await Amplify.Auth.signOut();
-      print('✅ Signed out successfully');
+      LoggerService.info('✅ Signed out successfully');
     } catch (e) {
-      print('Sign out error: $e');
+      LoggerService.error('Sign out error: $e', error: e);
       rethrow;
     }
   }
@@ -153,7 +154,7 @@ class AuthService {
       }
       return false;
     } catch (e) {
-      print('Error checking users group membership: $e');
+      LoggerService.error('Error checking users group membership: $e', error: e);
       return false;
     }
   }
@@ -167,7 +168,7 @@ class AuthService {
       }
       return [];
     } catch (e) {
-      print('Error getting user groups: $e');
+      LoggerService.error('Error getting user groups: $e', error: e);
       return [];
     }
   }
@@ -177,7 +178,7 @@ class AuthService {
       final attributes = await getUserAttributes();
       return attributes?['email'];
     } catch (e) {
-      print('Error getting user email: $e');
+      LoggerService.error('Error getting user email: $e', error: e);
       return null;
     }
   }
@@ -187,7 +188,7 @@ class AuthService {
       final attributes = await getUserAttributes();
       return attributes?['name'] ?? attributes?['email']?.split('@').first;
     } catch (e) {
-      print('Error getting user name: $e');
+      LoggerService.error('Error getting user name: $e', error: e);
       return null;
     }
   }

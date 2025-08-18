@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'admin_dashboard_screen.dart';
+import '../themes.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -103,7 +104,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 25),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: const Color(0xFF5C6BC0), // Gold
@@ -129,7 +130,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                         Text(
                           'Quote Management System',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 204),
                           ),
                         ),
                       ],
@@ -146,7 +147,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 25),
                           blurRadius: 10,
                           offset: const Offset(0, 5),
                         ),
@@ -262,10 +263,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                                   Expanded(
                                     child: Text(
                                       _errorMessage!,
-                                      style: TextStyle(
-                                        color: Colors.red.shade700,
-                                        fontSize: 14,
-                                      ),
+                                      style: AppThemes.errorText(context),
                                     ),
                                   ),
                                 ],
@@ -276,8 +274,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           ElevatedButton(
                             onPressed: _isLoading ? null : _signIn,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF3F51B5),
-                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -300,12 +296,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                                     Text('Signing In...'),
                                   ],
                                 )
-                              : const Text(
+                              : Text(
                                   'Sign In',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: Theme.of(context).textTheme.labelLarge,
                                 ),
                           ),
                         ],
@@ -323,16 +316,13 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       children: [
                         Icon(
                           Icons.arrow_back,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 204),
                           size: 18,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Back to Quote App',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 16,
-                          ),
+                          style: AppThemes.linkText(context).copyWith(color: Colors.white.withValues(alpha: 204)),
                         ),
                       ],
                     ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../services/logger_service.dart';
+import '../themes.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -52,7 +54,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         return;
       }
       
-      print('Attempting registration to: $apiUrl/auth/register');
+      LoggerService.debug('Attempting registration to: $apiUrl/auth/register');
       final response = await http.post(
         Uri.parse('$apiUrl/auth/register'),
         headers: {'Content-Type': 'application/json'},
@@ -63,7 +65,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         }),
       );
 
-      print('Registration response: ${response.statusCode}');
+      LoggerService.debug('Registration response: ${response.statusCode}');
       final data = json.decode(response.body);
 
       if (response.statusCode == 200) {
@@ -73,20 +75,22 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           _errorMessage = null;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Registration successful! Please check your email for the verification code.'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registration successful! Please check your email for the verification code.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
       } else {
         setState(() {
           _errorMessage = data['error'] ?? 'Registration failed';
         });
       }
     } catch (e) {
-      print('Registration error: $e');
+      LoggerService.error('Registration error', error: e);
       setState(() {
         _errorMessage = 'Network error. Please try again.';
       });
@@ -119,7 +123,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         return;
       }
       
-      print('Attempting confirmation to: $apiUrl/auth/confirm');
+      LoggerService.debug('Attempting confirmation to: $apiUrl/auth/confirm');
       final response = await http.post(
         Uri.parse('$apiUrl/auth/confirm'),
         headers: {'Content-Type': 'application/json'},
@@ -206,10 +210,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 25),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 77),
                         width: 2,
                       ),
                     ),
@@ -242,7 +246,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 25),
                           blurRadius: 10,
                           offset: const Offset(0, 5),
                         ),
@@ -263,16 +267,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       children: [
                         Icon(
                           Icons.arrow_back,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 204),
                           size: 18,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Back to Sign In',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 16,
-                          ),
+                          style: AppThemes.linkText(context).copyWith(color: Colors.white.withValues(alpha: 204)),
                         ),
                       ],
                     ),
@@ -456,10 +457,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   Expanded(
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(
-                        color: Colors.red.shade700,
-                        fontSize: 14,
-                      ),
+                      style: AppThemes.errorText(context),
                     ),
                   ),
                 ],
@@ -494,12 +492,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       Text('Creating Account...'),
                     ],
                   )
-                : const Text(
+                : Text(
                     'Create Account',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.labelLarge,
                   ),
           ),
         ],
@@ -524,16 +519,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
         Text(
           'We sent a verification code to:',
-          style: TextStyle(color: Colors.grey.shade600),
+          style: Theme.of(context).textTheme.bodyMedium,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
           _registeredEmail ?? '',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+          style: Theme.of(context).textTheme.bodyLarge,
           textAlign: TextAlign.center,
         ),
 
@@ -584,10 +576,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 Expanded(
                   child: Text(
                     _errorMessage!,
-                    style: TextStyle(
-                      color: Colors.red.shade700,
-                      fontSize: 14,
-                    ),
+                    style: AppThemes.errorText(context),
                   ),
                 ),
               ],
@@ -598,8 +587,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ElevatedButton(
           onPressed: _isLoading ? null : _confirmEmail,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF3F51B5),
-            foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -622,12 +609,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     Text('Verifying...'),
                   ],
                 )
-              : const Text(
+              : Text(
                   'Verify Email',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(context).textTheme.labelLarge,
                 ),
         ),
 
@@ -641,12 +625,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               _errorMessage = null;
             });
           },
-          child: const Text(
+          child: Text(
             'Back to Registration',
-            style: TextStyle(
-              color: Color(0xFF3F51B5),
-              fontSize: 14,
-            ),
+            style: AppThemes.linkText(context).copyWith(fontSize: 14),
           ),
         ),
       ],
