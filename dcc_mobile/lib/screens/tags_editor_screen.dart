@@ -12,10 +12,43 @@ class TagsEditorScreen extends StatefulWidget {
   State<TagsEditorScreen> createState() => _TagsEditorScreenState();
 }
 
+class TagMetadata {
+  final String name;
+  final int quoteCount;
+  final String? createdAt;
+  final String? updatedAt;
+  final String? createdBy;
+  final String? lastUsed;
+
+  TagMetadata({
+    required this.name,
+    required this.quoteCount,
+    this.createdAt,
+    this.updatedAt,
+    this.createdBy,
+    this.lastUsed,
+  });
+
+  factory TagMetadata.fromJson(Map<String, dynamic> json) {
+    return TagMetadata(
+      name: json['name'] ?? '',
+      quoteCount: json['quote_count'] ?? 0,
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+      createdBy: json['created_by'],
+      lastUsed: json['last_used'],
+    );
+  }
+}
+
 class _TagsEditorScreenState extends State<TagsEditorScreen> {
-  List<String> _tags = [];
+  List<TagMetadata> _tags = [];
   bool _isLoading = true;
   String? _error;
+  
+  // Sorting state
+  String _sortBy = 'name'; // 'name', 'created', 'updated', 'usage'
+  bool _sortAscending = true;
 
   static final String _baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
 
@@ -48,12 +81,25 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final tags = List<String>.from(data['tags'] ?? []);
+        final tagsData = data['tags'] ?? [];
+        
+        List<TagMetadata> tags = [];
+        for (var tagData in tagsData) {
+          if (tagData is String) {
+            // Handle legacy format (simple string array)
+            tags.add(TagMetadata(name: tagData, quoteCount: 0));
+          } else if (tagData is Map<String, dynamic>) {
+            // Handle new format (metadata objects)
+            tags.add(TagMetadata.fromJson(tagData));
+          }
+        }
         
         setState(() {
           _tags = tags;
           _isLoading = false;
         });
+        
+        _sortTags();
       } else if (response.statusCode == 401) {
         _navigateBack();
       } else {
@@ -164,6 +210,97 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
     }
   }
 
+  void _sortTags() {
+    setState(() {
+      switch (_sortBy) {
+        case 'name':
+          _tags.sort((a, b) {
+            final comparison = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+            return _sortAscending ? comparison : -comparison;
+          });
+          break;
+        case 'created':
+          _tags.sort((a, b) {
+            final aDate = DateTime.tryParse(a.createdAt ?? '') ?? DateTime(1970);
+            final bDate = DateTime.tryParse(b.createdAt ?? '') ?? DateTime(1970);
+            final comparison = aDate.compareTo(bDate);
+            return _sortAscending ? comparison : -comparison;
+          });
+          break;
+        case 'updated':
+          _tags.sort((a, b) {
+            final aDate = DateTime.tryParse(a.updatedAt ?? '') ?? DateTime(1970);
+            final bDate = DateTime.tryParse(b.updatedAt ?? '') ?? DateTime(1970);
+            final comparison = aDate.compareTo(bDate);
+            return _sortAscending ? comparison : -comparison;
+          });
+          break;
+        case 'usage':
+          _tags.sort((a, b) {
+            final comparison = a.quoteCount.compareTo(b.quoteCount);
+            return _sortAscending ? comparison : -comparison;
+          });
+          break;
+      }
+    });
+  }
+
+  void _toggleSort(String sortBy) {
+    setState(() {
+      if (_sortBy == sortBy) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortBy = sortBy;
+        _sortAscending = true;
+      }
+    });
+    _sortTags();
+  }
+
+  Widget _buildHeaderSortButton(String sortBy, String label, IconData icon) {
+    final isActive = _sortBy == sortBy;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: ElevatedButton.icon(
+        onPressed: () => _toggleSort(sortBy),
+        icon: Icon(
+          icon,
+          size: 16,
+          color: isActive ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSecondary,
+        ),
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: isActive ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSecondary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              _sortAscending ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              size: 14,
+              color: isActive ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSecondary,
+            ),
+          ],
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isActive 
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.secondary.withValues(alpha: 51),
+          foregroundColor: isActive 
+            ? Theme.of(context).colorScheme.onPrimary
+            : Theme.of(context).colorScheme.onSecondary,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          minimumSize: Size.zero,
+        ),
+      ),
+    );
+  }
+
   void _showMessage(String message, {required bool isError}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -173,6 +310,26 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
         duration: Duration(seconds: isError ? 4 : 3),
       ),
     );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      
+      // Month names
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      
+      // Convert to 12-hour format
+      int hour12 = date.hour == 0 ? 12 : (date.hour > 12 ? date.hour - 12 : date.hour);
+      String amPm = date.hour >= 12 ? 'pm' : 'am';
+      
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at ${hour12}:${date.minute.toString().padLeft(2, '0')} $amPm';
+    } catch (e) {
+      return dateString; // Return original string if parsing fails
+    }
   }
 
   void _navigateBack() {
@@ -221,8 +378,8 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
     );
   }
 
-  void _showEditTagDialog(String currentTag) {
-    final tagController = TextEditingController(text: currentTag);
+  void _showEditTagDialog(TagMetadata tag) {
+    final tagController = TextEditingController(text: tag.name);
 
     showDialog(
       context: context,
@@ -250,9 +407,9 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
           ElevatedButton(
             onPressed: () {
               final newTag = tagController.text.trim();
-              if (newTag.isNotEmpty && newTag != currentTag) {
+              if (newTag.isNotEmpty && newTag != tag.name) {
                 Navigator.of(context).pop();
-                _updateTag(currentTag, newTag);
+                _updateTag(tag.name, newTag);
               }
             },
             child: const Text('Update'),
@@ -340,12 +497,12 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
         actions: [
           IconButton(
             onPressed: _showCleanupDialog,
-            icon: Icon(Icons.cleaning_services),
+            icon: const Icon(Icons.cleaning_services),
             tooltip: 'Clean Unused Tags',
           ),
           IconButton(
             onPressed: _loadTags,
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
           ),
         ],
@@ -356,24 +513,24 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
       ),
       body: Column(
         children: [
-          // Header with count
+          // Header with count and sort buttons
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             color: Theme.of(context).colorScheme.secondary.withValues(alpha: 51),
             child: Row(
               children: [
-                Icon(
-                  Icons.local_offer,
-                  color: Theme.of(context).colorScheme.onSecondary,
-                ),
-                const SizedBox(width: 8),
                 Text(
-                  'Tag Management',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  'Sort by:',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSecondary,
                   ),
                 ),
+                const SizedBox(width: 8),
+                _buildHeaderSortButton('name', 'Tag', Icons.local_offer),
+                _buildHeaderSortButton('usage', 'Usage', Icons.trending_up),
+                _buildHeaderSortButton('created', 'Created', Icons.access_time),
+                _buildHeaderSortButton('updated', 'Updated', Icons.update),
                 const Spacer(),
                 Text(
                   '${_tags.length} tags',
@@ -441,7 +598,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                             ),
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
                             itemCount: _tags.length,
                             itemBuilder: (context, index) {
                               final tag = _tags[index];
@@ -452,18 +609,45 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                                 ),
                                 child: ListTile(
                                   leading: Chip(
-                                    label: Text(tag),
+                                    label: Text(tag.name),
                                   ),
-                                  title: Text(
-                                    'Tag: $tag',
-                                    style: Theme.of(context).textTheme.headlineSmall,
+                                  title: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        tag.name,
+                                        style: Theme.of(context).textTheme.headlineSmall,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${tag.quoteCount} ${tag.quoteCount == 1 ? 'quote' : 'quotes'}',
+                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (tag.createdAt != null)
+                                        Text(
+                                          'Created: ${_formatDate(tag.createdAt!)}',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      if (tag.updatedAt != null)
+                                        Text(
+                                          'Updated: ${_formatDate(tag.updatedAt!)}',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                   trailing: PopupMenuButton<String>(
                                     onSelected: (value) {
                                       if (value == 'edit') {
                                         _showEditTagDialog(tag);
                                       } else if (value == 'delete') {
-                                        _showDeleteTagDialog(tag);
+                                        _showDeleteTagDialog(tag.name);
                                       }
                                     },
                                     itemBuilder: (context) => [

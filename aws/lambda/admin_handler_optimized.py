@@ -353,6 +353,22 @@ def admin_update_quote(quote_id, body, username):
         old_tags = set(existing_quote.get('tags', []))
         new_tags = set(body.get('tags', []))
         
+        # First, ensure all new tags exist (outside transaction)
+        logger.info(f"Ensuring tags exist for: {new_tags}")
+        for tag in new_tags:
+            if tag:
+                logger.info(f"Ensuring tag exists: {tag}")
+                ensure_tag_exists(tag, username, now)
+        
+        # Calculate which tags to add/remove/keep
+        tags_to_remove = old_tags - new_tags
+        tags_to_add = new_tags - old_tags
+        tags_to_keep = old_tags & new_tags
+        
+        logger.info(f"Tags to remove: {tags_to_remove}")
+        logger.info(f"Tags to add: {tags_to_add}")
+        logger.info(f"Tags to keep: {tags_to_keep}")
+        
         transact_items = [
             {
                 'Put': {
@@ -362,8 +378,8 @@ def admin_update_quote(quote_id, body, username):
             }
         ]
         
-        # Remove old tag mappings
-        for tag in old_tags:
+        # Remove old tag mappings (only for tags being removed)
+        for tag in tags_to_remove:
             transact_items.append({
                 'Delete': {
                     'TableName': table.name,
@@ -374,8 +390,8 @@ def admin_update_quote(quote_id, body, username):
                 }
             })
         
-        # Add new tag mappings
-        for tag in new_tags:
+        # Add new tag mappings (only for tags being added)
+        for tag in tags_to_add:
             if tag:
                 transact_items.append({
                     'Put': {
@@ -390,12 +406,11 @@ def admin_update_quote(quote_id, body, username):
                         }
                     }
                 })
-                
-                # Ensure tag metadata exists
-                ensure_tag_exists(tag, username, now)
         
         # Execute transaction
+        logger.info(f"Executing transaction with {len(transact_items)} items")
         dynamodb.meta.client.transact_write_items(TransactItems=transact_items)
+        logger.info("Transaction completed successfully")
         
         formatted_quote = format_admin_quote_response(updated_quote)
         
@@ -410,10 +425,14 @@ def admin_update_quote(quote_id, body, username):
         
     except Exception as e:
         logger.error(f"Error in admin_update_quote: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Quote ID: {quote_id}")
+        if hasattr(e, 'response'):
+            logger.error(f"DynamoDB error response: {e.response}")
         return {
             'statusCode': 500,
             'headers': CORS_HEADERS,
-            'body': json.dumps({'error': 'Failed to update quote'})
+            'body': json.dumps({'error': f'Failed to update quote: {str(e)}'})
         }
 
 def admin_delete_quote(quote_id):
@@ -487,7 +506,7 @@ def admin_delete_quote(quote_id):
         }
 
 def admin_get_tags():
-    """Get all tags with metadata"""
+    """Get all tags with full metadata including quote counts"""
     try:
         response = table.query(
             IndexName='TypeDateIndex',
@@ -495,16 +514,23 @@ def admin_get_tags():
             ScanIndexForward=False
         )
         
+        # Build tag metadata using stored quote counts (no queries needed!)
         tags = []
         for item in response['Items']:
-            tag_data = {
-                'name': item.get('name', ''),
-                'quote_count': item.get('quote_count', 0),
-                'created_at': item.get('created_at'),
-                'updated_at': item.get('updated_at'),
-                'last_used': item.get('last_used')
-            }
-            tags.append(tag_data)
+            tag_name = item.get('name', '')
+            if tag_name:
+                tag_data = {
+                    'name': tag_name,
+                    'quote_count': item.get('quote_count', 0),  # Use stored count!
+                    'created_at': item.get('created_at'),
+                    'updated_at': item.get('updated_at'),
+                    'created_by': item.get('created_by'),
+                    'last_used': item.get('last_used')
+                }
+                tags.append(tag_data)
+        
+        # Sort tags alphabetically by name
+        tags.sort(key=lambda x: x['name'].lower())
         
         return {
             'statusCode': 200,
@@ -817,7 +843,8 @@ def format_admin_quote_response(item):
 def admin_create_tag(body, username):
     """Create a new tag"""
     try:
-        tag_name = body.get('name', '').strip()
+        # Support both 'tag' and 'name' fields for compatibility
+        tag_name = body.get('tag', body.get('name', '')).strip()
         if not tag_name:
             return {
                 'statusCode': 400,
@@ -877,15 +904,19 @@ def admin_create_tag(body, username):
         }
 
 def admin_update_tag(old_tag_name, body, username):
-    """Update/rename a tag"""
+    """Update/rename a tag and all associated quotes"""
     try:
-        new_tag_name = body.get('name', '').strip()
+        # Support both 'tag' and 'name' fields for compatibility
+        new_tag_name = body.get('tag', body.get('name', '')).strip()
         if not new_tag_name or not old_tag_name:
             return {
                 'statusCode': 400,
                 'headers': CORS_HEADERS,
                 'body': json.dumps({'error': 'Both old and new tag names are required'})
             }
+        
+        # URL decode the old tag name
+        old_tag_name = urllib.parse.unquote(old_tag_name)
         
         if old_tag_name == new_tag_name:
             return {
@@ -894,12 +925,133 @@ def admin_update_tag(old_tag_name, body, username):
                 'body': json.dumps({'error': 'New tag name must be different'})
             }
         
-        # This would require complex transaction logic to update all quotes
-        # For now, return not implemented
+        # Check if new tag already exists
+        existing_tag = table.get_item(
+            Key={'PK': f'TAG#{new_tag_name}', 'SK': f'TAG#{new_tag_name}'}
+        )
+        
+        if 'Item' in existing_tag:
+            return {
+                'statusCode': 409,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'New tag name already exists'})
+            }
+        
+        now = datetime.now(timezone.utc).isoformat()
+        quotes_updated = 0
+        
+        # Get all quotes that use this tag via tag-quote mappings
+        mappings_response = table.query(
+            IndexName='TagQuoteIndex',
+            KeyConditionExpression=Key('PK').eq(f'TAG#{old_tag_name}')
+        )
+        
+        # Update each quote that uses this tag
+        for mapping in mappings_response['Items']:
+            if mapping.get('type') == 'tag_quote_mapping':
+                quote_id = mapping.get('quote_id')
+                if quote_id:
+                    # Get the quote details
+                    quote_response = table.get_item(
+                        Key={'PK': f'QUOTE#{quote_id}', 'SK': f'QUOTE#{quote_id}'}
+                    )
+                    
+                    if 'Item' in quote_response:
+                        quote = quote_response['Item']
+                        tags = quote.get('tags', [])
+                        
+                        # Replace old tag with new tag in the tags list
+                        if old_tag_name in tags:
+                            new_tags = [new_tag_name if tag == old_tag_name else tag for tag in tags]
+                            
+                            # Update the quote with new tags
+                            table.update_item(
+                                Key={'PK': f'QUOTE#{quote_id}', 'SK': f'QUOTE#{quote_id}'},
+                                UpdateExpression='SET tags = :tags, updated_at = :updated_at, updated_by = :updated_by',
+                                ExpressionAttributeValues={
+                                    ':tags': new_tags,
+                                    ':updated_at': now,
+                                    ':updated_by': username
+                                }
+                            )
+                            quotes_updated += 1
+        
+        # Create new tag metadata
+        new_tag_item = {
+            'PK': f'TAG#{new_tag_name}',
+            'SK': f'TAG#{new_tag_name}',
+            'type': 'tag',
+            'name': new_tag_name,
+            'name_normalized': new_tag_name.lower(),
+            'created_at': now,
+            'updated_at': now,
+            'created_by': username,
+            'quote_count': quotes_updated,
+            'last_used': now
+        }
+        
+        # Use transaction to create new tag and delete old tag
+        transact_items = [
+            {
+                'Put': {
+                    'TableName': table.name,
+                    'Item': new_tag_item
+                }
+            },
+            {
+                'Delete': {
+                    'TableName': table.name,
+                    'Key': {'PK': f'TAG#{old_tag_name}', 'SK': f'TAG#{old_tag_name}'}
+                }
+            }
+        ]
+        
+        # Update all tag-quote mappings to use new tag name
+        for mapping in mappings_response['Items']:
+            if mapping.get('type') == 'tag_quote_mapping':
+                quote_id = mapping.get('quote_id')
+                if quote_id:
+                    # Delete old mapping
+                    transact_items.append({
+                        'Delete': {
+                            'TableName': table.name,
+                            'Key': {'PK': f'TAG#{old_tag_name}', 'SK': f'QUOTE#{quote_id}'}
+                        }
+                    })
+                    
+                    # Create new mapping
+                    transact_items.append({
+                        'Put': {
+                            'TableName': table.name,
+                            'Item': {
+                                'PK': f'TAG#{new_tag_name}',
+                                'SK': f'QUOTE#{quote_id}',
+                                'type': 'tag_quote_mapping',
+                                'quote_id': quote_id,
+                                'author': mapping.get('author', ''),
+                                'created_at': now
+                            }
+                        }
+                    })
+        
+        # Execute transaction (may need to batch for large numbers of items)
+        if len(transact_items) <= 100:  # DynamoDB transaction limit
+            dynamodb.meta.client.transact_write_items(TransactItems=transact_items)
+        else:
+            # Handle large transactions by batching
+            for i in range(0, len(transact_items), 100):
+                batch = transact_items[i:i+100]
+                dynamodb.meta.client.transact_write_items(TransactItems=batch)
+        
         return {
-            'statusCode': 501,
+            'statusCode': 200,
             'headers': CORS_HEADERS,
-            'body': json.dumps({'error': 'Tag renaming not yet implemented'})
+            'body': json.dumps({
+                'message': 'Tag updated successfully',
+                'quotes_updated': quotes_updated,
+                'old_tag': old_tag_name,
+                'new_tag': new_tag_name
+            })
         }
         
     except Exception as e:
@@ -911,7 +1063,7 @@ def admin_update_tag(old_tag_name, body, username):
         }
 
 def admin_delete_tag(tag_name):
-    """Delete a tag and all its mappings"""
+    """Delete a tag and remove it from all quotes that use it"""
     try:
         if not tag_name:
             return {
@@ -920,11 +1072,46 @@ def admin_delete_tag(tag_name):
                 'body': json.dumps({'error': 'Tag name is required'})
             }
         
+        # URL decode the tag name
+        tag_name = urllib.parse.unquote(tag_name)
+        
+        now = datetime.now(timezone.utc).isoformat()
+        quotes_updated = 0
+        
         # First get all quote mappings for this tag
         mappings_response = table.query(
             IndexName='TagQuoteIndex',
             KeyConditionExpression=Key('PK').eq(f'TAG#{tag_name}')
         )
+        
+        # Update each quote to remove this tag from its tags array
+        for mapping in mappings_response['Items']:
+            if mapping.get('type') == 'tag_quote_mapping':
+                quote_id = mapping.get('quote_id')
+                if quote_id:
+                    # Get the quote details
+                    quote_response = table.get_item(
+                        Key={'PK': f'QUOTE#{quote_id}', 'SK': f'QUOTE#{quote_id}'}
+                    )
+                    
+                    if 'Item' in quote_response:
+                        quote = quote_response['Item']
+                        tags = quote.get('tags', [])
+                        
+                        # Remove the tag from the tags list
+                        if tag_name in tags:
+                            new_tags = [tag for tag in tags if tag != tag_name]
+                            
+                            # Update the quote with new tags
+                            table.update_item(
+                                Key={'PK': f'QUOTE#{quote_id}', 'SK': f'QUOTE#{quote_id}'},
+                                UpdateExpression='SET tags = :tags, updated_at = :updated_at',
+                                ExpressionAttributeValues={
+                                    ':tags': new_tags,
+                                    ':updated_at': now
+                                }
+                            )
+                            quotes_updated += 1
         
         # Delete tag and all mappings in transaction
         transact_items = [
@@ -946,15 +1133,21 @@ def admin_delete_tag(tag_name):
                     }
                 })
         
-        # Execute transaction
-        if transact_items:
+        # Execute transaction (may need to batch for large numbers of items)
+        if len(transact_items) <= 100:  # DynamoDB transaction limit
             dynamodb.meta.client.transact_write_items(TransactItems=transact_items)
+        else:
+            # Handle large transactions by batching
+            for i in range(0, len(transact_items), 100):
+                batch = transact_items[i:i+100]
+                dynamodb.meta.client.transact_write_items(TransactItems=batch)
         
         return {
             'statusCode': 200,
             'headers': CORS_HEADERS,
             'body': json.dumps({
                 'message': 'Tag deleted successfully',
+                'quotes_updated': quotes_updated,
                 'mappings_deleted': len(mappings_response['Items'])
             })
         }
@@ -1332,7 +1525,7 @@ def admin_get_quotes_by_tag(tag, query_params):
         # Query using TagQuoteIndex
         query_params_db = {
             'IndexName': 'TagQuoteIndex',
-            'KeyConditionExpression': Key('tag').eq(tag),
+            'KeyConditionExpression': Key('PK').eq(f'TAG#{tag}'),
             'Limit': limit,
             'ScanIndexForward': False  # Newest first
         }
@@ -1382,3 +1575,20 @@ def get_quote_details(quote_pk):
     except Exception as e:
         logger.error(f"Error getting quote details: {str(e)}")
         return None
+
+def get_tag_quote_count(tag_name):
+    """Get the number of quotes that use this tag"""
+    try:
+        # Query the TagQuoteIndex to count only tag_quote_mapping items for this tag
+        response = table.query(
+            IndexName='TagQuoteIndex',
+            KeyConditionExpression=Key('PK').eq(f'TAG#{tag_name}'),
+            FilterExpression=Attr('type').eq('tag_quote_mapping'),
+            Select='COUNT'
+        )
+        
+        return response.get('Count', 0)
+        
+    except Exception as e:
+        logger.error(f"Error getting tag quote count for {tag_name}: {str(e)}")
+        return 0

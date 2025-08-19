@@ -88,8 +88,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _importProgress = 0;
   int _importTotal = 0;
   String _importStatus = '';
-  String _selectedTagFilter = 'All';
-  List<String> _availableTags = ['All'];
+  // Tag filter removed - using search functionality instead
+  List<String> _availableTags = []; // Keep for compatibility but not used
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
@@ -160,24 +160,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
 
   List<Quote> get _filteredQuotes {
-    // If we have any search activity (preparing, searching, or have query), don't show regular quotes
-    // Only show search results or empty list during search states
+    // Show search results when searching, otherwise show all quotes
     List<Quote> filtered;
     
     if (_searchQuery.isNotEmpty) {
-      // We're in search mode - only show search results, never fall back to regular quotes
+      // We're in search mode - only show search results
       filtered = _searchResults;
     } else {
-      // No search query - show regular quotes with tag filtering
+      // No search query - show all quotes
       filtered = _quotes;
-      
-      // Apply tag filter only when not searching
-      if (_selectedTagFilter != 'All') {
-        filtered = filtered.where((quote) => quote.tags.contains(_selectedTagFilter)).toList();
-      }
     }
     
-    LoggerService.debug('🔍 _filteredQuotes: searchQuery="$_searchQuery", quotes=${_quotes.length}, searchResults=${_searchResults.length}, tagFilter="$_selectedTagFilter", isPreparingSearch=$_isPreparingSearch, isSearching=$_isSearching');
+    LoggerService.debug('🔍 _filteredQuotes: searchQuery="$_searchQuery", quotes=${_quotes.length}, searchResults=${_searchResults.length}, isPreparingSearch=$_isPreparingSearch, isSearching=$_isSearching');
     LoggerService.debug('🔍 _filteredQuotes returning: ${filtered.length} quotes');
     return filtered;
   }
@@ -420,9 +414,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       });
       
       LoggerService.info('✅ Successfully loaded ${quotes.length} quotes (total: ${response['total_count']})');
-      
-      // Load tags after quotes are loaded
-      await _loadAvailableTags();
     } catch (e) {
       setState(() {
         _error = 'Network error: $e';
@@ -535,10 +526,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         tags: quote.tags,
       );
       
-      _loadQuotes(); // Refresh the list
-      _showMessage('Quote created successfully!', isError: false);
+      if (mounted) {
+        _showMessage('Quote created successfully!', isError: false);
+      }
     } catch (e) {
-      _showMessage('Error creating quote: $e', isError: true);
+      if (mounted) {
+        _showMessage('Error creating quote: $e', isError: true);
+      }
+      rethrow; // Re-throw to prevent dialog from closing on error
     }
   }
 
@@ -551,10 +546,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         tags: quote.tags,
       );
       
-      _loadQuotes(); // Refresh the list
-      _showMessage('Quote updated successfully!', isError: false);
+      if (mounted) {
+        _showMessage('Quote updated successfully!', isError: false);
+      }
     } catch (e) {
-      _showMessage('Error updating quote: $e', isError: true);
+      if (mounted) {
+        _showMessage('Error updating quote: $e', isError: true);
+      }
+      rethrow; // Re-throw to prevent dialog from closing on error
     }
   }
 
@@ -562,10 +561,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       await AdminApiService.deleteQuote(quoteId);
       
-      _loadQuotes(); // Refresh the list
-      _showMessage('Quote deleted successfully!', isError: false);
+      // Wait for backend success, then refresh
+      await _loadQuotes();
+      
+      if (mounted) {
+        _showMessage('Quote deleted successfully!', isError: false);
+      }
     } catch (e) {
-      _showMessage('Error deleting quote: $e', isError: true);
+      if (mounted) {
+        _showMessage('Error deleting quote: $e', isError: true);
+      }
     }
   }
 
@@ -1083,7 +1088,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         quoteController: quoteController,
         authorController: authorController,
         initialTags: quote?.tags ?? [],
-        onSave: (selectedTags) {
+        onSave: (selectedTags) async {
           final newQuote = Quote(
             id: quote?.id ?? '',
             quote: quoteController.text.trim(),
@@ -1095,13 +1100,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           );
 
           if (isEditing) {
-            _updateQuote(newQuote);
+            await _updateQuote(newQuote);
           } else {
-            _createQuote(newQuote);
+            await _createQuote(newQuote);
           }
         },
       ),
-    );
+    ).then((_) {
+      // Force refresh when dialog closes (whether cancelled or saved)
+      LoggerService.info('🔄 Dialog closed, forcing refresh of quotes...');
+      
+      // Clear any search state that might interfere with showing updated quotes
+      setState(() {
+        _searchQuery = '';
+        _searchResults = [];
+        _isSearching = false;
+        _isPreparingSearch = false;
+      });
+      
+      // Now load fresh quotes
+      _loadQuotes();
+    });
   }
 
   @override
@@ -1121,7 +1140,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   MaterialPageRoute(
                     builder: (context) => const TagsEditorScreen(),
                   ),
-                );
+                ).then((_) {
+                  // Refresh quotes when returning from Tags Editor in case tags were changed
+                  _loadQuotes();
+                });
               } else if (value == 'cleanup_tags') {
                 _showCleanupTagsDialog();
               } else if (value == 'cleanup_duplicates') {
@@ -1248,102 +1270,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     const Spacer(),
                     Text(
-                      '${_filteredQuotes.length} ${_searchQuery.isNotEmpty ? 'search results' : _selectedTagFilter != 'All' ? 'filtered' : 'loaded'} ${_filteredQuotes.length == 1 ? 'quote' : 'quotes'}',
+                      '${_filteredQuotes.length} ${_searchQuery.isNotEmpty ? 'search results' : 'loaded'} ${_filteredQuotes.length == 1 ? 'quote' : 'quotes'}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
                         color: Theme.of(context).colorScheme.onSecondary,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.filter_list,
-                      color: Theme.of(context).colorScheme.onSecondary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Filter by tag:',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(context).colorScheme.onSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 77),
-                          ),
-                        ),
-                        child: DropdownButton<String>(
-                          value: _availableTags.contains(_selectedTagFilter) ? _selectedTagFilter : 'All',
-                          isExpanded: true,
-                          underline: const SizedBox(),
-                          icon: Icon(Icons.arrow_drop_down, color: Theme.of(context).colorScheme.primary),
-                          onChanged: (String? newValue) {
-                            if (newValue != null) {
-                              setState(() {
-                                _selectedTagFilter = newValue;
-                              });
-                            }
-                          },
-                          items: _availableTags.map<DropdownMenuItem<String>>((String tag) {
-                            return DropdownMenuItem<String>(
-                              value: tag,
-                              child: Row(
-                                children: [
-                                  if (tag != 'All') ...[
-                                    Icon(
-                                      Icons.local_offer,
-                                      size: 16,
-                                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 153),
-                                    ),
-                                    const SizedBox(width: 8),
-                                  ],
-                                  Text(
-                                    tag,
-                                    style: TextStyle(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      fontWeight: tag == _selectedTagFilter ? FontWeight.bold : FontWeight.normal,
-                                    ),
-                                  ),
-                                  if (tag != 'All' && _selectedTagFilter != tag) ...[
-                                    const Spacer(),
-                                    Text(
-                                      '(${_quotes.where((q) => q.tags.contains(tag)).length})',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                    if (_selectedTagFilter != 'All') ...[
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _selectedTagFilter = 'All';
-                          });
-                        },
-                        icon: Icon(Icons.clear, color: Theme.of(context).colorScheme.primary),
-                        tooltip: 'Clear filter',
-                      ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -1633,9 +1565,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 Text(
                                   _searchQuery.isNotEmpty
                                     ? 'No quotes found for "$_searchQuery"'
-                                    : _selectedTagFilter != 'All' 
-                                        ? 'No quotes found with tag "$_selectedTagFilter"'
-                                        : 'No quotes found',
+                                    : 'No quotes found',
                                   style: const TextStyle(
                                     fontSize: 18,
                                     color: Colors.grey,
@@ -1645,9 +1575,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 Text(
                                   _searchQuery.isNotEmpty
                                     ? 'Try different search terms or clear the search'
-                                    : _selectedTagFilter != 'All'
-                                        ? 'Try selecting a different tag or clear the filter'
-                                        : 'Tap the + button to add your first quote',
+                                    : 'Tap the + button to add your first quote',
                                   style: const TextStyle(
                                     color: Colors.grey,
                                   ),
@@ -1808,29 +1736,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Future<void> _loadAvailableTags() async {
-    try {
-      final tags = await AdminApiService.getTags();
-      
-      // Ensure 'All' is at the beginning and no duplicates
-      List<String> finalTags = ['All'];
-      for (String tag in tags) {
-        if (tag != 'All') {
-          finalTags.add(tag);
-        }
-      }
-      
-      setState(() {
-        _availableTags = finalTags;
-        _isLoadingTags = false;
-      });
-    } catch (e) {
-      LoggerService.error('Error loading tags', error: e);
-      setState(() {
-        _isLoadingTags = false;
-      });
-    }
-  }
 }
 
 class _QuoteEditDialog extends StatefulWidget {
@@ -1838,7 +1743,7 @@ class _QuoteEditDialog extends StatefulWidget {
   final TextEditingController quoteController;
   final TextEditingController authorController;
   final List<String> initialTags;
-  final Function(List<String>) onSave;
+  final Future<void> Function(List<String>) onSave;
 
   const _QuoteEditDialog({
     required this.isEditing,
@@ -1856,6 +1761,7 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
   List<String> _availableTags = [];
   Set<String> _selectedTags = {};
   bool _isLoadingTags = true;
+  bool _isSaving = false;
   final TextEditingController _newTagController = TextEditingController();
 
   @override
@@ -1971,10 +1877,9 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
             const SizedBox(height: 12),
             
             // Available tags
-            const Text(
+            Text(
               'Available Tags (tap to select)',
-              style: TextStyle(
-                fontSize: 14,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -2002,8 +1907,7 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
                             }
                           });
                         },
-                        selectedColor: Theme.of(context).colorScheme.secondary.withValues(alpha: 153),
-                        checkmarkColor: Theme.of(context).colorScheme.primary,
+                        // Remove custom colors - use theme styling for consistency
                       );
                     }).toList(),
                   ),
@@ -2018,11 +1922,43 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-            widget.onSave(_selectedTags.toList());
+          onPressed: _isSaving ? null : () async {
+            setState(() {
+              _isSaving = true;
+            });
+            
+            try {
+              // Wait for the save operation to complete
+              await widget.onSave(_selectedTags.toList());
+              
+              // Only close dialog after successful save
+              if (mounted) {
+                Navigator.of(context).pop();
+              }
+            } catch (e) {
+              // Handle error - don't close dialog
+              setState(() {
+                _isSaving = false;
+              });
+            }
           },
-          child: Text(widget.isEditing ? 'Update' : 'Create'),
+          child: _isSaving 
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Text('Saving...'),
+                ],
+              )
+            : Text(widget.isEditing ? 'Update' : 'Create'),
         ),
       ],
     );

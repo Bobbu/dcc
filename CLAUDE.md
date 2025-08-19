@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 "Quote Me" is a comprehensive quote management system with enterprise-grade features consisting of:
 1. **AWS API Backend** - Secure, scalable API with authentication, CORS support, and database storage
 2. **Flutter Mobile & Web Apps** - Cross-platform applications with modern indigo theme and advanced capabilities  
-3. **Admin Management System** - Complete CRUD interface with tag filtering and quote management
+3. **Admin Management System** - Complete CRUD interface with search functionality and quote management
 4. **Web Deployment Infrastructure** - Automated deployment with CloudFront CDN, S3 hosting, and SSL certificates
 
 The architecture follows modern cloud-native patterns with JWT authentication, DynamoDB storage, API Gateway security with CORS, CloudFront distribution, and cross-platform design principles with a professional indigo color scheme.
@@ -246,7 +246,7 @@ open -a Simulator
   - `settings_screen.dart`: Dynamic tag loading with voice testing and server synchronization
   - `login_screen.dart`: Unified authentication for all users with role-based navigation
   - `registration_screen.dart`: Self-service user registration with email verification
-  - `admin_dashboard_screen.dart`: Full quote management interface with CRUD operations and tag filtering
+  - `admin_dashboard_screen.dart`: Full quote management interface with CRUD operations and powerful search functionality
   - `tags_editor_screen.dart`: Dedicated tag management interface with individual tag CRUD operations
 - **Authentication Service**: `lib/services/auth_service.dart`
   - AWS Amplify Cognito integration for secure authentication
@@ -276,10 +276,10 @@ open -a Simulator
     - Voice pitch control: Low (0.6), Normal (1.0), High (1.4)
     - Smart interruption controls and simulator compatibility
     - Persistent settings with immediate application to quote playback
-  - **Dynamic Tag Filtering**: Real-time tag loading with 3-tag minimum for variety
+  - **Dynamic Tag System**: Real-time tag loading with 3-tag minimum for variety
   - **Admin Management**: Complete quote CRUD with real-time updates, advanced sorting, and tag export functionality
   - **Quote Sorting**: AppBar toggle buttons for sorting by Quote, Author, or Created Date (ascending/descending)
-  - **Tag Filtering**: Dropdown filter to view quotes by specific tags with count indicators
+  - **Search Functionality**: Powerful search that finds quotes by content, author, or tags (replaced tag filter dropdown)
   - **Duplicate Management**: Smart duplicate detection and cleanup with intelligent selection
   - **Tag Management System**: Dedicated Tags Editor with individual tag CRUD operations
   - **AI Tag Generation**: OpenAI GPT-4o-mini integration for intelligent tag generation:
@@ -343,29 +343,28 @@ The admin dashboard includes a powerful copy/paste import feature for Google She
 
 **Access Method**: Admin Dashboard → Menu → "Import Quotes"
 
-### Admin Dashboard Tag Filtering
-The admin dashboard includes a powerful tag filtering system for efficient quote management:
+### Admin Dashboard Search
+The admin dashboard includes a powerful search system for efficient quote management:
 
-**Filter Features**:
-- **Dropdown Filter**: Located in the header below user info for easy access
-- **All Tags Available**: Shows every tag currently used in your quote database
-- **Quote Counts**: Each tag displays the number of quotes using it (e.g., "Leadership (12)")
-- **Smart Selection**: Bold highlighting for the currently selected filter
-- **Clear Button**: Quick reset to "All" quotes with a single click
-- **Auto-Reset**: Filter automatically resets if a tag is completely removed from all quotes
+**Search Features**:
+- **Universal Search**: Located in the header for easy access
+- **Multi-field Search**: Finds quotes by content, author, or tags
+- **Real-time Results**: Instant search results as you type (with debounce)
+- **Clear Button**: Quick reset to show all quotes
+- **Smart Filtering**: Search automatically filters the displayed quotes
 
-**Filter Benefits**:
-- **Efficient Editing**: Quickly find all quotes with a specific tag for bulk editing
-- **Tag Consolidation**: Identify and merge similar tags (e.g., "Entrepreneurism" vs "Entrepreneurship")
-- **Category Review**: Review all quotes in a particular category at once
-- **Context-Aware UI**: Empty state messages change based on active filter
-- **Persistent State**: Filter remains active while editing, creating, or deleting quotes
+**Search Benefits**:
+- **Efficient Finding**: Quickly locate quotes by any keyword
+- **Tag Search**: Find all quotes with specific tags by searching tag names
+- **Author Search**: Locate all quotes by a particular author
+- **Content Search**: Find quotes containing specific words or phrases
+- **Flexible Queries**: Partial matches and case-insensitive searching
 
 **Use Cases**:
-- Finding quotes with typos or inconsistent tags
-- Reviewing all quotes in a specific category
-- Consolidating similar or duplicate tags
-- Managing tag consistency across the database
+- Finding quotes with specific keywords or phrases
+- Locating all quotes by a particular author
+- Finding quotes with specific tags
+- Quick navigation to specific quotes for editing
 
 ### Admin Dashboard Sorting System
 The admin dashboard provides comprehensive sorting capabilities for efficient quote management:
@@ -518,7 +517,7 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 2. **Authentication Flow**: 
    - Public API: `x-api-key` header for rate-limited quote access
    - Admin API: `Authorization: Bearer {IdToken}` for full CRUD operations
-3. **Data Flow**: DynamoDB → Lambda → API Gateway → Flutter with real-time tag filtering
+3. **Data Flow**: DynamoDB → Lambda → API Gateway → Flutter with real-time search and filtering
 4. **Security Model**: Dual-layer with API keys for public access and JWT for admin operations
 5. **State Synchronization**: Admin changes immediately reflected in public API responses
 6. **Error Handling**: Graceful degradation with user-friendly messages across all failure modes

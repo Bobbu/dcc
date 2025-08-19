@@ -14,9 +14,9 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **Professional UI**: Dark indigo theme (#3F51B5) with clean, modern design
 - **User Authentication**: Self-registration with email verification and unified login
 - **Role-Based Access**: Different features for regular users vs administrators
-- **Dynamic Tag System**: Real-time tag loading and filtering with O(1) performance
+- **Dynamic Tag System**: Real-time tag loading with O(1) performance
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High)
-- **Admin Dashboard**: Complete quote management interface with tag filtering and export functionality
+- **Admin Dashboard**: Complete quote management interface with powerful search functionality and export features
 - **Tag Management**: Dedicated editor for individual tag operations
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
 - **Duplicate Detection**: Intelligent duplicate cleanup with preservation logic
@@ -175,7 +175,7 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
 ## 📋 Admin Features
 
 ### Admin Dashboard
-- **Filter by Tag**: Dropdown filter showing quote counts per tag
+- **Search Functionality**: Universal search finds quotes by content, author, or tags
 - **Sort Options**: Quote text, Author name, or Created date
 - **Duplicate Cleanup**: Intelligent detection and removal
 - **Batch Import**: Google Sheets TSV import with progress tracking
