@@ -61,21 +61,41 @@ class AdminApiService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getQuotes() async {
+  static Future<Map<String, dynamic>> getQuotesWithPagination({
+    int limit = 50,
+    String? lastKey,
+    String sortBy = 'created_at',
+    String sortOrder = 'desc',
+  }) async {
     try {
-      LoggerService.debug('📡 Fetching quotes from admin API...');
+      LoggerService.debug('📡 Fetching quotes from admin API (sort: $sortBy $sortOrder, limit: $limit)...');
+      
+      // Build query parameters
+      final queryParams = <String, String>{
+        'limit': limit.toString(),
+        'sort_by': sortBy,
+        'sort_order': sortOrder,
+      };
+      
+      if (lastKey != null && lastKey.isNotEmpty) {
+        queryParams['last_key'] = lastKey;
+      }
       
       final headers = await _getAuthHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/admin/quotes'),
-        headers: headers,
-      );
+      final uri = Uri.parse('$baseUrl/admin/quotes').replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: headers);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
         LoggerService.info('✅ Successfully loaded ${quotes.length} quotes from API');
-        return quotes;
+        
+        return {
+          'quotes': quotes,
+          'total_count': data['total_count'] ?? 0,
+          'last_key': data['last_key'],
+          'has_more': data['last_key'] != null,
+        };
       } else if (response.statusCode == 401) {
         throw Exception('Authentication required or expired');
       } else if (response.statusCode == 403) {
@@ -87,6 +107,12 @@ class AdminApiService {
       LoggerService.error('❌ Error fetching quotes: $e', error: e);
       rethrow;
     }
+  }
+
+  // Backward compatibility method - returns just the quotes list
+  static Future<List<Map<String, dynamic>>> getQuotes() async {
+    final result = await getQuotesWithPagination();
+    return result['quotes'] as List<Map<String, dynamic>>;
   }
 
   static Future<Map<String, dynamic>> createQuote({
@@ -221,7 +247,8 @@ class AdminApiService {
       final response = await http.get(uri, headers: headers);
 
       LoggerService.debug('📡 Search response status: ${response.statusCode}');
-      LoggerService.debug('📡 Search response body: ${response.body.substring(0, 200)}...');
+      final bodyPreview = response.body.length > 200 ? '${response.body.substring(0, 200)}...' : response.body;
+      LoggerService.debug('📡 Search response body: $bodyPreview');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

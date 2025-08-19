@@ -74,6 +74,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<Quote> _searchResults = [];
   bool _isLoading = true;
   bool _isSearching = false;
+  bool _isPreparingSearch = false;
+  bool _isSorting = false;
+  bool _isLoadingMore = false;
+  bool _hasMoreQuotes = true;
+  String? _lastKey;
   String? _error;
   String? _userEmail;
   SortField _sortField = SortField.createdAt;
@@ -153,64 +158,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     };
   }
 
-  void _sortQuotes() {
-    _quotes.sort((a, b) {
-      int comparison;
-      switch (_sortField) {
-        case SortField.quote:
-          comparison = a.quote.toLowerCase().compareTo(b.quote.toLowerCase());
-          break;
-        case SortField.author:
-          comparison = a.author.toLowerCase().compareTo(b.author.toLowerCase());
-          break;
-        case SortField.createdAt:
-          comparison = a.createdAt.compareTo(b.createdAt);
-          break;
-        case SortField.updatedAt:
-          comparison = a.updatedAt.compareTo(b.updatedAt);
-          break;
-      }
-      return _sortAscending ? comparison : -comparison;
-    });
-  }
-
-  void _updateAvailableTags() {
-    Set<String> tagsSet = {};
-    for (Quote quote in _quotes) {
-      tagsSet.addAll(quote.tags);
-    }
-    List<String> sortedTags = tagsSet.toList()..sort();
-    
-    // Check if the selected filter still exists in the new tags list
-    // If not, reset to 'All'
-    if (_selectedTagFilter != 'All' && !tagsSet.contains(_selectedTagFilter)) {
-      _selectedTagFilter = 'All';
-    }
-    
-    // Only add 'All' if it's not already in the list
-    List<String> finalTags = ['All'];
-    for (String tag in sortedTags) {
-      if (tag != 'All') {
-        finalTags.add(tag);
-      }
-    }
-    
-    setState(() {
-      _availableTags = finalTags;
-    });
-  }
 
   List<Quote> get _filteredQuotes {
-    // If we have search query and search results, use search results
-    // If we have search query but no results (search failed or empty), show all quotes
-    // If no search query, use regular quotes
+    // If we have any search activity (preparing, searching, or have query), don't show regular quotes
+    // Only show search results or empty list during search states
     List<Quote> filtered;
     
-    if (_searchQuery.isNotEmpty && _searchResults.isNotEmpty) {
-      // Active search with results
+    if (_searchQuery.isNotEmpty) {
+      // We're in search mode - only show search results, never fall back to regular quotes
       filtered = _searchResults;
     } else {
-      // No search or search with no results - show all quotes
+      // No search query - show regular quotes with tag filtering
       filtered = _quotes;
       
       // Apply tag filter only when not searching
@@ -219,34 +177,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       }
     }
     
-    LoggerService.debug('🔍 _filteredQuotes: searchQuery="$_searchQuery", quotes=${_quotes.length}, searchResults=${_searchResults.length}, tagFilter="$_selectedTagFilter"');
+    LoggerService.debug('🔍 _filteredQuotes: searchQuery="$_searchQuery", quotes=${_quotes.length}, searchResults=${_searchResults.length}, tagFilter="$_selectedTagFilter", isPreparingSearch=$_isPreparingSearch, isSearching=$_isSearching');
     LoggerService.debug('🔍 _filteredQuotes returning: ${filtered.length} quotes');
     return filtered;
   }
 
   void _setSortField(SortField field) {
+    // Update sort state
+    bool newSortAscending;
+    if (_sortField == field) {
+      newSortAscending = !_sortAscending;
+    } else {
+      newSortAscending = true;
+    }
+    
     setState(() {
-      if (_sortField == field) {
-        _sortAscending = !_sortAscending;
-      } else {
-        _sortField = field;
-        _sortAscending = true;
-      }
-      _sortQuotes();
+      _sortField = field;
+      _sortAscending = newSortAscending;
+      _isSorting = true;
     });
+    
+    // Trigger server-side sorting
+    _loadQuotesWithSort();
   }
 
   void _onSearchChanged(String value) {
     // Cancel any existing timer
     _debounceTimer?.cancel();
     
+    // Show "Preparing search..." immediately if user is typing something
+    if (value.trim().isNotEmpty) {
+      setState(() {
+        _isPreparingSearch = true;
+      });
+    } else {
+      setState(() {
+        _isPreparingSearch = false;
+      });
+    }
+    
     // Set up a new timer to execute search after 500ms of no typing
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       _performSearch(value);
     });
-    
-    // Don't update _searchQuery here - let _performSearch handle it
-    // This prevents the duplicate check from blocking the search
   }
 
   Future<void> _performSearch(String query) async {
@@ -258,6 +231,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _searchQuery = '';
         _searchResults = [];
         _isSearching = false;
+        _isPreparingSearch = false;
       });
       return;
     }
@@ -265,12 +239,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     // Only skip if query is the same AND we already have search results
     if (query == _searchQuery && _searchResults.isNotEmpty && !_isSearching) {
       // Same query with existing results, no need to search again
+      setState(() {
+        _isPreparingSearch = false;
+      });
       return;
     }
     
     setState(() {
       _searchQuery = query;
       _isSearching = true;
+      _isPreparingSearch = false;  // Stop preparing, start actual search
       _searchResults = [];
     });
     
@@ -407,13 +385,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _lastKey = null;
+      _hasMoreQuotes = true;
     });
 
     try {
       LoggerService.info('Loading quotes using AdminApiService...');
       
-      // Use the AdminApiService to get quotes
-      final quotesData = await AdminApiService.getQuotes();
+      // Convert sort field to backend format
+      String sortBy = _getSortFieldString(_sortField);
+      String sortOrder = _sortAscending ? 'asc' : 'desc';
+      
+      // Use the new AdminApiService method with sorting
+      final response = await AdminApiService.getQuotesWithPagination(
+        limit: 50,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
+      );
+      
+      final quotesData = response['quotes'] as List<Map<String, dynamic>>;
       LoggerService.debug('📊 Raw quotes data received: ${quotesData.length} items');
       if (quotesData.isNotEmpty) {
         LoggerService.debug('📊 First quote sample: ${quotesData.first}');
@@ -424,9 +414,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       setState(() {
         _quotes = quotes;
         _isLoading = false;
+        _isSorting = false;
+        _lastKey = response['last_key'];
+        _hasMoreQuotes = response['has_more'] ?? false;
       });
       
-      LoggerService.info('✅ Successfully loaded ${quotes.length} quotes');
+      LoggerService.info('✅ Successfully loaded ${quotes.length} quotes (total: ${response['total_count']})');
       
       // Load tags after quotes are loaded
       await _loadAvailableTags();
@@ -434,7 +427,103 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       setState(() {
         _error = 'Network error: $e';
         _isLoading = false;
+        _isSorting = false;
       });
+    }
+  }
+
+  Future<void> _loadQuotesWithSort() async {
+    // This is called when only sorting changes, not the initial load
+    setState(() {
+      _error = null;
+    });
+
+    try {
+      LoggerService.info('Loading quotes with new sort order...');
+      
+      // Convert sort field to backend format
+      String sortBy = _getSortFieldString(_sortField);
+      String sortOrder = _sortAscending ? 'asc' : 'desc';
+      
+      // Use the new AdminApiService method with sorting
+      final response = await AdminApiService.getQuotesWithPagination(
+        limit: 50,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
+      );
+      
+      final quotesData = response['quotes'] as List<Map<String, dynamic>>;
+      final quotes = quotesData.map((item) => Quote.fromJson(item)).toList();
+      
+      setState(() {
+        _quotes = quotes;
+        _isSorting = false;
+        _lastKey = response['last_key'];
+        _hasMoreQuotes = response['has_more'] ?? false;
+      });
+      
+      LoggerService.info('✅ Successfully loaded ${quotes.length} quotes with new sort order');
+    } catch (e) {
+      setState(() {
+        _error = 'Sort error: $e';
+        _isSorting = false;
+      });
+    }
+  }
+
+  String _getSortFieldString(SortField field) {
+    switch (field) {
+      case SortField.quote:
+        return 'quote';
+      case SortField.author:
+        return 'author';
+      case SortField.createdAt:
+        return 'created_at';
+      case SortField.updatedAt:
+        return 'updated_at';
+    }
+  }
+  
+  Future<void> _loadMoreQuotes() async {
+    if (_isLoadingMore || !_hasMoreQuotes || _lastKey == null) return;
+    
+    setState(() {
+      _isLoadingMore = true;
+    });
+    
+    try {
+      LoggerService.info('Loading more quotes with pagination...');
+      
+      // Convert sort field to backend format
+      String sortBy = _getSortFieldString(_sortField);
+      String sortOrder = _sortAscending ? 'asc' : 'desc';
+      
+      // Use pagination with current sort order
+      final response = await AdminApiService.getQuotesWithPagination(
+        limit: 50,
+        lastKey: _lastKey,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
+      );
+      
+      final quotesData = response['quotes'] as List<Map<String, dynamic>>;
+      final newQuotes = quotesData.map((item) => Quote.fromJson(item)).toList();
+      
+      setState(() {
+        // Add new quotes to existing ones
+        _quotes.addAll(newQuotes);
+        _isLoadingMore = false;
+        _lastKey = response['last_key'];
+        _hasMoreQuotes = response['has_more'] ?? false;
+      });
+      
+      LoggerService.info('✅ Loaded ${newQuotes.length} more quotes');
+    } catch (e) {
+      setState(() {
+        _isLoadingMore = false;
+        _error = 'Error loading more quotes: $e';
+      });
+      _showMessage('Failed to load more quotes', isError: true);
     }
   }
 
@@ -1159,7 +1248,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     const Spacer(),
                     Text(
-                      '${_filteredQuotes.length} ${_selectedTagFilter != 'All' ? 'filtered' : 'total'} quotes',
+                      '${_filteredQuotes.length} ${_searchQuery.isNotEmpty ? 'search results' : _selectedTagFilter != 'All' ? 'filtered' : 'loaded'} ${_filteredQuotes.length == 1 ? 'quote' : 'quotes'}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
                         color: Theme.of(context).colorScheme.onSecondary,
@@ -1291,7 +1380,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             suffixIcon: _searchQuery.isNotEmpty || _isSearching
                               ? IconButton(
                                   icon: _isSearching 
-                                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                                     : const Icon(Icons.clear, size: 18),
                                   onPressed: _isSearching ? null : () {
                                     _debounceTimer?.cancel();
@@ -1303,11 +1392,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               : null,
                           ),
                           onChanged: _onSearchChanged,
+                          onSubmitted: (value) {
+                            // Handle Enter key - cancel debouncer and search immediately
+                            _debounceTimer?.cancel();
+                            _performSearch(value);
+                          },
                         ),
                       ),
                     ),
                   ],
                 ),
+                // Search status indicator
+                if (_isSearching)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Searching...',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 // Sort buttons row
                 Row(
@@ -1417,7 +1533,66 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   )
                 : _isImporting
                     ? _buildImportProgress()
-                    : _error != null
+                    : _isPreparingSearch
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.search,
+                                  size: 64,
+                                  color: Colors.indigo.shade300,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Preparing search...',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.indigo.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : _isSorting
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.indigo.shade600),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Sorting quotes...',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.indigo.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : _isSearching
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.indigo.shade600),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Searching for "$_searchQuery"...',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.indigo.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : _error != null
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1456,9 +1631,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  _selectedTagFilter != 'All' 
-                                    ? 'No quotes found with tag "$_selectedTagFilter"'
-                                    : 'No quotes found',
+                                  _searchQuery.isNotEmpty
+                                    ? 'No quotes found for "$_searchQuery"'
+                                    : _selectedTagFilter != 'All' 
+                                        ? 'No quotes found with tag "$_selectedTagFilter"'
+                                        : 'No quotes found',
                                   style: const TextStyle(
                                     fontSize: 18,
                                     color: Colors.grey,
@@ -1466,9 +1643,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  _selectedTagFilter != 'All'
-                                    ? 'Try selecting a different tag or clear the filter'
-                                    : 'Tap the + button to add your first quote',
+                                  _searchQuery.isNotEmpty
+                                    ? 'Try different search terms or clear the search'
+                                    : _selectedTagFilter != 'All'
+                                        ? 'Try selecting a different tag or clear the filter'
+                                        : 'Tap the + button to add your first quote',
                                   style: const TextStyle(
                                     color: Colors.grey,
                                   ),
@@ -1478,8 +1657,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           )
                         : ListView.builder(
                             padding: const EdgeInsets.all(8),
-                            itemCount: _filteredQuotes.length,
+                            itemCount: _filteredQuotes.length + (_hasMoreQuotes && _searchQuery.isEmpty ? 1 : 0),
                             itemBuilder: (context, index) {
+                              // Show Load More button at the end
+                              if (index == _filteredQuotes.length) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(
+                                    child: _isLoadingMore
+                                      ? const CircularProgressIndicator()
+                                      : ElevatedButton.icon(
+                                          onPressed: _loadMoreQuotes,
+                                          icon: const Icon(Icons.expand_more),
+                                          label: const Text('Load More Quotes'),
+                                        ),
+                                  ),
+                                );
+                              }
+                              
                               final quote = _filteredQuotes[index];
                               return Card(
                                 margin: const EdgeInsets.symmetric(

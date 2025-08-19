@@ -125,10 +125,18 @@ def admin_get_quotes(query_params):
             except:
                 logger.warning(f"Invalid last_key: {last_key}")
         
+        # Sorting parameters
+        sort_by = query_params.get('sort_by', 'created_at')  # Default to created_at
+        sort_order = query_params.get('sort_order', 'desc')  # Default to descending
+        scan_forward = sort_order == 'asc'
+        
         # Filtering parameters
         tag_filter = query_params.get('tag')
         author_filter = query_params.get('author')
         search_query = query_params.get('search', '').strip()
+        
+        # Track pagination info
+        last_evaluated_key = None
         
         # Build query based on filters
         if tag_filter and tag_filter != 'All':
@@ -139,11 +147,16 @@ def admin_get_quotes(query_params):
             quotes = get_quotes_by_author_admin(author_filter, limit, exclusive_start_key)
         else:
             # Get all quotes using TypeDateIndex
+            # Add filter to ensure we only get actual quotes (PK starts with QUOTE#)
             query_params_dict = {
                 'IndexName': 'TypeDateIndex',
                 'KeyConditionExpression': Key('type').eq('quote'),
+                'FilterExpression': 'begins_with(PK, :quote_prefix)',
+                'ExpressionAttributeValues': {
+                    ':quote_prefix': 'QUOTE#'
+                },
                 'Limit': limit,
-                'ScanIndexForward': False  # Newest first
+                'ScanIndexForward': scan_forward  # Control sort order
             }
             
             if exclusive_start_key:
@@ -151,6 +164,7 @@ def admin_get_quotes(query_params):
                 
             response = table.query(**query_params_dict)
             quotes = response['Items']
+            last_evaluated_key = response.get('LastEvaluatedKey')
         
         # Apply search filter if provided
         if search_query:
@@ -167,16 +181,27 @@ def admin_get_quotes(query_params):
             formatted_quote = format_admin_quote_response(quote)
             formatted_quotes.append(formatted_quote)
         
-        # Sort by updated_at (newest first) if not already sorted
-        try:
-            formatted_quotes.sort(key=lambda x: x.get('updated_at', ''), reverse=True)
-        except:
-            pass
+        # Sort by requested field if not using database sorting
+        if sort_by in ['quote', 'author']:
+            try:
+                reverse = sort_order == 'desc'
+                formatted_quotes.sort(key=lambda x: x.get(sort_by, '').lower(), reverse=reverse)
+            except:
+                pass
+        
+        # Get total count (efficiently using metadata or count query)
+        total_count = get_total_quotes_count()
         
         result = {
             'quotes': formatted_quotes,
-            'count': len(formatted_quotes)
+            'count': len(formatted_quotes),
+            'total_count': total_count,
+            'has_more': last_evaluated_key is not None
         }
+        
+        # Add pagination info if available
+        if last_evaluated_key:
+            result['last_key'] = urllib.parse.quote(json.dumps(last_evaluated_key, cls=DecimalEncoder))
         
         return {
             'statusCode': 200,
@@ -259,6 +284,9 @@ def admin_create_quote(body, username):
         dynamodb.meta.client.transact_write_items(TransactItems=transact_items)
         
         # Update author aggregation (async via streams)
+        
+        # Update the total count
+        update_quotes_count(1)  # Increment by 1
         
         formatted_quote = format_admin_quote_response(quote_data)
         
@@ -440,6 +468,9 @@ def admin_delete_quote(quote_id):
         
         # Execute transaction
         dynamodb.meta.client.transact_write_items(TransactItems=transact_items)
+        
+        # Update the total count
+        update_quotes_count(-1)  # Decrement by 1
         
         return {
             'statusCode': 200,
@@ -677,6 +708,84 @@ def batch_get_quotes_admin(quote_ids):
     except Exception as e:
         logger.error(f"Error in batch_get_quotes_admin: {str(e)}")
         return []
+
+def get_total_quotes_count():
+    """Get total count of quotes efficiently"""
+    try:
+        # First, try to get from metadata record
+        metadata_response = table.get_item(
+            Key={'PK': 'METADATA#QUOTES', 'SK': 'STATS'}
+        )
+        
+        if 'Item' in metadata_response and 'total_count' in metadata_response['Item']:
+            return int(metadata_response['Item']['total_count'])
+        
+        # Fallback: Count actual quotes (where PK starts with QUOTE#)
+        # We need to filter to only count actual quote items, not tag mappings or other items
+        count = 0
+        last_evaluated_key = None
+        
+        while True:
+            query_params = {
+                'IndexName': 'TypeDateIndex',
+                'KeyConditionExpression': Key('type').eq('quote'),
+                'FilterExpression': 'begins_with(PK, :quote_prefix)',
+                'ExpressionAttributeValues': {
+                    ':quote_prefix': 'QUOTE#'
+                },
+                'Select': 'COUNT'
+            }
+            
+            if last_evaluated_key:
+                query_params['ExclusiveStartKey'] = last_evaluated_key
+            
+            response = table.query(**query_params)
+            count += response['Count']
+            
+            last_evaluated_key = response.get('LastEvaluatedKey')
+            if not last_evaluated_key:
+                break
+        
+        logger.info(f"Counted {count} actual quotes in database")
+        
+        # Store the count in metadata for next time
+        table.put_item(
+            Item={
+                'PK': 'METADATA#QUOTES',
+                'SK': 'STATS',
+                'type': 'metadata',
+                'total_count': count,
+                'last_updated': datetime.now(timezone.utc).isoformat()
+            }
+        )
+        
+        return count
+        
+    except Exception as e:
+        logger.error(f"Error getting total quotes count: {str(e)}")
+        return -1  # Return -1 to indicate error
+
+def update_quotes_count(delta):
+    """Update the total quotes count by delta (positive or negative)"""
+    try:
+        # Use atomic counter update
+        response = table.update_item(
+            Key={'PK': 'METADATA#QUOTES', 'SK': 'STATS'},
+            UpdateExpression='ADD total_count :delta SET last_updated = :now, #type = :type',
+            ExpressionAttributeValues={
+                ':delta': delta,
+                ':now': datetime.now(timezone.utc).isoformat(),
+                ':type': 'metadata'
+            },
+            ExpressionAttributeNames={
+                '#type': 'type'
+            },
+            ReturnValues='UPDATED_NEW'
+        )
+        return response.get('Attributes', {}).get('total_count', -1)
+    except Exception as e:
+        logger.error(f"Error updating quotes count: {str(e)}")
+        return -1
 
 def format_admin_quote_response(item):
     """Format a quote item for admin API response"""
