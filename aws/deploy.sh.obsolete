@@ -1,0 +1,6 @@
+# MARKED AS POTENTIALLY OBSOLETE
+# This is the original deployment script
+# Use deploy-optimized-full.sh instead for complete deployments
+# Use deploy-optimized.sh for Lambda-only updates
+
+# Original content moved to preserve for reference

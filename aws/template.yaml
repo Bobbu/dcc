@@ -28,15 +28,16 @@ Resources:
     Properties:
       FunctionName: dcc-quote-handler
       CodeUri: lambda/
-      Handler: quote_handler.lambda_handler
+      Handler: quote_handler_optimized.lambda_handler
       Runtime: python3.10
       Timeout: 30
       Environment:
         Variables:
-          QUOTES_TABLE: !Ref QuotesTable
+          TABLE_NAME: dcc-quotes-optimized
+          ENVIRONMENT: dev
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref QuotesTable
+            TableName: dcc-quotes-optimized
       Events:
         QuoteApi:
           Type: Api
@@ -155,6 +156,30 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Auth:
               ApiKeyRequired: false
+        OptionsAdminSearch:
+          Type: Api
+          Properties:
+            Path: /admin/search
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminQuotesByAuthor:
+          Type: Api
+          Properties:
+            Path: /admin/quotes/author/{author}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminQuotesByTag:
+          Type: Api
+          Properties:
+            Path: /admin/quotes/tag/{tag}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
 
   # Auth Lambda function for registration and confirmation
   AuthFunction:
@@ -203,15 +228,17 @@ Resources:
     Properties:
       FunctionName: dcc-admin-handler
       CodeUri: lambda/
-      Handler: admin_handler.lambda_handler
+      Handler: admin_handler_optimized.lambda_handler
       Runtime: python3.10
       Timeout: 30
       Environment:
         Variables:
-          QUOTES_TABLE: !Ref QuotesTable
+          TABLE_NAME: dcc-quotes-optimized
+          USER_POOL_ID: !Ref UserPool
+          ENVIRONMENT: dev
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref QuotesTable
+            TableName: dcc-quotes-optimized
       Events:
         CreateQuote:
           Type: Api
@@ -290,6 +317,42 @@ Resources:
           Properties:
             Path: /admin/tags/{tag}
             Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        SearchQuotes:
+          Type: Api
+          Properties:
+            Path: /admin/search
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        ExportData:
+          Type: Api
+          Properties:
+            Path: /admin/export
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        QuotesByAuthor:
+          Type: Api
+          Properties:
+            Path: /admin/quotes/author/{author}
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        QuotesByTag:
+          Type: Api
+          Properties:
+            Path: /admin/quotes/tag/{tag}
+            Method: GET
             RestApiId: !Ref ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer

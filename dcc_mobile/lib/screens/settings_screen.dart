@@ -129,7 +129,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final apiTags = await ApiService.getTags();
       
       setState(() {
-        _availableCategories = apiTags;
+        // Ensure "All" is always first in the list for consistent UI
+        _availableCategories = apiTags.where((tag) => tag != 'All').toList();
+        _availableCategories.insert(0, 'All');
         _categoriesLoaded = true;
       });
       

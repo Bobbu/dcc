@@ -1,0 +1,4 @@
+# MARKED AS OBSOLETE - DO NOT USE
+# This script was a temporary fix to add search routes manually
+# The search route should be handled by the SAM template instead
+# Use deploy-optimized-full.sh for complete deployments

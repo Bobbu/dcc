@@ -1,0 +1,172 @@
+#!/bin/bash
+
+# Add /admin/search API Gateway route to existing deployment
+# This script is idempotent - safe to run multiple times
+
+set -e
+
+echo "🔍 Adding /admin/search route to existing API Gateway..."
+
+# Get the API Gateway REST API ID
+API_ID=$(aws apigateway get-rest-apis --query 'items[?name==`dcc-quote-api`].id' --output text)
+
+if [ -z "$API_ID" ] || [ "$API_ID" == "None" ]; then
+    echo "❌ Could not find dcc-quote-api REST API"
+    exit 1
+fi
+
+echo "📡 Found API Gateway ID: $API_ID"
+
+# Get the /admin parent resource ID
+ADMIN_RESOURCE_ID=$(aws apigateway get-resources --rest-api-id "$API_ID" --query 'items[?path==`/admin`].id' --output text)
+
+if [ -z "$ADMIN_RESOURCE_ID" ] || [ "$ADMIN_RESOURCE_ID" == "None" ]; then
+    echo "❌ Could not find /admin resource in API Gateway"
+    exit 1
+fi
+
+echo "📁 Found /admin resource ID: $ADMIN_RESOURCE_ID"
+
+# Check if /admin/search resource already exists
+SEARCH_RESOURCE_ID=$(aws apigateway get-resources --rest-api-id "$API_ID" --query 'items[?path==`/admin/search`].id' --output text)
+
+if [ -n "$SEARCH_RESOURCE_ID" ] && [ "$SEARCH_RESOURCE_ID" != "None" ]; then
+    echo "✅ /admin/search resource already exists with ID: $SEARCH_RESOURCE_ID"
+else
+    # Create /admin/search resource
+    echo "🔨 Creating /admin/search resource..."
+    SEARCH_RESOURCE_ID=$(aws apigateway create-resource \
+        --rest-api-id "$API_ID" \
+        --parent-id "$ADMIN_RESOURCE_ID" \
+        --path-part "search" \
+        --query 'id' --output text)
+    
+    echo "✅ Created /admin/search resource with ID: $SEARCH_RESOURCE_ID"
+fi
+
+# Get the admin Lambda function ARN
+LAMBDA_ARN=$(aws lambda get-function --function-name dcc-admin-handler --query 'Configuration.FunctionArn' --output text)
+
+if [ -z "$LAMBDA_ARN" ]; then
+    echo "❌ Could not find dcc-admin-handler Lambda function"
+    exit 1
+fi
+
+echo "⚙️  Found Lambda ARN: $LAMBDA_ARN"
+
+# Check if GET method already exists
+EXISTING_GET=$(aws apigateway get-method --rest-api-id "$API_ID" --resource-id "$SEARCH_RESOURCE_ID" --http-method GET 2>/dev/null || echo "None")
+
+if [ "$EXISTING_GET" != "None" ]; then
+    echo "✅ GET method already exists on /admin/search"
+else
+    # Get Cognito User Pool ARN for authorizer
+    USER_POOL_ID="us-east-1_ecyuILBAu"
+    USER_POOL_ARN="arn:aws:cognito-idp:us-east-1:$(aws sts get-caller-identity --query Account --output text):userpool/$USER_POOL_ID"
+    
+    # Find the Cognito authorizer ID
+    AUTHORIZER_ID=$(aws apigateway get-authorizers --rest-api-id "$API_ID" --query 'items[?name==`CognitoAuthorizer`].id' --output text)
+    
+    if [ -z "$AUTHORIZER_ID" ] || [ "$AUTHORIZER_ID" == "None" ]; then
+        echo "❌ Could not find CognitoAuthorizer in API Gateway"
+        exit 1
+    fi
+    
+    echo "🔐 Found Cognito Authorizer ID: $AUTHORIZER_ID"
+    
+    # Create GET method
+    echo "🔨 Creating GET method on /admin/search..."
+    aws apigateway put-method \
+        --rest-api-id "$API_ID" \
+        --resource-id "$SEARCH_RESOURCE_ID" \
+        --http-method GET \
+        --authorization-type COGNITO_USER_POOLS \
+        --authorizer-id "$AUTHORIZER_ID" \
+        --request-parameters '{}'
+    
+    # Set up method integration
+    echo "🔗 Setting up Lambda integration..."
+    aws apigateway put-integration \
+        --rest-api-id "$API_ID" \
+        --resource-id "$SEARCH_RESOURCE_ID" \
+        --http-method GET \
+        --type AWS_PROXY \
+        --integration-http-method POST \
+        --uri "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/$LAMBDA_ARN/invocations"
+    
+    # Add Lambda permission for API Gateway to invoke the function
+    echo "🔑 Adding Lambda permission for API Gateway..."
+    aws lambda add-permission \
+        --function-name dcc-admin-handler \
+        --statement-id "apigateway-search-$(date +%s)" \
+        --action lambda:InvokeFunction \
+        --principal apigateway.amazonaws.com \
+        --source-arn "arn:aws:execute-api:us-east-1:$(aws sts get-caller-identity --query Account --output text):$API_ID/*/GET/admin/search" \
+        2>/dev/null || echo "ℹ️  Lambda permission may already exist"
+    
+    echo "✅ Created GET method and integration for /admin/search"
+fi
+
+# Check if OPTIONS method already exists for CORS
+EXISTING_OPTIONS=$(aws apigateway get-method --rest-api-id "$API_ID" --resource-id "$SEARCH_RESOURCE_ID" --http-method OPTIONS 2>/dev/null || echo "None")
+
+if [ "$EXISTING_OPTIONS" != "None" ]; then
+    echo "✅ OPTIONS method already exists on /admin/search"
+else
+    # Create OPTIONS method for CORS
+    echo "🔨 Creating OPTIONS method for CORS..."
+    aws apigateway put-method \
+        --rest-api-id "$API_ID" \
+        --resource-id "$SEARCH_RESOURCE_ID" \
+        --http-method OPTIONS \
+        --authorization-type NONE \
+        --request-parameters '{}'
+    
+    # Set up OPTIONS integration (mock integration)
+    aws apigateway put-integration \
+        --rest-api-id "$API_ID" \
+        --resource-id "$SEARCH_RESOURCE_ID" \
+        --http-method OPTIONS \
+        --type MOCK \
+        --request-templates '{"application/json": "{\"statusCode\": 200}"}'
+    
+    # Set up OPTIONS method response
+    aws apigateway put-method-response \
+        --rest-api-id "$API_ID" \
+        --resource-id "$SEARCH_RESOURCE_ID" \
+        --http-method OPTIONS \
+        --status-code 200 \
+        --response-parameters '{
+            "method.response.header.Access-Control-Allow-Headers": false,
+            "method.response.header.Access-Control-Allow-Methods": false,
+            "method.response.header.Access-Control-Allow-Origin": false
+        }'
+    
+    # Set up OPTIONS integration response
+    aws apigateway put-integration-response \
+        --rest-api-id "$API_ID" \
+        --resource-id "$SEARCH_RESOURCE_ID" \
+        --http-method OPTIONS \
+        --status-code 200 \
+        --response-parameters '{
+            "method.response.header.Access-Control-Allow-Headers": "\"Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token\"",
+            "method.response.header.Access-Control-Allow-Methods": "\"GET,OPTIONS\"",
+            "method.response.header.Access-Control-Allow-Origin": "\"*\""
+        }'
+    
+    echo "✅ Created OPTIONS method for CORS"
+fi
+
+# Deploy the API
+echo "🚀 Deploying API changes..."
+aws apigateway create-deployment \
+    --rest-api-id "$API_ID" \
+    --stage-name prod \
+    --description "Added /admin/search endpoint for server-side quote search"
+
+echo "✅ Successfully added /admin/search route to API Gateway!"
+echo ""
+echo "🧪 Test the new endpoint:"
+echo "GET https://dcc.anystupididea.com/admin/search?q=leadership"
+echo ""
+echo "🔑 Remember: This endpoint requires Admin JWT authentication"

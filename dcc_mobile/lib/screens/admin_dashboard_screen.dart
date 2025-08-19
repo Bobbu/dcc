@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../helpers/download_helper_stub.dart'
     if (dart.library.html) '../helpers/download_helper_web.dart';
 import '../services/auth_service.dart';
+import '../services/admin_api_service.dart';
 import '../services/openai_proxy_service.dart';
 import '../services/logger_service.dart';
 import 'tags_editor_screen.dart';
@@ -33,15 +35,20 @@ class Quote {
   });
 
   factory Quote.fromJson(Map<String, dynamic> json) {
-    return Quote(
-      id: json['id'] ?? '',
-      quote: json['quote'] ?? '',
-      author: json['author'] ?? '',
-      tags: List<String>.from(json['tags'] ?? []),
-      createdAt: json['created_at'] ?? '',
-      updatedAt: json['updated_at'] ?? '',
-      createdBy: json['created_by'],
-    );
+    try {
+      return Quote(
+        id: json['id'] ?? '',
+        quote: json['quote'] ?? '',
+        author: json['author'] ?? '',
+        tags: List<String>.from(json['tags'] ?? []),
+        createdAt: json['created_at'] ?? '',
+        updatedAt: json['updated_at'] ?? '',
+        createdBy: json['created_by'],
+      );
+    } catch (e) {
+      LoggerService.error('❌ Error parsing quote from JSON: $json', error: e);
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -64,12 +71,15 @@ enum SortField { quote, author, createdAt, updatedAt }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<Quote> _quotes = [];
+  List<Quote> _searchResults = [];
   bool _isLoading = true;
+  bool _isSearching = false;
   String? _error;
   String? _userEmail;
   SortField _sortField = SortField.createdAt;
   bool _sortAscending = false;
   bool _isImporting = false;
+  bool _isLoadingTags = false;
   int _importProgress = 0;
   int _importTotal = 0;
   String _importStatus = '';
@@ -77,6 +87,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<String> _availableTags = ['All'];
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  Timer? _debounceTimer;
 
   static final String _baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
 
@@ -86,11 +97,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _checkAdminAccess();
     _loadUserInfo();
     _loadQuotes();
+    
+    // Clear any residual search state
+    _searchController.clear();
+    _searchQuery = '';
+    _searchResults = [];
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -170,28 +187,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _selectedTagFilter = 'All';
     }
     
+    // Only add 'All' if it's not already in the list
+    List<String> finalTags = ['All'];
+    for (String tag in sortedTags) {
+      if (tag != 'All') {
+        finalTags.add(tag);
+      }
+    }
+    
     setState(() {
-      _availableTags = ['All', ...sortedTags];
+      _availableTags = finalTags;
     });
   }
 
   List<Quote> get _filteredQuotes {
-    List<Quote> filtered = _quotes;
+    // If we have search query and search results, use search results
+    // If we have search query but no results (search failed or empty), show all quotes
+    // If no search query, use regular quotes
+    List<Quote> filtered;
     
-    // Apply tag filter
-    if (_selectedTagFilter != 'All') {
-      filtered = filtered.where((quote) => quote.tags.contains(_selectedTagFilter)).toList();
+    if (_searchQuery.isNotEmpty && _searchResults.isNotEmpty) {
+      // Active search with results
+      filtered = _searchResults;
+    } else {
+      // No search or search with no results - show all quotes
+      filtered = _quotes;
+      
+      // Apply tag filter only when not searching
+      if (_selectedTagFilter != 'All') {
+        filtered = filtered.where((quote) => quote.tags.contains(_selectedTagFilter)).toList();
+      }
     }
     
-    // Apply search filter
-    if (_searchQuery.isNotEmpty) {
-      final query = _searchQuery.toLowerCase();
-      filtered = filtered.where((quote) =>
-        quote.quote.toLowerCase().contains(query) ||
-        quote.author.toLowerCase().contains(query)
-      ).toList();
-    }
-    
+    LoggerService.debug('🔍 _filteredQuotes: searchQuery="$_searchQuery", quotes=${_quotes.length}, searchResults=${_searchResults.length}, tagFilter="$_selectedTagFilter"');
+    LoggerService.debug('🔍 _filteredQuotes returning: ${filtered.length} quotes');
     return filtered;
   }
 
@@ -205,6 +234,69 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       }
       _sortQuotes();
     });
+  }
+
+  void _onSearchChanged(String value) {
+    // Cancel any existing timer
+    _debounceTimer?.cancel();
+    
+    // Set up a new timer to execute search after 500ms of no typing
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _performSearch(value);
+    });
+    
+    // Don't update _searchQuery here - let _performSearch handle it
+    // This prevents the duplicate check from blocking the search
+  }
+
+  Future<void> _performSearch(String query) async {
+    query = query.trim();
+    
+    if (query.isEmpty) {
+      // Clear search
+      setState(() {
+        _searchQuery = '';
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+    
+    // Only skip if query is the same AND we already have search results
+    if (query == _searchQuery && _searchResults.isNotEmpty && !_isSearching) {
+      // Same query with existing results, no need to search again
+      return;
+    }
+    
+    setState(() {
+      _searchQuery = query;
+      _isSearching = true;
+      _searchResults = [];
+    });
+    
+    try {
+      // Use the new AdminApiService search method
+      final searchResults = await AdminApiService.searchQuotes(
+        query: query,
+        limit: 1000,
+      );
+      
+      final searchQuotes = searchResults
+          .map((item) => Quote.fromJson(item))
+          .toList();
+      
+      setState(() {
+        _searchResults = searchQuotes;
+        _isSearching = false;
+      });
+      
+      LoggerService.info('✅ Found ${searchQuotes.length} quotes matching "$query"');
+    } catch (e) {
+      setState(() {
+        _isSearching = false;
+        _error = 'Search error: $e';
+      });
+    }
   }
 
   Widget _buildImportProgress() {
@@ -318,32 +410,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
 
     try {
-      final headers = await _getAuthHeaders();
-      final response = await http.get(
-        Uri.parse('$_baseUrl/admin/quotes'),
-        headers: headers,
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final quotes = (data['quotes'] as List)
-            .map((item) => Quote.fromJson(item))
-            .toList();
-        
-        setState(() {
-          _quotes = quotes;
-          _sortQuotes();
-          _updateAvailableTags();
-          _isLoading = false;
-        });
-      } else if (response.statusCode == 401) {
-        await _signOut();
-      } else {
-        setState(() {
-          _error = 'Failed to load quotes (${response.statusCode})';
-          _isLoading = false;
-        });
+      LoggerService.info('Loading quotes using AdminApiService...');
+      
+      // Use the AdminApiService to get quotes
+      final quotesData = await AdminApiService.getQuotes();
+      LoggerService.debug('📊 Raw quotes data received: ${quotesData.length} items');
+      if (quotesData.isNotEmpty) {
+        LoggerService.debug('📊 First quote sample: ${quotesData.first}');
       }
+      
+      final quotes = quotesData.map((item) => Quote.fromJson(item)).toList();
+      
+      setState(() {
+        _quotes = quotes;
+        _isLoading = false;
+      });
+      
+      LoggerService.info('✅ Successfully loaded ${quotes.length} quotes');
+      
+      // Load tags after quotes are loaded
+      await _loadAvailableTags();
     } catch (e) {
       setState(() {
         _error = 'Network error: $e';
@@ -354,19 +440,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _createQuote(Quote quote) async {
     try {
-      final headers = await _getAuthHeaders();
-      final response = await http.post(
-        Uri.parse('$_baseUrl/admin/quotes'),
-        headers: headers,
-        body: json.encode(quote.toJson()),
+      await AdminApiService.createQuote(
+        quote: quote.quote,
+        author: quote.author,
+        tags: quote.tags,
       );
-
-      if (response.statusCode == 201) {
-        _loadQuotes(); // Refresh the list
-        _showMessage('Quote created successfully!', isError: false);
-      } else {
-        _showMessage('Failed to create quote (${response.statusCode})', isError: true);
-      }
+      
+      _loadQuotes(); // Refresh the list
+      _showMessage('Quote created successfully!', isError: false);
     } catch (e) {
       _showMessage('Error creating quote: $e', isError: true);
     }
@@ -374,19 +455,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _updateQuote(Quote quote) async {
     try {
-      final headers = await _getAuthHeaders();
-      final response = await http.put(
-        Uri.parse('$_baseUrl/admin/quotes/${quote.id}'),
-        headers: headers,
-        body: json.encode(quote.toJson()),
+      await AdminApiService.updateQuote(
+        id: quote.id,
+        quote: quote.quote,
+        author: quote.author,
+        tags: quote.tags,
       );
-
-      if (response.statusCode == 200) {
-        _loadQuotes(); // Refresh the list
-        _showMessage('Quote updated successfully!', isError: false);
-      } else {
-        _showMessage('Failed to update quote (${response.statusCode})', isError: true);
-      }
+      
+      _loadQuotes(); // Refresh the list
+      _showMessage('Quote updated successfully!', isError: false);
     } catch (e) {
       _showMessage('Error updating quote: $e', isError: true);
     }
@@ -394,18 +471,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _deleteQuote(String quoteId) async {
     try {
-      final headers = await _getAuthHeaders();
-      final response = await http.delete(
-        Uri.parse('$_baseUrl/admin/quotes/$quoteId'),
-        headers: headers,
-      );
-
-      if (response.statusCode == 200) {
-        _loadQuotes(); // Refresh the list
-        _showMessage('Quote deleted successfully!', isError: false);
-      } else {
-        _showMessage('Failed to delete quote (${response.statusCode})', isError: true);
-      }
+      await AdminApiService.deleteQuote(quoteId);
+      
+      _loadQuotes(); // Refresh the list
+      _showMessage('Quote deleted successfully!', isError: false);
     } catch (e) {
       _showMessage('Error deleting quote: $e', isError: true);
     }
@@ -866,22 +935,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<List<String>> _getAllTags() async {
     try {
-      final headers = await _getAuthHeaders();
-      final response = await http.get(
-        Uri.parse('$_baseUrl/admin/tags'),
-        headers: headers,
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List<String> tags = List<String>.from(data['tags'] ?? []);
-        tags.removeWhere((tag) => tag == 'All');
-        return tags;
-      }
+      final tags = await AdminApiService.getTags();
+      tags.removeWhere((tag) => tag == 'All');
+      return tags;
     } catch (e) {
       LoggerService.error('Error fetching existing tags', error: e);
+      return [];
     }
-    return [];
   }
 
   void _showGenerateTagsResults(Map<String, dynamic> results) {
@@ -1228,24 +1288,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             hintText: 'Search quotes or authors...',
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            suffixIcon: _searchQuery.isNotEmpty
+                            suffixIcon: _searchQuery.isNotEmpty || _isSearching
                               ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 18),
-                                  onPressed: () {
-                                    setState(() {
-                                      _searchController.clear();
-                                      _searchQuery = '';
-                                    });
+                                  icon: _isSearching 
+                                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Icon(Icons.clear, size: 18),
+                                  onPressed: _isSearching ? null : () {
+                                    _debounceTimer?.cancel();
+                                    _searchController.clear();
+                                    _performSearch('');
                                   },
                                   padding: const EdgeInsets.symmetric(horizontal: 8),
                                 )
                               : null,
                           ),
-                          onChanged: (value) {
-                            setState(() {
-                              _searchQuery = value;
-                            });
-                          },
+                          onChanged: _onSearchChanged,
                         ),
                       ),
                     ),
@@ -1555,6 +1612,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
     );
   }
+
+  Future<void> _loadAvailableTags() async {
+    try {
+      final tags = await AdminApiService.getTags();
+      
+      // Ensure 'All' is at the beginning and no duplicates
+      List<String> finalTags = ['All'];
+      for (String tag in tags) {
+        if (tag != 'All') {
+          finalTags.add(tag);
+        }
+      }
+      
+      setState(() {
+        _availableTags = finalTags;
+        _isLoadingTags = false;
+      });
+    } catch (e) {
+      LoggerService.error('Error loading tags', error: e);
+      setState(() {
+        _isLoadingTags = false;
+      });
+    }
+  }
 }
 
 class _QuoteEditDialog extends StatefulWidget {
@@ -1591,29 +1672,11 @@ class _QuoteEditDialogState extends State<_QuoteEditDialog> {
 
   Future<void> _loadAvailableTags() async {
     try {
-      final idToken = await AuthService.getIdToken();
-      final headers = {
-        'Authorization': 'Bearer $idToken',
-        'Content-Type': 'application/json',
-      };
-      
-      final baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
-      final response = await http.get(
-        Uri.parse('$baseUrl/admin/tags'),
-        headers: headers,
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          _availableTags = List<String>.from(data['tags'] ?? []);
-          _isLoadingTags = false;
-        });
-      } else {
-        setState(() {
-          _isLoadingTags = false;
-        });
-      }
+      final tags = await AdminApiService.getTags();
+      setState(() {
+        _availableTags = tags;
+        _isLoadingTags = false;
+      });
     } catch (e) {
       LoggerService.error('Error loading tags', error: e);
       setState(() {

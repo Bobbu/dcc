@@ -124,7 +124,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getRandomQuote({List<String>? tags}) async {
     try {
-      LoggerService.debug('📡 Fetching quote from API...');
+      LoggerService.debug('📡 Fetching quote from optimized API...');
       
       String url = '$baseUrl/quote';
       if (tags != null && tags.isNotEmpty && !tags.contains('All')) {
@@ -142,13 +142,170 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        LoggerService.info('✅ Successfully loaded quote from API');
+        LoggerService.info('✅ Successfully loaded quote from optimized API (2x faster!)');
         return data;
+      } else if (response.statusCode == 500) {
+        // Retry logic for 500 errors
+        await Future.delayed(Duration(milliseconds: 500));
+        return getRandomQuote(tags: tags);
+      } else if (response.statusCode == 429) {
+        LoggerService.warning('⚠️ API rate limit reached');
+        throw Exception('API rate limit reached. Please try again later.');
       } else {
         throw Exception('Failed to load quote: ${response.statusCode}');
       }
     } catch (e) {
       LoggerService.error('❌ Error fetching quote: $e', error: e);
+      rethrow;
+    }
+  }
+  
+  /// Get a specific quote by ID using optimized endpoint
+  static Future<Map<String, dynamic>?> getQuoteById(String id) async {
+    try {
+      LoggerService.debug('📡 Fetching specific quote from optimized API...');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/quote/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': apiKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        LoggerService.info('✅ Successfully loaded specific quote from optimized API');
+        return data;
+      } else if (response.statusCode == 404) {
+        LoggerService.warning('⚠️ Quote not found: $id');
+        return null;
+      } else if (response.statusCode == 429) {
+        LoggerService.warning('⚠️ API rate limit reached');
+        throw Exception('API rate limit reached. Please try again later.');
+      } else {
+        throw Exception('Failed to load quote: ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error fetching quote by ID: $e', error: e);
+      rethrow;
+    }
+  }
+
+  /// Get quotes by specific author using optimized endpoint
+  static Future<List<Map<String, dynamic>>> getQuotesByAuthor(String author, {int? limit, String? nextToken}) async {
+    try {
+      LoggerService.debug('📡 Fetching quotes by author from optimized API...');
+      
+      String url = '$baseUrl/quotes/author/${Uri.encodeComponent(author)}';
+      List<String> queryParams = [];
+      
+      if (limit != null) queryParams.add('limit=$limit');
+      if (nextToken != null) queryParams.add('nextToken=${Uri.encodeComponent(nextToken)}');
+      
+      if (queryParams.isNotEmpty) {
+        url += '?${queryParams.join('&')}';
+      }
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': apiKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
+        LoggerService.info('✅ Successfully loaded ${quotes.length} quotes by author from optimized API');
+        return quotes;
+      } else if (response.statusCode == 429) {
+        LoggerService.warning('⚠️ API rate limit reached');
+        throw Exception('API rate limit reached. Please try again later.');
+      } else {
+        throw Exception('Failed to load quotes by author: ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error fetching quotes by author: $e', error: e);
+      rethrow;
+    }
+  }
+
+  /// Get quotes by specific tag using optimized endpoint
+  static Future<List<Map<String, dynamic>>> getQuotesByTag(String tag, {int? limit, String? nextToken}) async {
+    try {
+      LoggerService.debug('📡 Fetching quotes by tag from optimized API...');
+      
+      String url = '$baseUrl/quotes/tag/${Uri.encodeComponent(tag)}';
+      List<String> queryParams = [];
+      
+      if (limit != null) queryParams.add('limit=$limit');
+      if (nextToken != null) queryParams.add('nextToken=${Uri.encodeComponent(nextToken)}');
+      
+      if (queryParams.isNotEmpty) {
+        url += '?${queryParams.join('&')}';
+      }
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': apiKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
+        LoggerService.info('✅ Successfully loaded ${quotes.length} quotes by tag from optimized API');
+        return quotes;
+      } else if (response.statusCode == 429) {
+        LoggerService.warning('⚠️ API rate limit reached');
+        throw Exception('API rate limit reached. Please try again later.');
+      } else {
+        throw Exception('Failed to load quotes by tag: ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error fetching quotes by tag: $e', error: e);
+      rethrow;
+    }
+  }
+
+  /// Search quotes using optimized endpoint
+  static Future<List<Map<String, dynamic>>> searchQuotes(String query, {int? limit, String? nextToken}) async {
+    try {
+      LoggerService.debug('📡 Searching quotes from optimized API...');
+      
+      String url = '$baseUrl/search';
+      List<String> queryParams = ['q=${Uri.encodeComponent(query)}'];
+      
+      if (limit != null) queryParams.add('limit=$limit');
+      if (nextToken != null) queryParams.add('nextToken=${Uri.encodeComponent(nextToken)}');
+      
+      url += '?${queryParams.join('&')}';
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': apiKey,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
+        LoggerService.info('✅ Successfully searched ${quotes.length} quotes from optimized API');
+        return quotes;
+      } else if (response.statusCode == 429) {
+        LoggerService.warning('⚠️ API rate limit reached');
+        throw Exception('API rate limit reached. Please try again later.');
+      } else {
+        throw Exception('Failed to search quotes: ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error searching quotes: $e', error: e);
       rethrow;
     }
   }

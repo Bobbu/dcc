@@ -34,7 +34,18 @@ class AdminApiService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final tags = List<String>.from(data['tags'] ?? []);
+        
+        // Handle new format where tags are objects with 'name' field
+        final tagsList = data['tags'] as List<dynamic>? ?? [];
+        final tags = tagsList.map((tagObj) {
+          if (tagObj is Map<String, dynamic> && tagObj.containsKey('name')) {
+            return tagObj['name'] as String;
+          } else if (tagObj is String) {
+            return tagObj; // Support old format too
+          }
+          return tagObj.toString(); // Fallback
+        }).toList();
+        
         LoggerService.info('✅ Successfully loaded ${tags.length} tags from API');
         return tags;
       } else if (response.statusCode == 401) {
@@ -182,6 +193,138 @@ class AdminApiService {
       }
     } catch (e) {
       LoggerService.error('❌ Error deleting quote: $e', error: e);
+      rethrow;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> searchQuotes({
+    required String query,
+    int limit = 20,
+    String? lastKey,
+  }) async {
+    try {
+      LoggerService.debug('📡 Searching quotes: "$query" (limit: $limit)');
+      
+      final headers = await _getAuthHeaders();
+      
+      // Build query parameters
+      final queryParams = <String, String>{
+        'q': query,
+        'limit': limit.toString(),
+      };
+      
+      if (lastKey != null && lastKey.isNotEmpty) {
+        queryParams['last_key'] = lastKey;
+      }
+      
+      final uri = Uri.parse('$baseUrl/admin/search').replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: headers);
+
+      LoggerService.debug('📡 Search response status: ${response.statusCode}');
+      LoggerService.debug('📡 Search response body: ${response.body.substring(0, 200)}...');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
+        LoggerService.info('✅ Search found ${quotes.length} quotes for "$query"');
+        return quotes;
+      } else if (response.statusCode == 401) {
+        throw Exception('Authentication required or expired');
+      } else if (response.statusCode == 403) {
+        throw Exception('Admin access required');
+      } else {
+        throw Exception('Search failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error searching quotes: $e', error: e);
+      rethrow;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getQuotesByAuthor({
+    required String author,
+    int limit = 20,
+    String? lastKey,
+  }) async {
+    try {
+      LoggerService.debug('📡 Getting quotes by author: "$author" (limit: $limit)');
+      
+      final headers = await _getAuthHeaders();
+      
+      // Build query parameters
+      final queryParams = <String, String>{
+        'limit': limit.toString(),
+      };
+      
+      if (lastKey != null && lastKey.isNotEmpty) {
+        queryParams['last_key'] = lastKey;
+      }
+      
+      // URL encode the author name
+      final encodedAuthor = Uri.encodeComponent(author);
+      final uri = Uri.parse('$baseUrl/admin/quotes/author/$encodedAuthor').replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: headers);
+
+      LoggerService.debug('📡 Author quotes response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
+        LoggerService.info('✅ Found ${quotes.length} quotes by "$author"');
+        return quotes;
+      } else if (response.statusCode == 401) {
+        throw Exception('Authentication required or expired');
+      } else if (response.statusCode == 403) {
+        throw Exception('Admin access required');
+      } else {
+        throw Exception('Failed to get quotes by author: ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error getting quotes by author: $e', error: e);
+      rethrow;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getQuotesByTag({
+    required String tag,
+    int limit = 20,
+    String? lastKey,
+  }) async {
+    try {
+      LoggerService.debug('📡 Getting quotes by tag: "$tag" (limit: $limit)');
+      
+      final headers = await _getAuthHeaders();
+      
+      // Build query parameters
+      final queryParams = <String, String>{
+        'limit': limit.toString(),
+      };
+      
+      if (lastKey != null && lastKey.isNotEmpty) {
+        queryParams['last_key'] = lastKey;
+      }
+      
+      // URL encode the tag name
+      final encodedTag = Uri.encodeComponent(tag);
+      final uri = Uri.parse('$baseUrl/admin/quotes/tag/$encodedTag').replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: headers);
+
+      LoggerService.debug('📡 Tag quotes response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
+        LoggerService.info('✅ Found ${quotes.length} quotes tagged "$tag"');
+        return quotes;
+      } else if (response.statusCode == 401) {
+        throw Exception('Authentication required or expired');
+      } else if (response.statusCode == 403) {
+        throw Exception('Admin access required');
+      } else {
+        throw Exception('Failed to get quotes by tag: ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error getting quotes by tag: $e', error: e);
       rethrow;
     }
   }
