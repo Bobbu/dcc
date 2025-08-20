@@ -11,15 +11,21 @@ A comprehensive quote management system with enterprise-grade features, includin
 
 ### Mobile & Web Applications
 - **Cross-Platform**: iOS, Android, and Web support via Flutter
-- **Professional UI**: Dark indigo theme (#3F51B5) with clean, modern design
+- **Advanced Theming**: Complete theme system with user control
+  - **Theme Selection**: Light, Dark, or System preference with instant switching
+  - **Persistent Settings**: Theme choice saved across app sessions
+  - **Optimized Contrast**: Proper surface colors and contrast ratios in all modes
+  - **Consistent Styling**: All UI elements use theme-defined colors throughout
 - **User Authentication**: Self-registration with email verification and unified login
 - **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading with O(1) performance
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High)
+- **Settings Management**: Comprehensive user preferences with appearance, audio, and category controls
 - **Admin Dashboard**: Complete quote management interface with powerful search functionality and export features
 - **Tag Management**: Dedicated editor for individual tag operations
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
 - **Duplicate Detection**: Intelligent duplicate cleanup with preservation logic
+- **Export Functionality**: Complete data backup and export capabilities for admin users
 
 ### Backend Infrastructure
 - **Serverless Architecture**: AWS Lambda + API Gateway + DynamoDB
@@ -36,7 +42,8 @@ A comprehensive quote management system with enterprise-grade features, includin
 ### Frontend
 - **Flutter 3.0+**: Cross-platform framework for mobile and web
 - **AWS Amplify**: Cognito authentication integration
-- **Material Design 3**: Modern UI components with indigo theme
+- **Material Design 3**: Modern UI components with comprehensive theming system
+- **SharedPreferences**: Local storage for settings persistence
 - **Flutter TTS**: Professional text-to-speech engine
 
 ### Backend
@@ -179,13 +186,16 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
 - **Sort Options**: Quote text, Author name, or Created date
 - **Duplicate Cleanup**: Intelligent detection and removal
 - **Batch Import**: Google Sheets TSV import with progress tracking
+- **Export System**: Complete data backup with metadata for disaster recovery
 - **Real-time Updates**: Instant synchronization with public API
+- **Enhanced UI**: Optimized contrast and theming for light/dark modes
 
 ### Tag Management
 - **Individual Operations**: Add, rename, delete tags
 - **Automatic Sync**: Quote updates when tags change
 - **Unused Cleanup**: One-click removal of orphaned tags
 - **Data Integrity**: Validation and duplicate prevention
+- **Export Tags**: Tag data export functionality for backup and analysis
 
 ### Import System
 1. Copy data from Google Sheets (TSV format)
@@ -333,6 +343,8 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 
 - [x] User registration and authentication
 - [x] Role-based access control
+- [x] Theme preference system (Light/Dark/System)
+- [x] Enhanced theming with consistent contrast
 - [ ] User favorites and personal collections
 - [ ] Social sharing features
 - [ ] Daily quote notifications

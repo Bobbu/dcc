@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'auth_service.dart';
 import 'logger_service.dart';
+import '../models/tag.dart';
 
 class AdminApiService {
   static final String baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
@@ -57,6 +58,48 @@ class AdminApiService {
       }
     } catch (e) {
       LoggerService.error('❌ Error fetching tags: $e', error: e);
+      rethrow;
+    }
+  }
+
+  static Future<List<Tag>> getTagsWithMetadata() async {
+    try {
+      LoggerService.debug('📡 Fetching full tag objects from admin API...');
+      
+      final headers = await _getAuthHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/tags'),
+        headers: headers,
+      );
+
+      LoggerService.debug('📡 Tags metadata response status: ${response.statusCode}');
+      LoggerService.debug('📡 Tags metadata response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        final tagsList = data['tags'] as List<dynamic>? ?? [];
+        final tags = tagsList.map((tagObj) {
+          if (tagObj is Map<String, dynamic>) {
+            return Tag.fromJson(tagObj);
+          } else if (tagObj is String) {
+            // Fallback for simple string format
+            return Tag(name: tagObj);
+          }
+          return Tag(name: tagObj.toString());
+        }).toList();
+        
+        LoggerService.info('✅ Successfully loaded ${tags.length} tag objects with metadata from API');
+        return tags;
+      } else if (response.statusCode == 401) {
+        throw Exception('Authentication required or expired');
+      } else if (response.statusCode == 403) {
+        throw Exception('Admin access required');
+      } else {
+        throw Exception('Failed to load tag metadata: ${response.statusCode}');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error fetching tag metadata: $e', error: e);
       rethrow;
     }
   }

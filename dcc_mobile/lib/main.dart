@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/quote_screen.dart';
 import 'screens/quote_detail_screen.dart';
 import 'services/auth_service.dart';
@@ -31,8 +32,71 @@ Future<void> main() async {
   runApp(const QuoteMeApp());
 }
 
-class QuoteMeApp extends StatelessWidget {
+class QuoteMeApp extends StatefulWidget {
   const QuoteMeApp({super.key});
+
+  @override
+  State<QuoteMeApp> createState() => _QuoteMeAppState();
+  
+  // Static method to access theme update
+  static void updateTheme(ThemeMode themeMode) {
+    _QuoteMeAppState.updateTheme(themeMode);
+  }
+}
+
+class _QuoteMeAppState extends State<QuoteMeApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+  
+  // Static reference for global access
+  static _QuoteMeAppState? _instance;
+  
+  @override
+  void initState() {
+    super.initState();
+    _instance = this;
+    _loadThemePreference();
+  }
+  
+  @override
+  void dispose() {
+    _instance = null;
+    super.dispose();
+  }
+  
+  // Static method to access theme update from anywhere
+  static void updateTheme(ThemeMode themeMode) {
+    _instance?.updateThemeMode(themeMode);
+  }
+  
+  void _loadThemePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final themeString = prefs.getString('theme_mode') ?? 'system';
+    setState(() {
+      _themeMode = _getThemeModeFromString(themeString);
+    });
+  }
+  
+  ThemeMode _getThemeModeFromString(String themeString) {
+    switch (themeString) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      case 'system':
+      default:
+        return ThemeMode.system;
+    }
+  }
+  
+  void updateThemeMode(ThemeMode themeMode) async {
+    final prefs = await SharedPreferences.getInstance();
+    final themeString = themeMode.toString().split('.').last;
+    await prefs.setString('theme_mode', themeString);
+    
+    setState(() {
+      _themeMode = themeMode;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +104,7 @@ class QuoteMeApp extends StatelessWidget {
       title: 'Quote Me',
       theme: AppThemes.lightTheme,
       darkTheme: AppThemes.darkTheme,
-      themeMode: ThemeMode.system, // Automatically follow system theme
+      themeMode: _themeMode,
       routerConfig: _router,
     );
   }

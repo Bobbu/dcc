@@ -595,10 +595,10 @@ class _QuoteScreenState extends State<QuoteScreen> {
                     enabled: false,
                     child: Row(
                       children: [
-                        Icon(Icons.person, color: Colors.grey),
+                        Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 8),
                         Text(
-                          'Hi, $_userName',
+                          'Hi, ${_userName != null && _userName!.isNotEmpty ? _userName![0].toUpperCase() + _userName!.substring(1).toLowerCase() : _userName ?? ''}',
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ],
@@ -607,11 +607,11 @@ class _QuoteScreenState extends State<QuoteScreen> {
                 if (_userName != null)
                   const PopupMenuDivider(),
                 if (_isAdmin)
-                  const PopupMenuItem(
+                   PopupMenuItem(
                     value: 'admin',
                     child: Row(
                       children: [
-                        Icon(Icons.admin_panel_settings),
+                        Icon(Icons.admin_panel_settings, color: Theme.of(context).colorScheme.primary),
                         SizedBox(width: 8),
                         Text('Admin Dashboard'),
                       ],
@@ -621,18 +621,18 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   value: 'logout',
                   child: Row(
                     children: [
-                      Icon(Icons.logout),
+                      Icon(Icons.logout, color: Colors.red),
                       SizedBox(width: 8),
                       Text('Sign Out'),
                     ],
                   ),
                 ),
               ] else ...[
-                const PopupMenuItem(
+                 PopupMenuItem(
                   value: 'login',
                   child: Row(
                     children: [
-                      Icon(Icons.login),
+                      Icon(Icons.login, color: Theme.of(context).colorScheme.primary),
                       SizedBox(width: 8),
                       Text('Sign In / Sign Up'),
                     ],
@@ -649,8 +649,8 @@ class _QuoteScreenState extends State<QuoteScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFFE8EAF6), // Light indigo
-              const Color(0xFFE8EAF6), // Light indigo (consistent)
+              Theme.of(context).scaffoldBackgroundColor,
+              Theme.of(context).scaffoldBackgroundColor,
             ],
           ),
         ),
@@ -701,8 +701,8 @@ class _QuoteScreenState extends State<QuoteScreen> {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              Colors.white,
-                              const Color(0xFFE8EAF6).withValues(alpha: 128),
+                              Theme.of(context).colorScheme.surface,
+                              Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
                             ],
                           ),
                         ),
@@ -775,7 +775,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 204),
+                      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: Theme.of(context).colorScheme.secondary.withValues(alpha: 77),

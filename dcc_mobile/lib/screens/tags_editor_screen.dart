@@ -518,25 +518,38 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             color: Theme.of(context).colorScheme.secondary.withValues(alpha: 51),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Sort by:',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSecondary,
-                  ),
+                // Tag count and Sort by label
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Sort by:',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSecondary,
+                      ),
+                    ),
+                    Text(
+                      '${_tags.length} tags',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                _buildHeaderSortButton('name', 'Tag', Icons.local_offer),
-                _buildHeaderSortButton('usage', 'Usage', Icons.trending_up),
-                _buildHeaderSortButton('created', 'Created', Icons.access_time),
-                _buildHeaderSortButton('updated', 'Updated', Icons.update),
-                const Spacer(),
-                Text(
-                  '${_tags.length} tags',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSecondary,
-                  ),
+                const SizedBox(height: 8),
+                // Sort buttons in a wrappable layout
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildHeaderSortButton('name', 'Tag', Icons.local_offer),
+                    _buildHeaderSortButton('usage', 'Usage', Icons.trending_up),
+                    _buildHeaderSortButton('created', 'Created', Icons.access_time),
+                    _buildHeaderSortButton('updated', 'Updated', Icons.update),
+                  ],
                 ),
               ],
             ),
@@ -629,16 +642,12 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                                       if (tag.createdAt != null)
                                         Text(
                                           'Created: ${_formatDate(tag.createdAt!)}',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ),
+                                          style: AppThemes.dateText(context),
                                         ),
                                       if (tag.updatedAt != null)
                                         Text(
                                           'Updated: ${_formatDate(tag.updatedAt!)}',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ),
+                                          style: AppThemes.dateText(context),
                                         ),
                                     ],
                                   ),

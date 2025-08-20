@@ -61,13 +61,13 @@ class AppThemes {
     headlineMedium: const TextStyle(
       fontSize: 20,
       fontWeight: FontWeight.w600,
-      color: _darkIndigo,
+      color: Color(0xFF424242), // Slightly lighter grey than headlineLarge
     ),
     // Section headers
     headlineSmall: const TextStyle(
       fontSize: 16,
       fontWeight: FontWeight.w600,
-      color: _darkIndigo,
+      color: Color(0xFF424242), // Dark grey instead of primary color
     ),
     // Button text
     labelLarge: _buttonTextStyle,
@@ -114,13 +114,13 @@ class AppThemes {
     headlineMedium: const TextStyle(
       fontSize: 20,
       fontWeight: FontWeight.w600,
-      color: _lightIndigo,
+      color: Color(0xFFE8E8E8), // Very light grey for dark mode
     ),
     // Section headers
     headlineSmall: const TextStyle(
       fontSize: 16,
       fontWeight: FontWeight.w600,
-      color: _lightIndigo,
+      color: Color(0xFFE8E8E8), // Very light grey for dark mode
     ),
     // Button text
     labelLarge: _buttonTextStyle,
@@ -162,8 +162,16 @@ class AppThemes {
       color: isDark ? _lightIndigo : _darkIndigo,
     );
   }
-  static TextStyle dateText(BuildContext context) => _dateTextStyle;
-  static Color dateIconColor(BuildContext context) => _dateIconColor;
+  static TextStyle dateText(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return _dateTextStyle.copyWith(
+      color: isDark ? const Color(0xFFB0B0B0) : const Color(0xFF424242),
+    );
+  }
+  static Color dateIconColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? const Color(0xFFB0B0B0) : const Color(0xFF424242);
+  }
   static double dateIconSize(BuildContext context) => _dateIconSize;
 
   static ThemeData lightTheme = ThemeData(
@@ -258,7 +266,7 @@ class AppThemes {
       seedColor: _darkIndigo,
       primary: _lightIndigo,
       secondary: _darkIndigo,
-      surface: const Color(0xFF121212),
+      surface: const Color(0xFF2A2A2A),
       onPrimary: Colors.white,
       onSecondary: Colors.white,
       onSurface: Colors.white,

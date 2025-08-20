@@ -264,11 +264,14 @@ open -a Simulator
   - `amplify_auth_cognito: ^2.0.0`: Cognito authentication integration
 - **State Management**: setState() pattern with service-layer abstraction
 - **Error Handling**: Comprehensive error handling with automatic retry logic for 500 errors
-- **Theme**: Modern professional branding with:
-  - **Primary Color**: Dark indigo (#3F51B5) for AppBar, buttons, and primary elements
-  - **Accent Color**: Light indigo (#5C6BC0) for highlights and secondary elements
-  - **Background**: Light indigo (#E8EAF6) for a cohesive, modern appearance
-  - **Text**: White on dark backgrounds, indigo on light backgrounds for optimal contrast
+- **Theme**: Modern professional branding with comprehensive theming system:
+  - **User Theme Control**: Settings page theme selector with Light, Dark, and System options
+  - **Persistent Preferences**: Theme selection saved across app sessions using SharedPreferences
+  - **Light Mode**: Dark indigo (#3F51B5) primary, light indigo (#5C6BC0) accent, light indigo background (#E8EAF6)
+  - **Dark Mode**: Optimized contrast with proper surface colors (#2A2A2A) against dark background (#121212)
+  - **Smart Theming**: All UI elements consistently use theme-defined colors across entire application
+  - **Enhanced Contrast**: Quote containers and UI elements properly contrast in both themes
+  - **Professional Styling**: Appropriate contrast ratios and consistent visual hierarchy throughout
 - **Advanced Features**:
   - **Audio System**: Advanced text-to-speech with comprehensive controls:
     - Voice selection from 20-50+ available voices with real-time testing
@@ -292,6 +295,12 @@ open -a Simulator
   - **Progress Tracking**: Batch processing with visual progress bar and status updates
   - **Tag Cleanup System**: Automated removal of unused tags from metadata with confirmation dialog
   - **Data Integrity**: Automatic quote synchronization when tags are renamed or deleted
+  - **User Settings**: Comprehensive settings management system:
+    - **Appearance Control**: Theme preference selector (Light/Dark/System) with instant switching
+    - **Audio Configuration**: Voice selection, speech rate, and pitch controls with real-time testing
+    - **Tag Preferences**: Dynamic category selection with server synchronization
+    - **Persistent Storage**: All settings saved locally and restored across app sessions
+    - **Consistent Theming**: All settings sections use theme-defined colors for perfect dark/light mode support
   - **Responsive Design**: Perfect layout in all orientations with no overflow
   - **Security Integration**: Seamless admin access with role-based permissions
   - **Resilience Features**: Automatic retry with exponential backoff for server errors
@@ -658,3 +667,5 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - Advanced analytics and usage metrics
 - Push notifications for new quotes
 - Offline mode with local caching
+- Try to keep file sizes manageable. Put distinct classes in separate files, grouped where they belong (e.g., screens, models, widgets).
+- Always prefer using the defined application themes defined in themes.dart over setting specific text styling (e.g., colors, fonts) on the fly within display widgets. Better to define something in themes, so that if/when themes change, or when we toggle from light to dark, we have a better change of being confident in a minimum number of failed conversioons elsewhere.

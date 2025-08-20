@@ -185,12 +185,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Quote Me',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Quote Me'),
         centerTitle: true,
         actions: [
           if (!_isLoading && _quote != null)
@@ -206,13 +201,13 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFE8EAF6), // Light indigo background
-              Color(0xFFF3E5F5), // Light purple background
+              Theme.of(context).scaffoldBackgroundColor,
+              Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.8),
             ],
           ),
         ),
@@ -222,8 +217,8 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3F51B5)),
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -248,20 +243,15 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                             const SizedBox(height: 16),
                             Text(
                               _error!,
-                              style: const TextStyle(
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF3F51B5),
                               ),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 8),
-                            const Text(
+                            Text(
                               'This quote may have been removed or the link is invalid.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
+                              style: Theme.of(context).textTheme.bodyMedium,
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 32),
@@ -282,7 +272,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                 OutlinedButton(
                                   onPressed: _navigateToMainApp,
                                   style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(color: Color(0xFF3F51B5)),
+                                    side: BorderSide(color: Theme.of(context).colorScheme.primary),
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 24,
                                       vertical: 12,
@@ -308,31 +298,15 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                             const SizedBox(height: 32),
                             
                             // Quote Card
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 25),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
                                 children: [
                                   // Quote text
                                   Text(
                                     '"$_quote"',
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      fontStyle: FontStyle.italic,
-                                      color: Color(0xFF2C2C2C),
-                                      height: 1.4,
-                                    ),
+                                    style: Theme.of(context).textTheme.headlineLarge,
                                     textAlign: TextAlign.center,
                                   ),
                                   
@@ -341,10 +315,8 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                   // Author
                                   Text(
                                     '— $_author',
-                                    style: const TextStyle(
+                                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                       fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF3F51B5),
                                     ),
                                   ),
                                   
@@ -355,31 +327,14 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                       spacing: 8,
                                       runSpacing: 8,
                                       children: _tags.map((tag) {
-                                        return Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF3F51B5).withValues(alpha: 25),
-                                            borderRadius: BorderRadius.circular(16),
-                                            border: Border.all(
-                                              color: const Color(0xFF3F51B5).withValues(alpha: 77),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            tag,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Color(0xFF3F51B5),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
+                                        return Chip(
+                                          label: Text(tag),
                                         );
                                       }).toList(),
                                     ),
                                   ],
                                 ],
+                                ),
                               ),
                             ),
                             
@@ -397,12 +352,6 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                       : CupertinoIcons.share,
                                   ),
                                   label: const Text('Share'),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 12,
-                                    ),
-                                  ),
                                 ),
                                 const SizedBox(width: 16),
                                 OutlinedButton.icon(
@@ -410,11 +359,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                   icon: const Icon(Icons.explore),
                                   label: const Text('On to home page for fun'),
                                   style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(color: Color(0xFF3F51B5)),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 12,
-                                    ),
+                                    side: BorderSide(color: Theme.of(context).colorScheme.primary),
                                   ),
                                 ),
                               ],
@@ -423,41 +368,31 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                             const SizedBox(height: 24),
                             
                             // App promotion
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF3F51B5).withValues(alpha: 25),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: const Color(0xFF3F51B5).withValues(alpha: 77),
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.favorite,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'You like-a the quotes?',
+                                      style: Theme.of(context).textTheme.headlineSmall,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'You will be able to soon get the full Quote Me app for daily inspiration and more features',
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              child: const Column(
-                                children: [
-                                  Icon(
-                                    Icons.favorite,
-                                    color: Color(0xFF3F51B5),
-                                    size: 24,
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'You like-a the quotes?',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF3F51B5),
-                                    ),
-                                  ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    'You will be able to soon get the full Quote Me app for daily inspiration and more features',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF3F51B5),
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
                               ),
                             ),
                           ],

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../themes.dart';
+import '../main.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool audioEnabled;
@@ -41,6 +43,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<String> _availableCategories = [];
   bool _categoriesLoaded = false;
   
+  // Theme management
+  String _selectedTheme = 'system';
+  
   static const List<String> _fallbackCategories = [
     'All', 'Sports', 'Education', 'Science', 'Motivation', 'Funny', 'Persistence', 'Business'
   ];
@@ -61,6 +66,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     
     // Load categories/tags
     _loadCategories();
+    
+    // Load theme preference
+    _loadThemePreference();
   }
   
   @override
@@ -148,6 +156,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _loadThemePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final themeString = prefs.getString('theme_mode') ?? 'system';
+    setState(() {
+      _selectedTheme = themeString;
+    });
+  }
+  
+  void _updateThemePreference(String themeMode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_mode', themeMode);
+    
+    setState(() {
+      _selectedTheme = themeMode;
+    });
+    
+    // Update the app theme
+    ThemeMode mode;
+    switch (themeMode) {
+      case 'light':
+        mode = ThemeMode.light;
+        break;
+      case 'dark':
+        mode = ThemeMode.dark;
+        break;
+      case 'system':
+      default:
+        mode = ThemeMode.system;
+        break;
+    }
+    
+    QuoteMeApp.updateTheme(mode);
+  }
+
   void _updateSettings() {
     widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch);
   }
@@ -215,14 +257,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFFE8EAF6), // Light indigo
-              const Color(0xFFE8EAF6), // Light indigo (consistent)
+              Theme.of(context).scaffoldBackgroundColor,
+              Theme.of(context).scaffoldBackgroundColor,
             ],
           ),
         ),
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
+            // Theme Settings Section
+            Card(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
+                    ],
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.palette,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Appearance',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        title: Text(
+                          'Theme Mode',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Choose your preferred app theme',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: DropdownButton<String>(
+                          value: _selectedTheme,
+                          items: const [
+                            DropdownMenuItem(value: 'system', child: Text('System')),
+                            DropdownMenuItem(value: 'light', child: Text('Light')),
+                            DropdownMenuItem(value: 'dark', child: Text('Dark')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              _updateThemePreference(value);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
             // Audio Settings Section
             Card(
               child: Container(
@@ -232,8 +343,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white,
-                      const Color(0xFFE8EAF6).withValues(alpha: 77),
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
                     ],
                   ),
                 ),
@@ -297,8 +408,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white,
-                      const Color(0xFFE8EAF6).withValues(alpha: 77),
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
                     ],
                   ),
                 ),
@@ -410,9 +521,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       voiceMap['locale']!,
                                       style: Theme.of(context).textTheme.bodyMedium,
                                     ),
-                                    leading: Icon(
-                                      isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                                      color: Theme.of(context).colorScheme.primary,
+                                    leading: Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          width: 2,
+                                        ),
+                                        color: isSelected 
+                                          ? Theme.of(context).colorScheme.primary 
+                                          : Colors.transparent,
+                                      ),
+                                      child: isSelected
+                                        ? Icon(
+                                            Icons.check,
+                                            color: Theme.of(context).colorScheme.surface,
+                                            size: 16,
+                                          )
+                                        : null,
                                     ),
                                     onTap: () {
                                       setState(() {
@@ -451,8 +579,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white,
-                      const Color(0xFFE8EAF6).withValues(alpha: 77),
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
                     ],
                   ),
                 ),
@@ -519,8 +647,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white,
-                      const Color(0xFFE8EAF6).withValues(alpha: 77),
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
                     ],
                   ),
                 ),
@@ -587,8 +715,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white,
-                      const Color(0xFFE8EAF6).withValues(alpha: 77),
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
                     ],
                   ),
                 ),
@@ -655,34 +783,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 51),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 153),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.cloud_sync,
-                                    color: Theme.of(context).colorScheme.primary,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Dynamic tags loaded from server',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 12),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
