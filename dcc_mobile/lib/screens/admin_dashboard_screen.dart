@@ -222,7 +222,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
   }
 
-  Future<void> _performSearch(String query) async {
+  Future<void> _performSearch(String query, {bool forceRefresh = false}) async {
     query = query.trim();
     
     if (query.isEmpty) {
@@ -236,8 +236,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       return;
     }
     
-    // Only skip if query is the same AND we already have search results
-    if (query == _searchQuery && _searchResults.isNotEmpty && !_isSearching) {
+    // Only skip if query is the same AND we already have search results AND not forcing refresh
+    if (query == _searchQuery && _searchResults.isNotEmpty && !_isSearching && !forceRefresh) {
       // Same query with existing results, no need to search again
       setState(() {
         _isPreparingSearch = false;
@@ -379,6 +379,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     
     // Return only groups with more than one quote (actual duplicates)
     return duplicateMap.values.where((group) => group.length > 1).toList();
+  }
+
+  Future<void> _refreshData() async {
+    // This method respects the current search state
+    if (_searchQuery.isNotEmpty) {
+      // We're in search mode - refresh the search results (force refresh to get new data)
+      await _performSearch(_searchQuery, forceRefresh: true);
+    } else {
+      // No search active - refresh all quotes
+      await _loadQuotes();
+    }
   }
 
   Future<void> _loadQuotes() async {
@@ -568,7 +579,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       await AdminApiService.deleteQuote(quoteId);
       
       // Wait for backend success, then refresh
-      await _loadQuotes();
+      await _refreshData();
       
       if (mounted) {
         _showMessage('Quote deleted successfully!', isError: false);
@@ -599,7 +610,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _showMessage('Successfully removed $removedCount unused tags: ${removedTags.join(', ')}', isError: false);
         }
         
-        _loadQuotes(); // Refresh to show updated data
+        _refreshData(); // Refresh to show updated data
       } else {
         _showMessage('Failed to cleanup unused tags (${response.statusCode})', isError: true);
       }
@@ -644,7 +655,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       }
 
       // Reload quotes to show updated data
-      await _loadQuotes();
+      await _refreshData();
 
       if (mounted) {
         if (deletedCount > 0) {
@@ -842,7 +853,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       });
 
       // Reload quotes to show imported ones
-      await _loadQuotes();
+      await _refreshData();
 
       setState(() {
         _isImporting = false;
@@ -1022,7 +1033,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         onComplete: (results) {
           Navigator.of(context).pop(); // Close progress dialog
           _showGenerateTagsResults(results);
-          _loadQuotes(); // Refresh the quotes list
+          _refreshData(); // Refresh the quotes list
         },
       ),
     );
@@ -1133,7 +1144,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'refresh') {
-                _loadQuotes();
+                _refreshData();
               } else if (value == 'import_quotes') {
                 _showImportDialog();
               } else if (value == 'tags_editor') {
@@ -1143,7 +1154,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 ).then((_) {
                   // Refresh quotes when returning from Tags Editor in case tags were changed
-                  _loadQuotes();
+                  _refreshData();
                 });
               } else if (value == 'cleanup_tags') {
                 _showCleanupTagsDialog();
@@ -1160,7 +1171,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 ).then((_) {
                   // Refresh quotes when returning in case new quotes were added
-                  _loadQuotes();
+                  _refreshData();
                 });
               } else if (value == 'logout') {
                 _signOut();
@@ -1585,7 +1596,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
-                              onPressed: _loadQuotes,
+                              onPressed: _refreshData,
                               child: const Text('Retry'),
                             ),
                           ],

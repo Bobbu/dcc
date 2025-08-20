@@ -96,18 +96,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF3F51B5), // Indigo
-              const Color(0xFF5C6BC0), // Light indigo
-            ],
-          ),
-        ),
+        width: double.infinity,
+        height: double.infinity,
+        color: theme.scaffoldBackgroundColor,
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -121,10 +117,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 25),
+                      color: theme.colorScheme.secondary,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 77),
+                        color: theme.colorScheme.secondary,
                         width: 2,
                       ),
                     ),
@@ -138,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
                         Text(
                           'Quote Me',
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          style: theme.textTheme.headlineMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
@@ -146,8 +142,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Your Daily Inspiration',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Colors.white.withValues(alpha: 204),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.9),
                           ),
                         ),
                       ],
@@ -157,28 +153,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 48),
 
                   // Login Form
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                  Card(
+                    margin: EdgeInsets.zero,
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 25),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
                     ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
                             'Welcome Back',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: const Color(0xFF3F51B5),
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: theme.colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,
@@ -191,19 +182,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
                             enabled: !_isLoading,
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               labelText: 'Email Address',
-                              prefixIcon: const Icon(Icons.email),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFF3F51B5),
-                                  width: 2,
-                                ),
-                              ),
+                              prefixIcon: Icon(Icons.email),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -238,16 +219,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   });
                                 },
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFF3F51B5),
-                                  width: 2,
-                                ),
-                              ),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -265,22 +236,23 @@ class _LoginScreenState extends State<LoginScreen> {
                               padding: const EdgeInsets.all(12),
                               margin: const EdgeInsets.only(bottom: 16),
                               decoration: BoxDecoration(
-                                color: Colors.red.shade50,
-                                border: Border.all(color: Colors.red.shade300),
+                                color: theme.colorScheme.errorContainer,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     Icons.error_outline,
-                                    color: Colors.red.shade700,
+                                    color: theme.colorScheme.error,
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       _errorMessage!,
-                                      style: AppThemes.errorText(context),
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: theme.colorScheme.onErrorContainer,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -291,14 +263,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           ElevatedButton(
                             onPressed: _isLoading ? null : _signIn,
                             style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.colorScheme.secondary,
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 2,
                             ),
                             child: _isLoading
-                              ? const Row(
+                              ? Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     SizedBox(
@@ -306,11 +276,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          theme.colorScheme.onPrimary,
+                                        ),
                                       ),
                                     ),
-                                    SizedBox(width: 12),
-                                    Text('Signing In...'),
+                                    const SizedBox(width: 12),
+                                    const Text('Signing In...'),
                                   ],
                                 )
                               : Text(
@@ -326,21 +298,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Expanded(
                                 child: Divider(
-                                  color: Colors.grey.shade300,
+                                  color: theme.colorScheme.outline,
                                 ),
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                                 child: Text(
                                   'or',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                  ),
+                                  style: theme.textTheme.bodyMedium,
                                 ),
                               ),
                               Expanded(
                                 child: Divider(
-                                  color: Colors.grey.shade300,
+                                  color: theme.colorScheme.outline,
                                 ),
                               ),
                             ],
@@ -349,7 +319,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 16),
 
                           // Sign Up Button
-                          OutlinedButton(
+                          ElevatedButton(
                             onPressed: _isLoading ? null : () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
@@ -357,26 +327,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               );
                             },
-                            style: OutlinedButton.styleFrom(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              side: const BorderSide(
-                                color: Color(0xFF3F51B5),
-                                width: 2,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
                             ),
-                            child: const Text(
+                            child: Text(
                               'Create New Account',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF3F51B5),
-                              ),
+                              style: theme.textTheme.labelLarge,
                             ),
                           ),
                         ],
+                        ),
                       ),
                     ),
                   ),
@@ -391,13 +353,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Icon(
                           Icons.arrow_back,
-                          color: Colors.white.withValues(alpha: 204),
+                          color: theme.colorScheme.primary,
                           size: 18,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Back to Quotes',
-                          style: AppThemes.linkText(context).copyWith(color: Colors.white.withValues(alpha: 204)),
+                          style: theme.textTheme.bodyMedium,
                         ),
                       ],
                     ),

@@ -185,18 +185,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF3F51B5), // Indigo
-              const Color(0xFF5C6BC0), // Light indigo
-            ],
-          ),
-        ),
+        width: double.infinity,
+        height: double.infinity,
+        color: theme.scaffoldBackgroundColor,
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -210,10 +206,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 25),
+                      color: theme.colorScheme.secondary,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 77),
+                        color: theme.colorScheme.primary,
                         width: 2,
                       ),
                     ),
@@ -227,7 +223,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         const SizedBox(height: 16),
                         Text(
                           _showConfirmationForm ? 'Verify Email' : 'Join Quote Me',
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          style: theme.textTheme.headlineMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
@@ -239,22 +235,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   const SizedBox(height: 32),
 
                   // Registration/Confirmation Form
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                  Card(
+                    margin: EdgeInsets.zero,
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 25),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
                     ),
-                    child: _showConfirmationForm
-                        ? _buildConfirmationForm()
-                        : _buildRegistrationForm(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _showConfirmationForm
+                          ? _buildConfirmationForm()
+                          : _buildRegistrationForm(),
+                    ),
                   ),
 
                   const SizedBox(height: 32),
@@ -267,13 +259,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       children: [
                         Icon(
                           Icons.arrow_back,
-                          color: Colors.white.withValues(alpha: 204),
+                          color: theme.colorScheme.primary,
                           size: 18,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Back to Sign In',
-                          style: AppThemes.linkText(context).copyWith(color: Colors.white.withValues(alpha: 204)),
+                          style: theme.textTheme.bodyMedium,
                         ),
                       ],
                     ),
@@ -296,7 +288,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           Text(
             'Create Account',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: const Color(0xFF3F51B5),
+              color: Theme.of(context).colorScheme.secondary,
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
@@ -308,19 +300,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           TextFormField(
             controller: _nameController,
             enabled: !_isLoading,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Full Name (Optional)',
-              prefixIcon: const Icon(Icons.person),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFF3F51B5),
-                  width: 2,
-                ),
-              ),
+              prefixIcon: Icon(Icons.person),
             ),
           ),
 
@@ -331,19 +313,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             enabled: !_isLoading,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Email Address',
-              prefixIcon: const Icon(Icons.email),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFF3F51B5),
-                  width: 2,
-                ),
-              ),
+              prefixIcon: Icon(Icons.email),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -376,16 +348,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   });
                 },
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFF3F51B5),
-                  width: 2,
-                ),
-              ),
               helperText: 'Min 8 chars, uppercase, lowercase, number, special char',
               helperMaxLines: 2,
             ),
@@ -412,16 +374,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   });
                 },
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFF3F51B5),
-                  width: 2,
-                ),
-              ),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -442,22 +394,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                border: Border.all(color: Colors.red.shade300),
+                color: Theme.of(context).colorScheme.errorContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
                   Icon(
                     Icons.error_outline,
-                    color: Colors.red.shade700,
+                    color: Theme.of(context).colorScheme.error,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _errorMessage!,
-                      style: AppThemes.errorText(context),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
                     ),
                   ),
                 ],
@@ -468,13 +421,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ElevatedButton(
             onPressed: _isLoading ? null : _register,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3F51B5),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
             ),
             child: _isLoading
                 ? const Row(
@@ -509,7 +458,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         Text(
           'Verify Your Email',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: const Color(0xFF3F51B5),
+            color: Theme.of(context).colorScheme.primary,
             fontWeight: FontWeight.bold,
           ),
           textAlign: TextAlign.center,
@@ -536,19 +485,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           controller: _confirmationCodeController,
           keyboardType: TextInputType.number,
           enabled: !_isLoading,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             labelText: 'Verification Code',
-            prefixIcon: const Icon(Icons.security),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Color(0xFF3F51B5),
-                width: 2,
-              ),
-            ),
+            prefixIcon: Icon(Icons.security),
             helperText: 'Enter the 6-digit code from your email',
           ),
         ),
@@ -561,22 +500,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              border: Border.all(color: Colors.red.shade300),
+              color: Theme.of(context).colorScheme.errorContainer,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.error_outline,
-                  color: Colors.red.shade700,
+                  color: Theme.of(context).colorScheme.error,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _errorMessage!,
-                    style: AppThemes.errorText(context),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
                   ),
                 ),
               ],
@@ -588,10 +528,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           onPressed: _isLoading ? null : _confirmEmail,
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 2,
           ),
           child: _isLoading
               ? const Row(
@@ -627,7 +563,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           },
           child: Text(
             'Back to Registration',
-            style: AppThemes.linkText(context).copyWith(fontSize: 14),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ],

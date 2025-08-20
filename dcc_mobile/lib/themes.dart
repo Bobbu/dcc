@@ -211,6 +211,17 @@ class AppThemes {
       ),
     ),
     
+    // Outlined button theme
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _darkIndigo,
+        side: const BorderSide(color: _darkIndigo, width: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    ),
+    
     // Chip theme for consistent tag styling
     chipTheme: ChipThemeData(
       backgroundColor: _lightChipBackground,
@@ -290,6 +301,17 @@ class AppThemes {
         backgroundColor: _lightIndigo,
         foregroundColor: Colors.white,
         elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    ),
+    
+    // Outlined button theme
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _lightIndigo,
+        side: const BorderSide(color: _lightIndigo, width: 2),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
