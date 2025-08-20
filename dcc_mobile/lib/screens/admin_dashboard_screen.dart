@@ -1256,13 +1256,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Container(
                         height: 40,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.surface,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: TextField(
                           controller: _searchController,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 16,
+                          ),
                           decoration: InputDecoration(
                             hintText: 'Search quotes or authors...',
+                            hintStyle: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              fontSize: 16,
+                            ),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             suffixIcon: _searchQuery.isNotEmpty || _isSearching
