@@ -381,6 +381,29 @@ Resources:
               Authorizer: CognitoAuthorizer
               ApiKeyRequired: false
 
+  # Candidate quotes function for fetching potential quotes from OpenAI
+  CandidateQuotesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-candidate-quotes-handler
+      CodeUri: ./
+      Handler: candidate_quotes_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Events:
+        GetCandidateQuotes:
+          Type: Api
+          Properties:
+            Path: /admin/candidate-quotes
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
   # Explicit API Gateway for better control
   ApiGatewayApi:
     Type: AWS::Serverless::Api

@@ -791,7 +791,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Ready for inspiration?',
+                          'Ready for some inspiration?',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,

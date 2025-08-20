@@ -13,6 +13,7 @@ import '../services/admin_api_service.dart';
 import '../services/openai_proxy_service.dart';
 import '../services/logger_service.dart';
 import 'tags_editor_screen.dart';
+import 'candidate_quotes_screen.dart';
 import '../themes.dart';
 import '../models/quote.dart';
 import '../widgets/admin/import_quotes_dialog.dart';
@@ -1152,6 +1153,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 _exportTags();
               } else if (value == 'generate_tags') {
                 _showGenerateTagsDialog();
+              } else if (value == 'find_quotes') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const CandidateQuotesScreen(),
+                  ),
+                ).then((_) {
+                  // Refresh quotes when returning in case new quotes were added
+                  _loadQuotes();
+                });
               } else if (value == 'logout') {
                 _signOut();
               }
@@ -1224,6 +1234,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.auto_awesome, color: Colors.purple),
                     SizedBox(width: 8),
                     Text('Generate Tags for Tagless'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'find_quotes',
+                child: Row(
+                  children: [
+                    Icon(Icons.search, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text('Find New Quotes'),
                   ],
                 ),
               ),
