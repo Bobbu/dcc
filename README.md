@@ -22,7 +22,10 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High)
 - **Settings Management**: Comprehensive user preferences with appearance, audio, and category controls
 - **Admin Dashboard**: Complete quote management interface with powerful search functionality and export features
-- **Tag Management**: Dedicated editor for individual tag operations
+  - **Quote Preview**: View quotes as they appear to shared users
+  - **Persistent Sorting**: Sort preferences saved across sessions
+  - **Four Sort Fields**: Quote, Author, Created Date, Updated Date
+- **Tag Management**: Dedicated editor for individual tag operations with persistent sort preferences
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
 - **Duplicate Detection**: Intelligent duplicate cleanup with preservation logic
 - **Export Functionality**: Complete data backup and export capabilities for admin users
@@ -183,7 +186,9 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
 
 ### Admin Dashboard
 - **Search Functionality**: Universal search finds quotes by content, author, or tags
-- **Sort Options**: Quote text, Author name, or Created date
+- **Sort Options**: Four fields (Quote, Author, Created Date, Updated Date) with ascending/descending toggle
+- **Persistent Preferences**: Sort settings saved to SharedPreferences and restored on load
+- **Quote Management Menu**: Preview detail, Edit, and Delete options for each quote
 - **Duplicate Cleanup**: Intelligent detection and removal
 - **Batch Import**: Google Sheets TSV import with progress tracking
 - **Export System**: Complete data backup with metadata for disaster recovery
@@ -192,6 +197,8 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
 
 ### Tag Management
 - **Individual Operations**: Add, rename, delete tags
+- **Sort Options**: Name, Created Date, Updated Date, Usage Count
+- **Persistent Sorting**: Sort preferences saved across sessions
 - **Automatic Sync**: Quote updates when tags change
 - **Unused Cleanup**: One-click removal of orphaned tags
 - **Data Integrity**: Validation and duplicate prevention

@@ -352,7 +352,19 @@ The admin dashboard includes a powerful copy/paste import feature for Google She
 
 **Access Method**: Admin Dashboard → Menu → "Import Quotes"
 
-### Admin Dashboard Search
+### Admin Dashboard Features
+
+#### Quote Management Menu
+Each quote in the admin dashboard has a comprehensive menu with the following options:
+
+**Menu Actions**:
+- **Preview Detail**: View the quote as it appears to shared users in the QuoteDetailScreen
+- **Edit**: Modify quote text, author, and tags
+- **Delete**: Remove the quote with confirmation dialog
+
+**Access Method**: Three-dot menu on each quote's ListTile
+
+#### Search System
 The admin dashboard includes a powerful search system for efficient quote management:
 
 **Search Features**:
@@ -379,20 +391,25 @@ The admin dashboard includes a powerful search system for efficient quote manage
 The admin dashboard provides comprehensive sorting capabilities for efficient quote management:
 
 **Sorting Features**:
-- **Three Sort Fields**: Quote text, Author name, and Created Date sorting options
-- **AppBar Integration**: Compact toggle buttons directly in the app bar for quick access
+- **Four Sort Fields**: Quote text, Author name, Created Date, and Updated Date sorting options
+- **Header Integration**: Sort buttons located in the dashboard header for easy access
 - **Bi-Directional Sorting**: Click once for ascending, click again for descending order
-- **Visual Indicators**: Arrow icons show current sort direction, expand icons show inactive fields
-- **Smart Tooltips**: Hover text explains each button's function and current sort state
+- **Visual Indicators**: Arrow icons show current sort direction for active field
 - **Case-Insensitive**: Text sorting ignores case for better alphabetical organization
-- **Persistent State**: Sort preferences maintained during admin session
+- **Persistent Preferences**: Sort field and direction saved to SharedPreferences across sessions
+- **Automatic Restoration**: Previous sort settings restored on dashboard load
 
 **Sorting Options**:
 - **Quote Text**: Alphabetical sorting (A-Z / Z-A) with case-insensitive comparison
 - **Author Name**: Alphabetical author sorting (A-Z / Z-A) with case-insensitive comparison  
 - **Created Date**: Chronological sorting (Newest First / Oldest First) by timestamp
+- **Updated Date**: Chronological sorting (Newest First / Oldest First) by last modification
 
 **Default Behavior**: Starts with Created Date sorting, newest quotes first (descending order)
+
+**Persistence Keys**:
+- `admin_sort_field`: Stores selected SortField enum value
+- `admin_sort_ascending`: Stores boolean for sort direction
 
 ### Duplicate Management System
 The admin dashboard includes intelligent duplicate detection and cleanup functionality:
@@ -503,6 +520,13 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - **User-Friendly Interface**: Professional UI with confirmation dialogs
 - **Real-time Feedback**: Shows how many quotes were affected by each operation
 
+**Sorting Capabilities**:
+- **Four Sort Options**: Name, Created Date, Updated Date, and Usage Count
+- **Bi-Directional Sorting**: Toggle between ascending and descending order
+- **Visual Indicators**: Active sort field highlighted with directional arrows
+- **Persistent Preferences**: Sort settings saved to SharedPreferences
+- **Automatic Restoration**: Previous sort preferences loaded on screen initialization
+
 **Access Methods**:
 - **Primary Access**: Admin Dashboard → Menu → "Manage Tags"
 - **Direct Navigation**: Dedicated Tags Editor screen with full functionality
@@ -512,6 +536,10 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - **Backend Validation**: Comprehensive server-side validation and error handling  
 - **Quote Synchronization**: Automatic scanning and updating of affected quotes
 - **Metadata Consistency**: Tags metadata cache updated with every operation
+
+**Persistence Keys**:
+- `tags_editor_sort_by`: Stores sort field ('name', 'created', 'updated', 'usage')
+- `tags_editor_sort_ascending`: Stores boolean for sort direction
 - **Error Recovery**: Graceful handling of network issues and API failures
 - **State Management**: Real-time UI updates reflecting server changes
 
@@ -622,7 +650,9 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - **Audio System**: Professional TTS with 20-50+ voice options, testing, and smart controls
 - **User Authentication**: Unified login system with self-registration and role-based features
 - **Admin Management**: Complete quote lifecycle management with real-time updates and advanced sorting
-- **Quote Sorting**: Three-field sorting (Quote, Author, Date) with ascending/descending toggles in AppBar
+- **Quote Detail Preview**: Preview quotes as they appear to shared users via dedicated menu option
+- **Quote Sorting**: Four-field sorting (Quote, Author, Created Date, Updated Date) with ascending/descending toggles
+- **Persistent Sort Preferences**: Admin Dashboard and Tags Editor sort settings saved across sessions
 - **Duplicate Management**: Intelligent duplicate detection with smart cleanup and preservation logic
 - **Progress Tracking**: Real-time batch processing with visual progress bars for long operations
 - **Dynamic Tag System**: Real-time tag loading and filtering with zero-scan database performance

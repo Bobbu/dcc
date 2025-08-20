@@ -20,6 +20,8 @@ import '../widgets/admin/import_results_dialog.dart';
 import '../widgets/admin/duplicate_cleanup_dialog.dart';
 import '../widgets/admin/tag_generation_dialogs.dart';
 import '../widgets/admin/edit_quote_dialog.dart';
+import 'quote_detail_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -62,7 +64,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     super.initState();
     _checkAdminAccess();
     _loadUserInfo();
-    _loadQuotes();
+    _loadSortPreferences();
     
     // Clear any residual search state
     _searchController.clear();
@@ -152,8 +154,50 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _isSorting = true;
     });
     
+    // Save preferences
+    _saveSortPreferences();
+    
     // Trigger server-side sorting
     _loadQuotesWithSort();
+  }
+
+  Future<void> _loadSortPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Load sort field
+      final sortFieldString = prefs.getString('admin_sort_field');
+      if (sortFieldString != null) {
+        try {
+          _sortField = SortField.values.firstWhere(
+            (field) => field.toString() == sortFieldString,
+            orElse: () => SortField.createdAt,
+          );
+        } catch (e) {
+          _sortField = SortField.createdAt;
+        }
+      }
+      
+      // Load sort order
+      _sortAscending = prefs.getBool('admin_sort_ascending') ?? false;
+      
+      // Now load quotes with the saved sort preferences
+      _loadQuotes();
+    } catch (e) {
+      LoggerService.error('Failed to load sort preferences: $e');
+      // Fall back to default and load quotes anyway
+      _loadQuotes();
+    }
+  }
+
+  Future<void> _saveSortPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('admin_sort_field', _sortField.toString());
+      await prefs.setBool('admin_sort_ascending', _sortAscending);
+    } catch (e) {
+      LoggerService.error('Failed to save sort preferences: $e');
+    }
   }
 
   void _onSearchChanged(String value) {
@@ -1266,7 +1310,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             fontSize: 16,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Search quotes or authors...',
+                            hintText: 'Search quotes, authors. or tags...',
                             hintStyle: TextStyle(
                               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                               fontSize: 16,
@@ -1661,7 +1705,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   ),
                                   trailing: PopupMenuButton<String>(
                                     onSelected: (value) {
-                                      if (value == 'edit') {
+                                      if (value == 'preview') {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => QuoteDetailScreen(
+                                              quoteId: quote.id,
+                                            ),
+                                          ),
+                                        );
+                                      } else if (value == 'edit') {
                                         _showQuoteDialog(quote: quote);
                                       } else if (value == 'delete') {
                                         showDialog(
@@ -1694,6 +1747,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                       }
                                     },
                                     itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'preview',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.visibility),
+                                            SizedBox(width: 8),
+                                            Text('Preview detail'),
+                                          ],
+                                        ),
+                                      ),
                                       const PopupMenuItem(
                                         value: 'edit',
                                         child: Row(

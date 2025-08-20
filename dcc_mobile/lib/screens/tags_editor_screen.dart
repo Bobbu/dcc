@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../themes.dart';
 
@@ -55,7 +56,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTags();
+    _loadSortPreferences();
   }
 
   Future<Map<String, String>> _getAuthHeaders() async {
@@ -254,7 +255,40 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
         _sortAscending = true;
       }
     });
+    _saveSortPreferences();
     _sortTags();
+  }
+
+  Future<void> _loadSortPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Load sort field
+      final sortBy = prefs.getString('tags_editor_sort_by');
+      if (sortBy != null && ['name', 'created', 'updated', 'usage'].contains(sortBy)) {
+        _sortBy = sortBy;
+      }
+      
+      // Load sort order
+      _sortAscending = prefs.getBool('tags_editor_sort_ascending') ?? true;
+      
+      // Now load tags with the saved sort preferences
+      await _loadTags();
+    } catch (e) {
+      print('Failed to load sort preferences: $e');
+      // Fall back to default and load tags anyway
+      await _loadTags();
+    }
+  }
+
+  Future<void> _saveSortPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('tags_editor_sort_by', _sortBy);
+      await prefs.setBool('tags_editor_sort_ascending', _sortAscending);
+    } catch (e) {
+      print('Failed to save sort preferences: $e');
+    }
   }
 
   Widget _buildHeaderSortButton(String sortBy, String label, IconData icon) {
