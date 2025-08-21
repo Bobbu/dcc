@@ -278,6 +278,7 @@ open -a Simulator
   - `settings_screen.dart`: Dynamic tag loading with voice testing and server synchronization
   - `login_screen.dart`: Unified authentication for all users with role-based navigation
   - `registration_screen.dart`: Self-service user registration with email verification
+  - `user_profile_screen.dart`: User profile management with name editing and Daily Nuggets subscription preferences
   - `admin_dashboard_screen.dart`: Full quote management interface with CRUD operations and powerful search functionality
   - `tags_editor_screen.dart`: Dedicated tag management interface with individual tag CRUD operations
 - **Authentication Service**: `lib/services/auth_service.dart`
@@ -311,6 +312,12 @@ open -a Simulator
     - Voice pitch control: Low (0.6), Normal (1.0), High (1.4)
     - Smart interruption controls and simulator compatibility
     - Persistent settings with immediate application to quote playback
+  - **User Profile System**: Comprehensive profile management with:
+    - Display name editing with Cognito attribute updates
+    - Daily Nuggets subscription preferences (preparation for future feature)
+    - Email or Push Notification delivery method selection
+    - User-scoped preferences using email-prefixed SharedPreferences keys
+    - Proper multi-user support on shared devices
   - **Dynamic Tag System**: Real-time tag loading with 3-tag minimum for variety
   - **Admin Management**: Complete quote CRUD with real-time updates, advanced sorting, and tag export functionality
   - **Quote Sorting**: AppBar toggle buttons for sorting by Quote, Author, or Created Date (ascending/descending)
@@ -729,6 +736,11 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 - **Security**: No hardcoded credentials, environment-based configuration management
 
 ### Future Enhancements
+- **Daily Nuggets Feature**: Backend implementation for scheduled quote delivery
+  - Email delivery system using AWS SES for daily morning quotes
+  - Push notification system for mobile app quote delivery
+  - User-configurable delivery times and frequency
+  - Smart quote rotation to avoid repetition
 - Additional authentication providers (Google, Apple Sign-In)
 - Advanced analytics and usage metrics
 - Push notifications for new quotes

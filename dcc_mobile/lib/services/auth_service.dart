@@ -226,4 +226,22 @@ class AuthService {
       rethrow;
     }
   }
+
+  static Future<void> updateUserName(String name) async {
+    try {
+      await Amplify.Auth.updateUserAttributes(
+        attributes: [
+          AuthUserAttribute(
+            userAttributeKey: AuthUserAttributeKey.name,
+            value: name,
+          ),
+        ],
+      );
+      
+      LoggerService.info('✅ User name updated successfully to: $name');
+    } catch (e) {
+      LoggerService.error('Error updating user name: $e', error: e);
+      rethrow;
+    }
+  }
 }

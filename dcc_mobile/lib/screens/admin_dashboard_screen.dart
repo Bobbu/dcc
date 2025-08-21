@@ -24,6 +24,7 @@ import '../widgets/admin/duplicate_cleanup_dialog.dart';
 import '../widgets/admin/tag_generation_dialogs.dart';
 import '../widgets/admin/edit_quote_dialog.dart';
 import 'quote_detail_screen.dart';
+import 'user_profile_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -1320,6 +1321,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // Refresh quotes when returning in case new quotes were added
                   _refreshData();
                 });
+              } else if (value == 'profile') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UserProfileScreen(),
+                  ),
+                );
               } else if (value == 'logout') {
                 _signOut();
               }
@@ -1412,6 +1420,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.auto_awesome, color: Colors.blue),
                     SizedBox(width: 8),
                     Text('Find New Quotes'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary),
+                    SizedBox(width: 8),
+                    Text('Profile'),
                   ],
                 ),
               ),

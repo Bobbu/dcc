@@ -16,6 +16,7 @@ import '../services/auth_service.dart';
 import '../services/logger_service.dart';
 import '../themes.dart';
 import 'admin_dashboard_screen.dart';
+import 'user_profile_screen.dart';
 
 
 class QuoteScreen extends StatefulWidget {
@@ -76,6 +77,13 @@ class _QuoteScreenState extends State<QuoteScreen> {
         _isSignedIn = true;
         _isAdmin = isAdmin;
         _userName = userName;
+      });
+    } else {
+      // Clear state when not signed in
+      setState(() {
+        _isSignedIn = false;
+        _isAdmin = false;
+        _userName = null;
       });
     }
   }
@@ -577,6 +585,20 @@ class _QuoteScreenState extends State<QuoteScreen> {
           PopupMenuButton<String>(
             onSelected: (value) async {
               switch (value) {
+                case 'profile':
+                  if (mounted) {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserProfileScreen(),
+                      ),
+                    );
+                    // Refresh auth status if profile was updated
+                    if (result == true) {
+                      _checkAuthStatus();
+                    }
+                  }
+                  break;
                 case 'admin':
                   _openAdmin();
                   break;
@@ -616,6 +638,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   ),
                 if (_userName != null)
                   const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8),
+                      Text('Profile'),
+                    ],
+                  ),
+                ),
                 if (_isAdmin)
                    PopupMenuItem(
                     value: 'admin',

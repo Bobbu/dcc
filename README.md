@@ -17,6 +17,11 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Optimized Contrast**: Proper surface colors and contrast ratios in all modes
   - **Consistent Styling**: All UI elements use theme-defined colors throughout
 - **User Authentication**: Self-registration with email verification and unified login
+- **User Profile Management**: 
+  - **Display Name**: Edit and update user's display name (syncs with Cognito)
+  - **Daily Nuggets** (Coming Soon): Subscribe to receive daily inspirational quotes
+  - **Delivery Options**: Choose between Email or Push Notifications for daily quotes
+  - **Multi-User Support**: User-scoped preferences prevent cross-user data sharing
 - **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading with O(1) performance
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High)
@@ -387,9 +392,16 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 - [x] Role-based access control
 - [x] Theme preference system (Light/Dark/System)
 - [x] Enhanced theming with consistent contrast
+- [x] User Profile Management with display name editing
+- [ ] **Daily Nuggets Feature** (In Progress)
+  - [ ] AWS SES integration for email delivery
+  - [ ] Push notification system for mobile apps
+  - [ ] Scheduled Lambda for daily quote selection
+  - [ ] User preference storage in DynamoDB
+  - [ ] Smart quote rotation algorithm
+  - [ ] Delivery time customization
 - [ ] User favorites and personal collections
 - [ ] Social sharing features
-- [ ] Daily quote notifications
 - [ ] Quote collections/categories
 - [ ] Analytics dashboard
 - [ ] Multi-language support
