@@ -105,12 +105,14 @@ class _LoginScreenState extends State<LoginScreen> {
         height: double.infinity,
         color: theme.scaffoldBackgroundColor,
         child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+          child: Center(
+            child: SingleChildScrollView(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                   const SizedBox(height: 60),
                   
                   // App Logo/Title
@@ -364,7 +366,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

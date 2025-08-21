@@ -163,6 +163,7 @@ def handle_confirmation(body, headers):
             }
         
         client_id = os.environ.get('USER_POOL_CLIENT_ID')
+        user_pool_id = os.environ.get('USER_POOL_ID')
         
         # Confirm the user
         cognito_client.confirm_sign_up(
@@ -170,6 +171,18 @@ def handle_confirmation(body, headers):
             Username=email,
             ConfirmationCode=code
         )
+        
+        # Add user to Users group after confirmation
+        try:
+            cognito_client.admin_add_user_to_group(
+                UserPoolId=user_pool_id,
+                Username=email,
+                GroupName='Users'
+            )
+            print(f"Added confirmed user {email} to Users group")
+        except Exception as group_error:
+            print(f"Error adding confirmed user to group: {group_error}")
+            # Continue even if group assignment fails - user can still sign in
         
         return {
             'statusCode': 200,
