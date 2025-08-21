@@ -58,6 +58,15 @@ class _QuoteScreenState extends State<QuoteScreen> {
     _checkAuthStatus();
   }
   
+  String _toTitleCase(String text) {
+    if (text.isEmpty) return text;
+    
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+  
   Future<void> _checkAuthStatus() async {
     final isSignedIn = await AuthService.isSignedIn();
     if (isSignedIn) {
@@ -358,6 +367,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     
     // Add tags if available
     if (_currentTags.isNotEmpty) {
+      shareText.writeln();
       shareText.writeln('Tags: ${_currentTags.join(", ")}');
     }
     
@@ -598,7 +608,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 8),
                         Text(
-                          'Hi, ${_userName != null && _userName!.isNotEmpty ? _userName![0].toUpperCase() + _userName!.substring(1).toLowerCase() : _userName ?? ''}',
+                          'Hi, ${_userName != null && _userName!.isNotEmpty ? _toTitleCase(_userName!) : _userName ?? ''}',
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ],
@@ -791,7 +801,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Ready for some inspiration?',
+                          'Ready for inspiration?',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,
@@ -817,7 +827,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   ),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    shadowColor: Theme.of(context).colorScheme.secondary.withValues(alpha: 77),
+                    shadowColor: Theme.of(context).colorScheme.secondary,
                     elevation: 4,
                   ),
                 ),

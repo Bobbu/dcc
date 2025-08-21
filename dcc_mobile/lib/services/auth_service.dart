@@ -192,4 +192,38 @@ class AuthService {
       return null;
     }
   }
+
+  static Future<ResetPasswordResult> resetPassword({
+    required String username,
+  }) async {
+    try {
+      final result = await Amplify.Auth.resetPassword(
+        username: username,
+      );
+      LoggerService.info('✅ Password reset code sent to $username');
+      return result;
+    } catch (e) {
+      LoggerService.error('Password reset error: $e', error: e);
+      rethrow;
+    }
+  }
+
+  static Future<ResetPasswordResult> confirmPasswordReset({
+    required String username,
+    required String newPassword,
+    required String confirmationCode,
+  }) async {
+    try {
+      final result = await Amplify.Auth.confirmResetPassword(
+        username: username,
+        newPassword: newPassword,
+        confirmationCode: confirmationCode,
+      );
+      LoggerService.info('✅ Password reset confirmed for $username');
+      return result;
+    } catch (e) {
+      LoggerService.error('Password reset confirmation error: $e', error: e);
+      rethrow;
+    }
+  }
 }

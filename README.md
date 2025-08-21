@@ -32,12 +32,14 @@ A comprehensive quote management system with enterprise-grade features, includin
 
 ### Backend Infrastructure
 - **Serverless Architecture**: AWS Lambda + API Gateway + DynamoDB
-- **Multi-Layer Authentication**: Public API (API Key), User registration (no auth), Admin API (JWT)
+- **Authentication Model**: 
+  - **Public/Anonymous APIs**: API Key only (rate limited) - quotes, tags, registration
+  - **Admin APIs**: JWT token + "Admins" group membership (no rate limits) - CRUD operations
 - **User Management**: Self-service registration with Cognito and role-based groups
 - **Custom Domain**: SSL-secured endpoints via Route53 and CloudFront
 - **High Performance**: Tags metadata caching for zero-scan operations
 - **CORS Support**: Full web application compatibility
-- **Rate Limiting**: 1 req/sec sustained, 5 req/sec burst, 1,000 req/day
+- **Rate Limiting**: Applied only to public API endpoints (1 req/sec sustained, 5 req/sec burst)
 - **Auto-scaling**: Serverless infrastructure scales automatically
 
 ## 🛠️ Technology Stack
@@ -77,10 +79,16 @@ cd quote-me
 ### 2. Deploy Backend
 ```bash
 cd aws
-sam build && sam deploy
+./deploy.sh      # Use official deployment script for consistency
 cd ..
 ./update_env.sh  # Auto-configures environment
 ```
+
+**✅ ALWAYS USE `./deploy.sh` FOR AWS DEPLOYMENTS**
+- Uses `aws/template.yaml` as single source of truth
+- Handles OpenAI API key injection securely
+- Manages all CloudFormation stack components
+- Ensures consistent deployments across environments
 
 ### 3. Run Mobile App
 ```bash
@@ -191,7 +199,7 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
 - **Quote Management Menu**: Preview detail, Edit, and Delete options for each quote
 - **Duplicate Cleanup**: Intelligent detection and removal
 - **Batch Import**: Google Sheets TSV import with progress tracking
-- **Export System**: Complete data backup with metadata for disaster recovery
+- **Export System**: Comprehensive export with multiple destinations (Download, Clipboard, Cloud Storage)
 - **Real-time Updates**: Instant synchronization with public API
 - **Enhanced UI**: Optimized contrast and theming for light/dark modes
 
@@ -210,6 +218,22 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
 3. Paste data and preview
 4. Import with real-time progress tracking
 5. Handles rate limiting automatically
+
+### Export System
+**Multiple Export Destinations:**
+- **Download** (Web only): Direct file download to local device
+- **Clipboard** (All platforms): Copy formatted data for small datasets
+- **Cloud Storage** (All platforms): S3 export with shareable 48-hour URLs
+
+**Key Features:**
+- **Complete Database Export**: Exports entire database, not just UI-loaded data
+- **Multiple Formats**: JSON (structured) and CSV (spreadsheet-friendly) 
+- **Cross-Platform**: Optimized UX for web, iOS, and Android
+- **Secure Sharing**: Pre-signed URLs with mobile share sheet integration
+- **Gzip Compression**: Efficient compression for cloud storage
+- **Platform-Aware**: Shows appropriate options based on device capabilities
+
+**Access**: Admin Dashboard → Menu → "Export Quotes" or "Export Tags"
 
 ## 🔧 Project Structure
 
@@ -297,17 +321,28 @@ The Quote Me app includes a comprehensive text-to-speech system for enhanced acc
 ## 🧪 Testing
 
 ### API Tests
+
+**Public API Tests (API Key Required)**
 ```bash
-# Public API test suite
+# Test public endpoints - requires API Key authentication
 ./tests/test_api.sh
-
-# Admin API regression tests
-./tests/test_admin_api.sh
-
-# Tag management tests
-python3 tests/test_tag_editor.py
-python3 tests/test_tag_cleanup.py
 ```
+
+**Admin API Tests (JWT Required - RECOMMENDED APPROACH)**
+```bash
+# These scripts automatically create/delete temporary admin users
+./tests/test_admin_api.sh                    # Comprehensive regression tests
+python3 tests/test_tag_editor.py             # Tag management functionality
+python3 tests/test_tag_cleanup.py            # Tag cleanup operations
+```
+
+**Manual Admin API Testing**
+When testing admin endpoints manually, follow this pattern:
+1. Create temporary admin user with AWS CLI
+2. Perform authenticated API tests using JWT tokens
+3. Clean up by deleting the temporary admin user
+
+This approach prevents pollution of the production user base and ensures clean test environments.
 
 ### Flutter Tests
 ```bash
@@ -320,10 +355,10 @@ flutter test
 ### Backend
 ```bash
 cd aws
-sam build
-sam deploy --guided  # First time
-sam deploy           # Updates
+./deploy.sh          # ALWAYS use official deployment script
 ```
+
+**Important**: Use `./deploy.sh` instead of raw `sam` commands for consistent deployments.
 
 ### Mobile Apps
 ```bash

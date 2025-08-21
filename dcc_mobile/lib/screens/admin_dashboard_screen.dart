@@ -12,6 +12,8 @@ import '../services/auth_service.dart';
 import '../services/admin_api_service.dart';
 import '../services/openai_proxy_service.dart';
 import '../services/logger_service.dart';
+import '../services/export_service.dart';
+import '../widgets/export_destination_dialog.dart';
 import 'tags_editor_screen.dart';
 import 'candidate_quotes_screen.dart';
 import '../themes.dart';
@@ -892,6 +894,149 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  Future<void> _exportQuotes() async {
+    try {
+      // Show export destination dialog (no itemCount - backend will export full database)
+      final result = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => const ExportDestinationDialog(
+          exportType: 'quotes',
+          // Don't pass itemCount - let backend handle full database export
+        ),
+      );
+      
+      if (result == null) return;
+      
+      final destination = result['destination'] as ExportDestination;
+      final format = result['format'] as ExportFormat;
+      
+      // Show loading indicator
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text('Exporting quotes...'),
+              ],
+            ),
+          ),
+        );
+      }
+      
+      // Perform export
+      final exportResult = await ExportService.exportData(
+        type: 'quotes',
+        destination: destination.toString().split('.').last,
+        format: format.toString().split('.').last,
+      );
+      
+      // Hide loading indicator
+      if (mounted) {
+        Navigator.pop(context);
+      }
+      
+      // Handle export result
+      if (exportResult['success'] == true) {
+        if (destination == ExportDestination.s3) {
+          // Show success dialog with download link
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Export Successful'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Your quotes have been exported to cloud storage.'),
+                    const SizedBox(height: 16),
+                    if (exportResult['statistics'] != null) ...[
+                      Text('Total quotes: ${exportResult['statistics']['total_quotes']}'),
+                      Text('Unique authors: ${exportResult['statistics']['unique_authors']}'),
+                      Text('Unique tags: ${exportResult['statistics']['unique_tags']}'),
+                      const SizedBox(height: 16),
+                    ],
+                    const Text('The download link expires in 48 hours.'),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                  if (!kIsWeb)
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await ExportService.shareExportLink(exportResult['downloadUrl']);
+                      },
+                      child: const Text('Share Link'),
+                    ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await ExportService.openExportLink(exportResult['downloadUrl']);
+                    },
+                    child: const Text('Download'),
+                  ),
+                ],
+              ),
+            );
+          }
+        } else if (destination == ExportDestination.clipboard) {
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${exportResult['statistics']['total_quotes']} quotes copied to clipboard'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else if (destination == ExportDestination.download) {
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Quotes exported to ${exportResult['filename']}'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } else {
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Export failed: ${exportResult['message'] ?? 'Unknown error'}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Hide loading indicator if still showing
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      
+      LoggerService.error('Export failed: $e', error: e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _exportTags() async {
     try {
       // Fetch all available tags with full metadata from the API
@@ -1162,6 +1307,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 _showCleanupDuplicatesDialog();
               } else if (value == 'export_tags') {
                 _exportTags();
+              } else if (value == 'export_quotes') {
+                _exportQuotes();
               } else if (value == 'generate_tags') {
                 _showGenerateTagsDialog();
               } else if (value == 'find_quotes') {
@@ -1238,6 +1385,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ],
                 ),
               ),
+              PopupMenuItem(
+                value: 'export_quotes',
+                child: Row(
+                  children: [
+                    Icon(Icons.download, color: Theme.of(context).colorScheme.primary),
+                    SizedBox(width: 8),
+                    Text('Export Quotes'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'generate_tags',
                 child: Row(
@@ -1252,7 +1409,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 value: 'find_quotes',
                 child: Row(
                   children: [
-                    Icon(Icons.search, color: Colors.blue),
+                    Icon(Icons.auto_awesome, color: Colors.blue),
                     SizedBox(width: 8),
                     Text('Find New Quotes'),
                   ],

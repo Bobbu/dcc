@@ -180,6 +180,14 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Auth:
               ApiKeyRequired: false
+        OptionsAdminExportS3:
+          Type: Api
+          Properties:
+            Path: /admin/export-s3
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
 
   # Auth Lambda function for registration and confirmation
   AuthFunction:
@@ -576,6 +584,107 @@ Resources:
       Stage: prod
     DependsOn: ApiGatewayApiprodStage
 
+  # S3 Bucket for database exports
+  ExportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: quote-me-app-db-exports
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldExports
+            Status: Enabled
+            ExpirationInDays: 30
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+
+  # Lambda function for handling S3 exports
+  ExportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-export-handler
+      CodeUri: lambda/
+      Handler: export_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          TABLE_NAME: dcc-quotes-optimized
+          EXPORT_BUCKET: !Ref ExportsBucket
+          USER_POOL_ID: !Ref UserPool
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: dcc-quotes-optimized
+        - S3CrudPolicy:
+            BucketName: !Ref ExportsBucket
+        - Statement:
+          - Effect: Allow
+            Action:
+              - cognito-idp:ListUsers
+              - cognito-idp:AdminGetUser
+            Resource: !GetAtt UserPool.Arn
+      Events:
+        ExportApi:
+          Type: Api
+          Properties:
+            Path: /admin/export-s3
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # Gateway Response for CORS on 4xx errors
+  GatewayResponse4xx:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-api-key'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+
+  # Gateway Response for CORS on 5xx errors
+  GatewayResponse5xx:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-api-key'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+
+  # Specific Gateway Response for Unauthorized (401)
+  GatewayResponseUnauthorized:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      ResponseType: UNAUTHORIZED
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-api-key'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+
 Outputs:
   ApiUrl:
     Description: "API Gateway endpoint URL"
@@ -606,6 +715,12 @@ Outputs:
     Value: !Ref UserPool
     Export:
       Name: DccUserPoolId
+  
+  ExportsBucketName:
+    Description: "S3 Bucket for database exports"
+    Value: !Ref ExportsBucket
+    Export:
+      Name: DccExportsBucket
 
   UserPoolClientId:
     Description: "Cognito User Pool Client ID" 

@@ -16,35 +16,26 @@ The architecture follows modern cloud-native patterns with JWT authentication, D
 
 ### AWS API Development
 
-#### Standard Deployment
+#### Primary Deployment Method (RECOMMENDED)
 ```bash
 # Navigate to AWS directory
 cd aws
 
-# Deploy complete stack (API Gateway, Lambda, DynamoDB, Cognito, OpenAI)
-# Requires .env.deployment file with OpenAI API key
-source .env.deployment && sam build && sam deploy --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY"
+# Deploy complete stack using the official deployment script
+./deploy.sh
 
-# Update environment files with latest AWS outputs
-cd ..
-./update_env.sh
+# This script handles:
+# - Building SAM application
+# - Deploying with OpenAI API key from environment
+# - All CloudFormation stack management
+# - Proper parameter overrides and configurations
 ```
 
-#### Optimized Backend Deployment
-```bash
-# Deploy optimized infrastructure from scratch (recommended for new environments)
-cd aws
-./deploy-optimized-full.sh
-
-# OR update existing deployment to use optimized handlers and table
-./deploy-optimized.sh
-
-# Run data migration from original table to optimized table (if needed)
-python3 run_migration.py
-
-# Test performance improvements
-python3 performance_test.py
-```
+**✅ ALWAYS USE `./deploy.sh` FOR CONSISTENT DEPLOYMENTS**
+- Uses `aws/template.yaml` as the single source of truth
+- Handles all AWS stack components automatically
+- Manages OpenAI API key injection securely
+- Ensures consistent deployment across environments
 
 **✅ CURRENT STATUS: OPTIMIZED BACKEND FULLY DEPLOYED**
 - **Database**: `dcc-quotes-optimized` table with 3,798 items and all 4 GSI indexes ACTIVE
@@ -64,22 +55,63 @@ python3 performance_test.py
   - Type-ahead ready with debounce-friendly fast responses ✅
 
 #### API Testing
+
+**Public API Testing (API Key Required)**
 ```bash
-# Test public API endpoints (includes dynamic tags endpoint)
+# Test public API endpoints - these require API Key authentication
 cd tests
 ./test_api.sh
+```
 
-# Test admin API with comprehensive regression tests
-./test_admin_api.sh
+**Admin API Testing (JWT Required)**
+```bash
+# RECOMMENDED: Use automated testing scripts that manage temporary admin users
+./test_admin_api.sh                    # Comprehensive admin regression tests
+python3 tests/test_tag_cleanup.py      # Tag cleanup functionality tests
+python3 tests/test_tag_editor.py       # Individual tag management tests
+./tests/test_pagination_search.sh      # Pagination and search tests
 
-# Test tag cleanup functionality specifically
-python3 tests/test_tag_cleanup.py
+# These scripts automatically:
+# 1. Create temporary admin user for testing
+# 2. Perform authenticated API tests using JWT tokens
+# 3. Clean up by deleting the temporary admin user
+```
 
-# Test individual tag management functionality
-python3 tests/test_tag_editor.py
+**Manual Admin API Testing**
+```bash
+# For manual testing, create temporary admin user and get JWT token:
+aws cognito-idp admin-create-user \
+  --user-pool-id us-east-1_ecyuILBAu \
+  --username temp_admin_test \
+  --temporary-password TempPass123! \
+  --message-action SUPPRESS
 
-# Test pagination and search functionality
-./tests/test_pagination_search.sh
+aws cognito-idp admin-set-user-password \
+  --user-pool-id us-east-1_ecyuILBAu \
+  --username temp_admin_test \
+  --password TestPass123! \
+  --permanent
+
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id us-east-1_ecyuILBAu \
+  --username temp_admin_test \
+  --group-name Admins
+
+# Get JWT token for API calls:
+aws cognito-idp admin-initiate-auth \
+  --user-pool-id us-east-1_ecyuILBAu \
+  --client-id 2idvhvlhgbheglr0hptel5j55 \
+  --auth-flow ADMIN_NO_SRP_AUTH \
+  --auth-parameters USERNAME=temp_admin_test,PASSWORD=TestPass123!
+
+# Test admin endpoints with JWT token:
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  "https://dcc.anystupididea.com/admin/quotes"
+
+# Clean up when done:
+aws cognito-idp admin-delete-user \
+  --user-pool-id us-east-1_ecyuILBAu \
+  --username temp_admin_test
 ```
 
 ### Flutter App Development
@@ -463,50 +495,51 @@ The admin dashboard includes an intelligent AI-powered tag generation feature po
 
 **Access Method**: Admin Dashboard → Menu → "Generate tags for the tagless"
 
-### Backup Export System
-The admin dashboard includes a comprehensive data export feature for backup and disaster recovery:
+### Comprehensive Export System
+The admin dashboard includes a full-featured export system with multiple destination options for quotes and tags:
 
-**Core Features**:
-- **Complete Data Export**: Exports all quotes, authors, and tags in structured format
-- **Metadata Included**: Export timestamp, counts, version info for data integrity
-- **Efficient Processing**: Uses optimized database indexes for fast bulk export
-- **Download Ready**: Proper Content-Disposition headers for direct file download
-- **Flexible Formats**: JSON (implemented) with CSV support planned
+**Export Destinations**:
+- **Download**: Direct file download (web platforms only) - immediate local file save
+- **Clipboard**: Copy formatted data to clipboard (all platforms) - for small datasets
+- **Cloud Storage**: S3 export with shareable pre-signed URL (all platforms) - best for large datasets
 
-**Export Structure**:
+**Export Features**:
+- **Complete Database Export**: Exports entire database, not just loaded UI data
+- **Multiple Formats**: JSON (structured) and CSV (spreadsheet-friendly)
+- **Cross-Platform**: Works on web, iOS, and Android with platform-optimized UX
+- **Gzip Compression**: Efficient compression for cloud storage exports
+- **Secure Sharing**: 48-hour pre-signed URLs for safe sharing via mobile share sheet
+- **Platform-Aware UI**: Shows appropriate options based on device capabilities
+
+**Export Structure** (JSON format):
 ```json
 {
   "export_metadata": {
-    "timestamp": "2025-08-18T18:08:37Z",
-    "total_quotes": 6539,
-    "total_authors": 423,
-    "total_tags": 351,
-    "format": "json", 
-    "version": "2.0"
+    "timestamp": "2025-08-21T15:30:00Z",
+    "user": "admin@example.com",
+    "format": "json",
+    "type": "quotes",
+    "total_quotes": 3798,
+    "unique_authors": 423,
+    "unique_tags": 351
   },
-  "quotes": [...],    // All quotes with full metadata
-  "authors": [...],   // Unique sorted author list
-  "tags": [...]       // Unique sorted tag list
+  "quotes": [...] // All quotes with complete metadata
 }
 ```
 
-**Query Parameters**:
-- `format=json` (default) or `format=csv`
-- `metadata=true` (default) to include created_by information
-
 **Technical Implementation**:
-- **Efficient Scanning**: Uses TypeDateIndex for optimized database access
-- **Memory Management**: Processes large datasets without Lambda timeout issues  
-- **Error Handling**: Comprehensive error recovery and logging
-- **Security**: Admin JWT authentication required for all export operations
+- **Backend Processing**: Full database scanning with efficient pagination
+- **S3 Integration**: Automated bucket management with lifecycle policies
+- **CORS Support**: Proper web browser compatibility
+- **Error Handling**: Graceful fallback and retry mechanisms
+- **Authentication**: JWT-based admin authorization
 
-**Use Cases**:
-- **Disaster Recovery**: Complete data backup before major changes
-- **Data Migration**: Moving between environments or accounts
-- **Analytics**: Bulk data analysis and reporting
-- **Compliance**: Data export for regulatory requirements
+**Mobile vs Web Behavior**:
+- **Web**: Download, Clipboard, Cloud Storage all available
+- **Mobile**: Clipboard and Cloud Storage (Download redirects to Cloud Storage)
+- **Sharing**: Mobile uses native share sheet, web copies to clipboard
 
-**Access Method**: `GET /admin/export` endpoint (API Gateway route setup required)
+**Access Method**: Admin Dashboard → Menu → "Export Quotes" or "Export Tags"
 
 ### Tags Editor System
 The dedicated Tags Editor provides comprehensive tag management capabilities separate from quote management:
@@ -551,11 +584,15 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 
 ### Key Integration Points
 1. **Environment Management**: Automated via `./update_env.sh` script that syncs AWS outputs to `.env` files
-2. **Authentication Flow**: 
-   - Public API: `x-api-key` header for rate-limited quote access
-   - Admin API: `Authorization: Bearer {IdToken}` for full CRUD operations
-3. **Data Flow**: DynamoDB → Lambda → API Gateway → Flutter with real-time search and filtering
-4. **Security Model**: Dual-layer with API keys for public access and JWT for admin operations
+2. **Authentication Architecture**: 
+   - **Public/Anonymous APIs**: Only require API Key (`x-api-key` header) - rate limited
+   - **Admin APIs**: Require JWT token (`Authorization: Bearer {IdToken}`) - no rate limits
+   - **User Registration**: No authentication required for registration/confirmation endpoints
+3. **Security Model**: 
+   - API Keys for anonymous operations (quotes, tags) with rate limiting
+   - JWT tokens for authenticated operations (admin CRUD) with group-based authorization
+   - All admin endpoints require "Admins" group membership
+4. **Data Flow**: DynamoDB → Lambda → API Gateway → Flutter with real-time search and filtering
 5. **State Synchronization**: Admin changes immediately reflected in public API responses
 6. **Error Handling**: Graceful degradation with user-friendly messages across all failure modes
 7. **Custom Domain**: SSL-secured custom domain (dcc.anystupididea.com) with CloudFront distribution
@@ -693,7 +730,6 @@ The dedicated Tags Editor provides comprehensive tag management capabilities sep
 
 ### Future Enhancements
 - Additional authentication providers (Google, Apple Sign-In)
-- Quote import/export functionality  
 - Advanced analytics and usage metrics
 - Push notifications for new quotes
 - Offline mode with local caching
