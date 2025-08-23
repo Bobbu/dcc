@@ -25,6 +25,7 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading with O(1) performance
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High)
+- **About Dialog**: Responsive information dialog accessible to all users with app features and version info
 - **Settings Management**: Comprehensive user preferences with appearance, audio, and category controls
 - **Admin Dashboard**: Complete quote management interface with powerful search functionality and export features
   - **Quote Preview**: View quotes as they appear to shared users

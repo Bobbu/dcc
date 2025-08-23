@@ -1,749 +1,149 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working with the Quote Me codebase.
 
 ## Project Overview
 
-"Quote Me" is a comprehensive quote management system with enterprise-grade features consisting of:
-1. **AWS API Backend** - Secure, scalable API with authentication, CORS support, and database storage
-2. **Flutter Mobile & Web Apps** - Cross-platform applications with modern indigo theme and advanced capabilities  
-3. **Admin Management System** - Complete CRUD interface with search functionality and quote management
-4. **Web Deployment Infrastructure** - Automated deployment with CloudFront CDN, S3 hosting, and SSL certificates
-
-The architecture follows modern cloud-native patterns with JWT authentication, DynamoDB storage, API Gateway security with CORS, CloudFront distribution, and cross-platform design principles with a professional indigo color scheme.
+"Quote Me" is an enterprise-grade quote management system:
+- **AWS Backend**: Serverless API with dual authentication (API Key for public, JWT for admin)
+- **Flutter Apps**: Cross-platform mobile/web with professional indigo theme
+- **Admin System**: Full CRUD, search, import/export, and tag management
+- **Web Infrastructure**: Automated CloudFront/S3 deployment with SSL
 
 ## Development Commands
 
-### AWS API Development
-
-#### Primary Deployment Method (RECOMMENDED)
+### AWS Deployment
 ```bash
-# Navigate to AWS directory
 cd aws
-
-# Deploy complete stack using the official deployment script
-./deploy.sh
-
-# This script handles:
-# - Building SAM application
-# - Deploying with OpenAI API key from environment
-# - All CloudFormation stack management
-# - Proper parameter overrides and configurations
+./deploy.sh    # ALWAYS use this for consistent deployments
 ```
+✅ Uses `aws/template.yaml` as single source of truth
+✅ Handles OpenAI API key injection securely
 
-**✅ ALWAYS USE `./deploy.sh` FOR CONSISTENT DEPLOYMENTS**
-- Uses `aws/template.yaml` as the single source of truth
-- Handles all AWS stack components automatically
-- Manages OpenAI API key injection securely
-- Ensures consistent deployment across environments
+**✅ DEPLOYMENT STATUS**
+- Database: `dcc-quotes-optimized` with 3,798 items, 4 GSI indexes
+- Performance: 5-25x improvement with GSI queries
+- Domain: `https://dcc.anystupididea.com`
+- All endpoints operational with JWT auth for admin
 
-**✅ CURRENT STATUS: OPTIMIZED BACKEND FULLY DEPLOYED**
-- **Database**: `dcc-quotes-optimized` table with 3,798 items and all 4 GSI indexes ACTIVE
-- **Migration**: Data successfully migrated from original table (1,432 → 3,798 items)
-- **Infrastructure**: CloudFormation stack `dcc-demo-sam-app` deployed with optimized handlers
-- **Performance**: Using GSI-based queries instead of table scans for 5-25x performance improvement
-- **Endpoints**: All essential operations verified working:
-  - Random quotes: `GET /quote` ✅
-  - Tags endpoint: `GET /tags` (351 tags) ✅  
-  - Tag filtering: `GET /quote?tags=Leadership,Business` ✅
-  - Custom domain: `https://dcc.anystupididea.com` ✅
-- **Search & Pagination**: Advanced admin endpoints deployed and working:
-  - Search: `GET /admin/search?q=leadership&limit=10` ✅
-  - Author filtering: `GET /admin/quotes/author/Einstein?limit=5` ✅
-  - Tag filtering: `GET /admin/quotes/tag/Business?limit=10` ✅
-  - JWT authentication required for all admin endpoints ✅
-  - Type-ahead ready with debounce-friendly fast responses ✅
-
-#### API Testing
-
-**Public API Testing (API Key Required)**
+### API Testing
 ```bash
-# Test public API endpoints - these require API Key authentication
-cd tests
-./test_api.sh
-```
-
-**Admin API Testing (JWT Required)**
-```bash
-# RECOMMENDED: Use automated testing scripts that manage temporary admin users
-./test_admin_api.sh                    # Comprehensive admin regression tests
-python3 tests/test_tag_cleanup.py      # Tag cleanup functionality tests
-python3 tests/test_tag_editor.py       # Individual tag management tests
-./tests/test_pagination_search.sh      # Pagination and search tests
-
-# These scripts automatically:
-# 1. Create temporary admin user for testing
-# 2. Perform authenticated API tests using JWT tokens
-# 3. Clean up by deleting the temporary admin user
-```
-
-**Manual Admin API Testing**
-```bash
-# For manual testing, create temporary admin user and get JWT token:
-aws cognito-idp admin-create-user \
-  --user-pool-id us-east-1_ecyuILBAu \
-  --username temp_admin_test \
-  --temporary-password TempPass123! \
-  --message-action SUPPRESS
-
-aws cognito-idp admin-set-user-password \
-  --user-pool-id us-east-1_ecyuILBAu \
-  --username temp_admin_test \
-  --password TestPass123! \
-  --permanent
-
-aws cognito-idp admin-add-user-to-group \
-  --user-pool-id us-east-1_ecyuILBAu \
-  --username temp_admin_test \
-  --group-name Admins
-
-# Get JWT token for API calls:
-aws cognito-idp admin-initiate-auth \
-  --user-pool-id us-east-1_ecyuILBAu \
-  --client-id 2idvhvlhgbheglr0hptel5j55 \
-  --auth-flow ADMIN_NO_SRP_AUTH \
-  --auth-parameters USERNAME=temp_admin_test,PASSWORD=TestPass123!
-
-# Test admin endpoints with JWT token:
-curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  "https://dcc.anystupididea.com/admin/quotes"
-
-# Clean up when done:
-aws cognito-idp admin-delete-user \
-  --user-pool-id us-east-1_ecyuILBAu \
-  --username temp_admin_test
-```
-
-### Flutter App Development
-```bash
-# Navigate to Flutter app
-cd dcc_mobile
-
-# Install dependencies (includes AWS Amplify for authentication)
-flutter pub get
-
-# Run on iOS simulator (includes admin functionality)
-flutter run
-
-# Build for web
-flutter build web --release
-
-# Run tests
-flutter test
-```
-
-### Web App Deployment
-```bash
-# Deploy complete web application with automatic SSL and CDN
-./deploy-web.sh
-
-# Deploy to custom domain
-./deploy-web.sh myapp.example.com
-
-# Deploy with custom stack name and region
-./deploy-web.sh myapp.example.com my-stack us-west-2 my-flutter-app
-
-# Update existing web deployment (rebuild and upload)
-cd dcc_mobile
-flutter build web --release
-cd ..
-aws s3 sync dcc_mobile/build/web/ s3://BUCKET_NAME/ --delete
-aws cloudfront create-invalidation --distribution-id DISTRIBUTION_ID --paths "/*"
-```
-
-### Project Testing
-```bash
-# Test public API endpoint with rate limiting (from project root)
+# Public API tests (API Key required)
 ./tests/test_api.sh
 
-# Test admin API endpoints with comprehensive regression testing
-# (creates temporary admin user, tests all CRUD operations, cleans up)
+# Admin API tests (auto-creates temp admin user)
 ./tests/test_admin_api.sh
-
-# Test tag cleanup functionality specifically
-# (creates temp admin user, tests unused tag detection and cleanup)
 python3 tests/test_tag_cleanup.py
-
-# Test individual tag management functionality
-# (creates temp admin user, tests tag CRUD operations with data integrity)
 python3 tests/test_tag_editor.py
-
-# Manual admin authentication for debugging:
-aws cognito-idp admin-initiate-auth \
-  --user-pool-id us-east-1_ecyuILBAu \
-  --client-id 2idvhvlhgbheglr0hptel5j55 \
-  --auth-flow ADMIN_NO_SRP_AUTH \
-  --auth-parameters USERNAME=admin@dcc.com,PASSWORD=AdminPass123!
-
-# Test dynamic tags endpoint
-curl -H "X-Api-Key: ZRHZ2Nepyi9N8hbe9730y3UGnDSwOlGPars7blN9" \
-  "https://dcc.anystupididea.com/tags"
-
-# Open iOS Simulator for mobile testing
-open -a Simulator
 ```
 
-## Architecture Details
+### Flutter Development
+```bash
+cd dcc_mobile
+flutter pub get
+flutter run       # iOS/Android
+flutter build web --release  # Web
+```
 
-### API Component (`aws/`)
-- **SAM Template**: `template.yaml` defines complete serverless infrastructure
-  - API Gateway with dual authentication (API Key for public, Cognito JWT for authenticated users)
-  - Lambda functions for public quotes, user registration, admin CRUD operations, and AI tag generation
-  - DynamoDB table with Global Secondary Index for multi-tag querying
-  - Cognito User Pool with self-registration and role-based groups (Users, Admins)
-  - Custom domain support with SSL certificates
+### Web Deployment
+```bash
+./deploy-web.sh [domain]  # Full deployment with SSL/CDN
+```
+
+## Architecture
+
+### Backend (`aws/`)
+- **Infrastructure**: SAM template with API Gateway, Lambda, DynamoDB, Cognito
+- **Authentication**: Dual-layer (API Key for public, JWT for admin)
 - **Lambda Functions**:
-  - `quote_handler.py`: Public quote API with tag validation, filtering + dynamic tags endpoint (GET /tags)
-    - Validates requested tags against metadata
-    - Gracefully handles non-existent tags
-    - Falls back to "All" if no valid tags found
-  - `admin_handler.py`: Admin CRUD operations with comprehensive tags management and data integrity
-    - Tag rename/delete operations automatically update all affected quotes
-    - Maintains tags metadata cache for O(1) retrieval
-  - `auth_handler.py`: User registration and email confirmation
-    - Self-service user registration with email verification
-    - Automatic assignment to Users group upon registration
-    - Handles password validation and Cognito integration
-  - `options_handler.py`: CORS preflight handler for web browser compatibility
-    - Handles OPTIONS requests without authentication
-    - Returns proper CORS headers for cross-origin requests
-    - Enables web application functionality
-  - `openai_handler.py`: Secure OpenAI API proxy for enterprise tag generation
-    - Proxies requests to OpenAI GPT-4o-mini for intelligent tag generation
-    - Keeps OpenAI API key secure in Lambda environment variables
-    - Handles rate limiting and error recovery for AI requests
-    - Admin authentication required for all tag generation operations
-- **Database**: DynamoDB with tags metadata caching for zero-scan performance
-  - TAGS_METADATA record maintains complete tag list for O(1) retrieval
-  - Admin operations automatically update tags metadata with full data integrity
-  - Individual tag management with automatic quote synchronization
-  - Metadata records properly filtered from quote listings
-  - No database scanning required for tag list retrieval
-- **Response Format**: JSON with `quote`, `author`, `tags`, and `id` fields
-- **Security Features**:
-  - API Key authentication for public endpoints (rate limited)
-  - Cognito JWT authentication for registered user endpoints (no rate limits)
-  - Role-based access control with Users and Admins groups
-  - Self-registration with email verification required
-  - Password complexity requirements (8+ chars, upper, lower, number, special char)
-  - CORS configured for web and mobile app access
-  - OPTIONS handlers for browser preflight requests
-- **Rate Limits**: 1 req/sec sustained, 5 req/sec burst, 1,000 req/day for public API
-- **Monitoring**: CloudWatch metrics, logging, and distributed tracing enabled
+  - `quote_handler.py`: Public API with tag filtering, O(1) tag retrieval
+  - `admin_handler.py`: CRUD with tag management and data integrity
+  - `auth_handler.py`: User registration/verification
+  - `options_handler.py`: CORS support
+  - `openai_handler.py`: Secure GPT-4o-mini proxy for tag generation
+- **Performance**: Tags metadata caching, GSI indexes, zero-scan operations
+- **Security**: Rate limiting (public only), email verification, role-based access
 
-### Optimized Backend Architecture (`aws/template-optimized.yaml`)
-**Performance-Enhanced Infrastructure with Single Table Design**
-- **Optimized DynamoDB Table**: `dcc-quotes-optimized` with advanced indexing strategy
-  - **Single Table Design**: All data types (quotes, tags, metadata) in one table with composite keys
-  - **Global Secondary Indexes**:
-    - `TypeDateIndex`: Fast retrieval of all items by type sorted by date
-    - `AuthorDateIndex`: Efficient author-based queries with date sorting
-    - `TagQuoteIndex`: Direct tag-to-quote mapping for instant tag filtering
-    - `SearchIndex`: Text-based search optimization (future OpenSearch integration)
-  - **DynamoDB Streams**: Real-time processing of data changes for analytics
-  - **Point-in-Time Recovery**: Enabled for production environments
-  - **TTL Support**: Automatic cleanup of temporary data (session tokens, etc.)
-
-- **Optimized Lambda Functions**:
-  - `quote_handler_optimized.py`: 2-10x faster quote retrieval using GSI queries instead of scans
-    - Tag-based filtering uses `TagQuoteIndex` for O(log n) performance vs O(n) table scans
-    - Author queries use `AuthorDateIndex` for instant results
-    - New endpoints: `/quotes/author/{author}`, `/quotes/tag/{tag}`, `/search`
-  - `admin_handler_optimized.py`: Enhanced with bulk operations and export functionality
-    - **NEW**: `/admin/export` - Complete data backup endpoint for disaster recovery
-    - Batch processing for large tag operations
-    - Improved error handling with detailed CloudWatch logging
-  - `stream_processor.py`: Real-time data processing and analytics
-  - `migration.py`: One-time data migration from original to optimized table structure
-
-- **Performance Improvements**:
-  - **Tag Queries**: 5-15x faster using direct index access vs filtered scans
-  - **Author Queries**: 10-25x faster using dedicated author index
-  - **Random Quote Selection**: 2-3x faster using type index instead of full table scan
-  - **Memory Usage**: Reduced by 40% through optimized data structures
-  - **Cost Reduction**: 60-80% lower DynamoDB costs through efficient queries
-
-- **Deployment Scripts**:
-  - `deploy-optimized-full.sh`: Complete infrastructure deployment from scratch
-  - `deploy-optimized.sh`: Update existing deployment to use optimized handlers
-  - Automatic error handling, timing waits, and permission management
-  - S3 bucket resolution and CloudFormation stack management
 
 ### Flutter App (`dcc_mobile/`)
-- **App Name**: Quote Me - Modern quote management application
-- **Platform Support**: iOS, Android, and Web (https://quote-me.anystupididea.com)
-- **Architecture**: Clean separation with screens in dedicated folders and services
-- **Screen Components**:
-  - `quote_screen.dart`: Main app with responsive layout, category filtering, and unified authentication menu
-  - `settings_screen.dart`: Dynamic tag loading with voice testing and server synchronization
-  - `login_screen.dart`: Unified authentication for all users with role-based navigation
-  - `registration_screen.dart`: Self-service user registration with email verification
-  - `user_profile_screen.dart`: User profile management with name editing and Daily Nuggets subscription preferences
-  - `admin_dashboard_screen.dart`: Full quote management interface with CRUD operations and powerful search functionality
-  - `tags_editor_screen.dart`: Dedicated tag management interface with individual tag CRUD operations
-- **Authentication Service**: `lib/services/auth_service.dart`
-  - AWS Amplify Cognito integration for secure authentication
-  - Self-registration and email verification support
-  - Role-based group membership verification (Users, Admins)
-  - JWT token management for API calls
-  - Persistent authentication state management
-  - Unified login for all user types
-- **Dependencies**:
-  - `http: ^1.1.0`: API communication with authentication headers
-  - `flutter_tts: ^4.0.2`: Advanced text-to-speech with voice selection
-  - `shared_preferences: ^2.2.2`: Local settings persistence
-  - `flutter_dotenv: ^5.1.0`: Environment variable management
-  - `amplify_flutter: ^2.0.0`: AWS Amplify core functionality
-  - `amplify_auth_cognito: ^2.0.0`: Cognito authentication integration
-- **State Management**: setState() pattern with service-layer abstraction
-- **Error Handling**: Comprehensive error handling with automatic retry logic for 500 errors
-- **Theme**: Modern professional branding with comprehensive theming system:
-  - **User Theme Control**: Settings page theme selector with Light, Dark, and System options
-  - **Persistent Preferences**: Theme selection saved across app sessions using SharedPreferences
-  - **Light Mode**: Dark indigo (#3F51B5) primary, light indigo (#5C6BC0) accent, light indigo background (#E8EAF6)
-  - **Dark Mode**: Optimized contrast with proper surface colors (#2A2A2A) against dark background (#121212)
-  - **Smart Theming**: All UI elements consistently use theme-defined colors across entire application
-  - **Enhanced Contrast**: Quote containers and UI elements properly contrast in both themes
-  - **Professional Styling**: Appropriate contrast ratios and consistent visual hierarchy throughout
-- **Advanced Features**:
-  - **Audio System**: Advanced text-to-speech with comprehensive controls:
-    - Voice selection from 20-50+ available voices with real-time testing
-    - Speech rate control: Very Slow (0.15), Moderate (0.45), Normal (0.55), Fast (0.75)
-    - Voice pitch control: Low (0.6), Normal (1.0), High (1.4)
-    - Smart interruption controls and simulator compatibility
-    - Persistent settings with immediate application to quote playback
-  - **User Profile System**: Comprehensive profile management with:
-    - Display name editing with Cognito attribute updates
-    - Daily Nuggets subscription preferences (preparation for future feature)
-    - Email or Push Notification delivery method selection
-    - User-scoped preferences using email-prefixed SharedPreferences keys
-    - Proper multi-user support on shared devices
-  - **Dynamic Tag System**: Real-time tag loading with 3-tag minimum for variety
-  - **Admin Management**: Complete quote CRUD with real-time updates, advanced sorting, and tag export functionality
-  - **Quote Sorting**: AppBar toggle buttons for sorting by Quote, Author, or Created Date (ascending/descending)
-  - **Search Functionality**: Powerful search that finds quotes by content, author, or tags (replaced tag filter dropdown)
-  - **Duplicate Management**: Smart duplicate detection and cleanup with intelligent selection
-  - **Tag Management System**: Dedicated Tags Editor with individual tag CRUD operations
-  - **AI Tag Generation**: OpenAI GPT-4o-mini integration for intelligent tag generation:
-    - Enterprise-grade security with AWS Lambda proxy pattern
-    - Batch processing with user-controlled flow (5 quotes at a time with pause/continue)
-    - Real-time progress tracking with countdown timers and quote context display
-    - Smart tag selection preferring existing tags over creating new ones
-    - Cross-platform support (iOS, Android, Web) with CORS-compliant implementation
-  - **Import System**: Copy/paste TSV import from Google Sheets with real-time progress tracking
-  - **Progress Tracking**: Batch processing with visual progress bar and status updates
-  - **Tag Cleanup System**: Automated removal of unused tags from metadata with confirmation dialog
-  - **Data Integrity**: Automatic quote synchronization when tags are renamed or deleted
-  - **User Settings**: Comprehensive settings management system:
-    - **Appearance Control**: Theme preference selector (Light/Dark/System) with instant switching
-    - **Audio Configuration**: Voice selection, speech rate, and pitch controls with real-time testing
-    - **Tag Preferences**: Dynamic category selection with server synchronization
-    - **Persistent Storage**: All settings saved locally and restored across app sessions
-    - **Consistent Theming**: All settings sections use theme-defined colors for perfect dark/light mode support
-  - **Responsive Design**: Perfect layout in all orientations with no overflow
-  - **Security Integration**: Seamless admin access with role-based permissions
-  - **Resilience Features**: Automatic retry with exponential backoff for server errors
+- **Platforms**: iOS, Android, Web (https://quote-me.anystupididea.com)
+- **Key Screens**:
+  - `quote_screen.dart`: Main app with About dialog, unified auth menu
+  - `settings_screen.dart`: Theme selector, voice controls, tag preferences
+  - `admin_dashboard_screen.dart`: Full CRUD, search, import/export
+  - `tags_editor_screen.dart`: Individual tag management
+  - `user_profile_screen.dart`: Profile management, Daily Nuggets prep
+- **Authentication**: AWS Amplify Cognito with JWT management
+- **Theme System**: Light/Dark/System modes with persistent preferences
+- **Audio**: TTS with 20-50+ voices, rate/pitch controls
+### Key Features
+- **About Dialog**: Responsive dialog with app info, accessible to all users
+- **AI Tag Generation**: GPT-4o-mini via secure Lambda proxy
+- **Import/Export**: TSV import, multi-format export (JSON/CSV)
+- **Duplicate Management**: Smart detection and cleanup
+- **Search**: Universal search across quotes, authors, tags
+- **Sorting**: 4-field sorting with persistent preferences
+- **Progress Tracking**: Real-time status for batch operations
 
-### Web Deployment Infrastructure (`web-infrastructure.yaml` & `deploy-web.sh`)
-- **CloudFormation Template**: Complete web hosting infrastructure with automatic SSL
-  - **S3 Bucket**: Static website hosting with CORS configuration
-  - **CloudFront Distribution**: Global CDN with edge caching and HTTPS redirect
-  - **Route53 Records**: Automatic DNS setup with alias records
-  - **ACM Certificate**: Automatic SSL certificate creation and validation
-  - **Origin Access Control**: Secure S3 access from CloudFront only
-- **Deployment Script**: Comprehensive automation for Flutter web deployment
-  - **Prerequisites Check**: Validates AWS CLI, Flutter SDK, and hosted zone
-  - **Certificate Management**: Automatic SSL certificate detection and creation
-  - **Flutter Build**: Automated web compilation with release optimization
-  - **File Upload**: Optimized caching strategy (1 year for assets, no-cache for HTML)
-  - **CloudFront Invalidation**: Cache busting for immediate updates
-  - **Error Handling**: Graceful failure recovery with detailed troubleshooting
-- **Features**:
-  - **Custom Domains**: Support for any subdomain with existing Route53 hosted zone
-  - **HTTPS Enforcement**: All traffic redirected to secure connections
-  - **SPA Support**: Proper routing for single-page application architecture
-  - **Performance Optimized**: Managed cache policies and compression
-  - **Cost Effective**: PriceClass_100 (US, Canada, Europe) for optimal cost/performance
+### Web Infrastructure
+- **CloudFormation**: S3, CloudFront, Route53, ACM for SSL
+- **Deployment**: `./deploy-web.sh` handles everything automatically
+- **Features**: Custom domains, HTTPS enforcement, SPA routing, CDN caching
 
-### Import System
-The admin dashboard includes a powerful copy/paste import feature for Google Sheets data with real-time progress tracking:
+### Import/Export
+**Import**: Copy/paste TSV from Google Sheets with real-time progress
+**Export**: JSON/CSV to Download, Clipboard, or S3 with shareable URLs
+**Access**: Admin Dashboard → Menu
 
-**Core Features**:
-- **TSV Parser**: Handles tab-separated values from Google Sheets copy/paste
-- **Smart Header Detection**: Automatically skips header rows containing "Nugget" and "Source"
-- **Column Mapping**: 
-  - Column 1: Nugget (Quote text)
-  - Column 2: Source (Author)
-  - Columns 3-7: Tag1, Tag2, Tag3, Tag4, Tag5
-- **Live Preview**: Shows first 3 parsed quotes before importing
-- **Batch Processing**: Processes quotes in batches of 5 with 1.1-second delays to prevent rate limiting
-- **Real-Time Progress**: Visual progress bar and status updates during long imports
-- **Progress Tracking**: Shows "Importing 25 of 100..." with batch status updates
-- **Import Feedback**: Shows success/failure counts after import with retry functionality
-- **Error Handling**: Continues import even if individual quotes fail
-- **Rate Limiting Protection**: Built-in delays and batch processing prevent API overload
 
-**Progress Display**:
-- **Visual Progress Bar**: Linear progress indicator with percentage completion
-- **Live Counter**: "25 of 100 quotes" style progress tracking
-- **Status Messages**: Real-time updates like "Processing batch 3 of 20..." and "Importing 25 of 100..."
-- **Batch Visibility**: Clear indication of processing stages and completion status
 
-**Access Method**: Admin Dashboard → Menu → "Import Quotes"
 
-### Admin Dashboard Features
 
-#### Quote Management Menu
-Each quote in the admin dashboard has a comprehensive menu with the following options:
 
-**Menu Actions**:
-- **Preview Detail**: View the quote as it appears to shared users in the QuoteDetailScreen
-- **Edit**: Modify quote text, author, and tags
-- **Delete**: Remove the quote with confirmation dialog
 
-**Access Method**: Three-dot menu on each quote's ListTile
+## Key Integration Points
+- **Environment**: `./update_env.sh` syncs AWS outputs to `.env`
+- **Auth Model**: API Key (public/rate-limited), JWT (admin/unlimited)
+- **Data Flow**: DynamoDB → Lambda → API Gateway → Flutter
+- **Domain**: https://dcc.anystupididea.com with CloudFront/SSL
 
-#### Search System
-The admin dashboard includes a powerful search system for efficient quote management:
+## API Endpoints
 
-**Search Features**:
-- **Universal Search**: Located in the header for easy access
-- **Multi-field Search**: Finds quotes by content, author, or tags
-- **Real-time Results**: Instant search results as you type (with debounce)
-- **Clear Button**: Quick reset to show all quotes
-- **Smart Filtering**: Search automatically filters the displayed quotes
+### Public (API Key, Rate Limited)
+- `GET /quote` - Random quote with optional tag filtering
+- `GET /quote/{id}` - Specific quote by ID
+- `GET /tags` - All available tags (O(1) retrieval)
+- `POST /auth/register` - User registration (no auth required)
+- `POST /auth/confirm` - Email verification (no auth required)
 
-**Search Benefits**:
-- **Efficient Finding**: Quickly locate quotes by any keyword
-- **Tag Search**: Find all quotes with specific tags by searching tag names
-- **Author Search**: Locate all quotes by a particular author
-- **Content Search**: Find quotes containing specific words or phrases
-- **Flexible Queries**: Partial matches and case-insensitive searching
+### Admin (JWT + Admin Group)
+- **Quotes**: GET/POST/PUT/DELETE `/admin/quotes[/{id}]`
+- **Tags**: GET/POST/PUT/DELETE `/admin/tags[/{tag}]`
+- `DELETE /admin/tags/unused` - Remove orphaned tags
+- `POST /admin/generate-tags` - GPT-4o-mini tag generation
 
-**Use Cases**:
-- Finding quotes with specific keywords or phrases
-- Locating all quotes by a particular author
-- Finding quotes with specific tags
-- Quick navigation to specific quotes for editing
+## User Management
+- **Registration**: Self-service with email verification
+- **Groups**: "Users" (auto), "Admins" (manual)
+- **Admin**: `admin@dcc.com` / `AdminPass123!`
+- **Cognito**: Pool `us-east-1_ecyuILBAu`, Client `2idvhvlhgbheglr0hptel5j55`
 
-### Admin Dashboard Sorting System
-The admin dashboard provides comprehensive sorting capabilities for efficient quote management:
+## Production Status
+- **Database**: 3,798 quotes with O(1) tag retrieval
+- **Auth**: Cognito with self-registration, role-based access
+- **Performance**: 5-25x faster with GSI, CloudFront CDN
+- **Platforms**: iOS, Android, Web (https://quote-me.anystupididea.com)
 
-**Sorting Features**:
-- **Four Sort Fields**: Quote text, Author name, Created Date, and Updated Date sorting options
-- **Header Integration**: Sort buttons located in the dashboard header for easy access
-- **Bi-Directional Sorting**: Click once for ascending, click again for descending order
-- **Visual Indicators**: Arrow icons show current sort direction for active field
-- **Case-Insensitive**: Text sorting ignores case for better alphabetical organization
-- **Persistent Preferences**: Sort field and direction saved to SharedPreferences across sessions
-- **Automatic Restoration**: Previous sort settings restored on dashboard load
+## Key Capabilities
+- **About Dialog**: App info accessible to all users
+- **Audio**: TTS with 50+ voices, rate/pitch controls
+- **Admin**: Full CRUD, search, sort, import/export
+- **AI Tags**: GPT-4o-mini via secure Lambda proxy
+- **Resilience**: Auto-retry, graceful error handling
+- **Standards**: Clean architecture, automated testing
 
-**Sorting Options**:
-- **Quote Text**: Alphabetical sorting (A-Z / Z-A) with case-insensitive comparison
-- **Author Name**: Alphabetical author sorting (A-Z / Z-A) with case-insensitive comparison  
-- **Created Date**: Chronological sorting (Newest First / Oldest First) by timestamp
-- **Updated Date**: Chronological sorting (Newest First / Oldest First) by last modification
-
-**Default Behavior**: Starts with Created Date sorting, newest quotes first (descending order)
-
-**Persistence Keys**:
-- `admin_sort_field`: Stores selected SortField enum value
-- `admin_sort_ascending`: Stores boolean for sort direction
-
-### Duplicate Management System
-The admin dashboard includes intelligent duplicate detection and cleanup functionality:
-
-**Core Features**:
-- **Smart Detection**: Identifies duplicates by matching quote text and author exactly (case-insensitive)
-- **Tag Agnostic**: Ignores tag differences when determining duplicates, as requested
-- **Intelligent Selection**: Pre-selects newer duplicates for deletion while preserving the oldest quote
-- **Batch Operations**: Safely deletes multiple duplicates with rate limiting protection
-- **User Control**: Full control over which quotes to keep or delete with checkbox interface
-
-**Duplicate Preview Dialog**:
-- **Group Summary**: Shows total quotes found and deletion count
-- **Detailed View**: Displays each duplicate group with quote preview and metadata
-- **Creation Timestamps**: Shows creation dates to help identify the original quote
-- **Tag Information**: Displays tags for each duplicate to assist decision-making
-- **Color Coding**: Green highlights indicate the recommended quote to keep (oldest)
-- **Safe Defaults**: Automatically selects newer duplicates for deletion, keeping originals
-
-**Cleanup Process**:
-- **Batch Deletion**: Processes selected quotes in batches with error handling
-- **Progress Feedback**: Shows detailed success/failure counts after cleanup
-- **Rate Limiting**: Includes 300ms delays between deletions to prevent API overload
-- **Auto Refresh**: Automatically refreshes quote list to show results
-
-**Access Method**: Admin Dashboard → Menu → "Clean Duplicate Quotes"
-
-### AI Tag Generation System
-The admin dashboard includes an intelligent AI-powered tag generation feature powered by OpenAI GPT-4o-mini:
-
-**Core Features**:
-- **Batch Processing**: Processes quotes in batches of 5 with user-controlled flow
-- **Smart Tag Selection**: Prioritizes existing tags over creating new ones for consistency
-- **Progress Display**: Real-time progress tracking with countdown timers and quote context
-- **Enterprise Security**: OpenAI API key secured in AWS Lambda, never exposed to client
-- **Cross-Platform**: Works seamlessly on iOS, Android, and Web with CORS compliance
-- **User Control**: Pause/continue functionality between batches for user oversight
-
-**Processing Flow**:
-- **Tag Analysis**: AI analyzes quote content and author to suggest relevant tags
-- **Existing Tag Priority**: System prefers selecting from existing database tags
-- **Batch Safety**: 5-second delays between batches prevent rate limiting
-- **Context Display**: Shows current quote being processed during countdown delays
-- **Progress Tracking**: Visual progress bar with "Processing quote X of Y" status
-
-**Technical Implementation**:
-- **Secure Proxy**: AWS Lambda endpoint hides OpenAI API credentials
-- **Rate Limiting**: Built-in delays and error handling for API stability
-- **Error Recovery**: Graceful handling of network issues and API failures
-- **Real-time Updates**: Live progress display with quote and author context
-
-**Access Method**: Admin Dashboard → Menu → "Generate tags for the tagless"
-
-### Comprehensive Export System
-The admin dashboard includes a full-featured export system with multiple destination options for quotes and tags:
-
-**Export Destinations**:
-- **Download**: Direct file download (web platforms only) - immediate local file save
-- **Clipboard**: Copy formatted data to clipboard (all platforms) - for small datasets
-- **Cloud Storage**: S3 export with shareable pre-signed URL (all platforms) - best for large datasets
-
-**Export Features**:
-- **Complete Database Export**: Exports entire database, not just loaded UI data
-- **Multiple Formats**: JSON (structured) and CSV (spreadsheet-friendly)
-- **Cross-Platform**: Works on web, iOS, and Android with platform-optimized UX
-- **Gzip Compression**: Efficient compression for cloud storage exports
-- **Secure Sharing**: 48-hour pre-signed URLs for safe sharing via mobile share sheet
-- **Platform-Aware UI**: Shows appropriate options based on device capabilities
-
-**Export Structure** (JSON format):
-```json
-{
-  "export_metadata": {
-    "timestamp": "2025-08-21T15:30:00Z",
-    "user": "admin@example.com",
-    "format": "json",
-    "type": "quotes",
-    "total_quotes": 3798,
-    "unique_authors": 423,
-    "unique_tags": 351
-  },
-  "quotes": [...] // All quotes with complete metadata
-}
-```
-
-**Technical Implementation**:
-- **Backend Processing**: Full database scanning with efficient pagination
-- **S3 Integration**: Automated bucket management with lifecycle policies
-- **CORS Support**: Proper web browser compatibility
-- **Error Handling**: Graceful fallback and retry mechanisms
-- **Authentication**: JWT-based admin authorization
-
-**Mobile vs Web Behavior**:
-- **Web**: Download, Clipboard, Cloud Storage all available
-- **Mobile**: Clipboard and Cloud Storage (Download redirects to Cloud Storage)
-- **Sharing**: Mobile uses native share sheet, web copies to clipboard
-
-**Access Method**: Admin Dashboard → Menu → "Export Quotes" or "Export Tags"
-
-### Tags Editor System
-The dedicated Tags Editor provides comprehensive tag management capabilities separate from quote management:
-
-**Core Features**:
-- **Individual Tag CRUD**: Add, rename, delete individual tags with validation
-- **Data Integrity**: Tag operations automatically update all affected quotes
-- **Duplicate Prevention**: Cannot add tags that already exist
-- **Smart Synchronization**: Renaming tags updates all quotes using that tag
-- **Safe Deletion**: Deleting tags removes them from all quotes using them
-- **User-Friendly Interface**: Professional UI with confirmation dialogs
-- **Real-time Feedback**: Shows how many quotes were affected by each operation
-
-**Sorting Capabilities**:
-- **Four Sort Options**: Name, Created Date, Updated Date, and Usage Count
-- **Bi-Directional Sorting**: Toggle between ascending and descending order
-- **Visual Indicators**: Active sort field highlighted with directional arrows
-- **Persistent Preferences**: Sort settings saved to SharedPreferences
-- **Automatic Restoration**: Previous sort preferences loaded on screen initialization
-
-**Access Methods**:
-- **Primary Access**: Admin Dashboard → Menu → "Manage Tags"
-- **Direct Navigation**: Dedicated Tags Editor screen with full functionality
-- **Integrated Cleanup**: Access to unused tag cleanup from within the editor
-
-**Technical Implementation**:
-- **Backend Validation**: Comprehensive server-side validation and error handling  
-- **Quote Synchronization**: Automatic scanning and updating of affected quotes
-- **Metadata Consistency**: Tags metadata cache updated with every operation
-
-**Persistence Keys**:
-- `tags_editor_sort_by`: Stores sort field ('name', 'created', 'updated', 'usage')
-- `tags_editor_sort_ascending`: Stores boolean for sort direction
-- **Error Recovery**: Graceful handling of network issues and API failures
-- **State Management**: Real-time UI updates reflecting server changes
-
-**Security & Data Integrity**:
-- **Admin Authentication**: Full JWT authentication and group membership verification
-- **Transaction Safety**: Each operation maintains database consistency
-- **Audit Trail**: All tag changes logged with timestamps and user information
-- **Rollback Protection**: Confirmation dialogs prevent accidental destructive operations
-
-### Key Integration Points
-1. **Environment Management**: Automated via `./update_env.sh` script that syncs AWS outputs to `.env` files
-2. **Authentication Architecture**: 
-   - **Public/Anonymous APIs**: Only require API Key (`x-api-key` header) - rate limited
-   - **Admin APIs**: Require JWT token (`Authorization: Bearer {IdToken}`) - no rate limits
-   - **User Registration**: No authentication required for registration/confirmation endpoints
-3. **Security Model**: 
-   - API Keys for anonymous operations (quotes, tags) with rate limiting
-   - JWT tokens for authenticated operations (admin CRUD) with group-based authorization
-   - All admin endpoints require "Admins" group membership
-4. **Data Flow**: DynamoDB → Lambda → API Gateway → Flutter with real-time search and filtering
-5. **State Synchronization**: Admin changes immediately reflected in public API responses
-6. **Error Handling**: Graceful degradation with user-friendly messages across all failure modes
-7. **Custom Domain**: SSL-secured custom domain (dcc.anystupididea.com) with CloudFront distribution
-
-## Current API Endpoints
-
-### Public API (Rate Limited)
-**Random Quote Retrieval:**
-- **Custom Domain**: `https://dcc.anystupididea.com/quote`
-- **Direct URL**: `https://iasj16a8jl.execute-api.us-east-1.amazonaws.com/prod/quote`
-- **Authentication**: API Key required (`x-api-key` header)
-- **Features**: Tag filtering via `?tags=Motivation,Business` query parameter
-
-**Specific Quote Retrieval:**
-- **Custom Domain**: `https://dcc.anystupididea.com/quote/{id}`
-- **Direct URL**: `https://iasj16a8jl.execute-api.us-east-1.amazonaws.com/prod/quote/{id}`
-- **Authentication**: API Key required (`x-api-key` header)
-- **Features**: Returns specific quote by ID, or "Requested quote was not found." if not found
-
-**Dynamic Tags Retrieval:**
-- **Custom Domain**: `https://dcc.anystupididea.com/tags`
-- **Direct URL**: `https://iasj16a8jl.execute-api.us-east-1.amazonaws.com/prod/tags`
-- **Authentication**: API Key required (`x-api-key` header)
-- **Features**: Returns all available tags from database (zero-scan performance)
-- **Response**: `{"tags": ["All", "Action", "Business", ...], "count": 23}`
-
-### Authentication API (No Rate Limits)
-**User Registration:**
-- **Endpoint**: `POST https://dcc.anystupididea.com/auth/register`
-- **Authentication**: None required
-- **Body**: `{"email": "user@example.com", "password": "Password123!", "name": "Optional Name"}`
-- **Features**: Self-service user registration with automatic Users group assignment
-
-**Email Verification:**
-- **Endpoint**: `POST https://dcc.anystupididea.com/auth/confirm`
-- **Authentication**: None required
-- **Body**: `{"email": "user@example.com", "code": "123456"}`
-- **Features**: Email verification to complete registration
-
-### Admin API (JWT Protected - Admin Group Required)
-- **Base URL**: `https://dcc.anystupididea.com/admin/`
-- **Authentication**: Cognito IdToken required (`Authorization: Bearer {token}`) + Admin group membership
-- **Quote Management Endpoints**:
-  - `GET /admin/quotes` - List all quotes with metadata
-  - `POST /admin/quotes` - Create new quote (auto-updates tags metadata)
-  - `PUT /admin/quotes/{id}` - Update existing quote (auto-updates tags metadata)
-  - `DELETE /admin/quotes/{id}` - Delete quote
-- **Tag Management Endpoints**:
-  - `GET /admin/tags` - Get all available tags from metadata
-  - `POST /admin/tags` - Add new individual tag to metadata
-  - `PUT /admin/tags/{tag}` - Update/rename tag (automatically updates all quotes using the tag)
-  - `DELETE /admin/tags/{tag}` - Delete individual tag (removes from all quotes using it)
-  - `DELETE /admin/tags/unused` - Clean up unused tags (removes tags not used by any quotes)
-- **AI Tag Generation Endpoint**:
-  - `POST /admin/generate-tags` - Generate intelligent tags for quotes using OpenAI GPT-4o-mini
-    - Secure proxy endpoint hiding OpenAI API key in Lambda environment
-    - Body: `{"quote": "quote text", "author": "author name", "existingTags": ["tag1", "tag2"]}`
-    - Returns: `{"tags": ["tag1", "tag2", "tag3"]}` (up to 5 tags)
-    - Admin authentication and group membership required
-- **Tags Metadata Management**: All CRUD operations automatically maintain tags metadata cache with full data integrity
-- **Quote Synchronization**: Tag rename/delete operations automatically update all affected quotes
-
-### User Management
-**Registration Process:**
-1. Users register via the mobile app or web interface
-2. Email verification required (6-digit code sent to email)
-3. Automatic assignment to "Users" group upon verification
-4. Password requirements: 8+ characters, uppercase, lowercase, number, special character
-
-**Admin Access:**
-- Existing admin account: `admin@dcc.com` / `AdminPass123!`
-- Admin users must be manually added to "Admins" group via AWS Console
-- New users register as regular users by default
-
-**Cognito Configuration:**
-- **User Pool**: `us-east-1_ecyuILBAu`
-- **Client ID**: `2idvhvlhgbheglr0hptel5j55`
-- **Groups**: "Users" (default), "Admins" (manual assignment)
-
-## Important Notes
-
-### Production Features
-- **Database**: DynamoDB with 20+ curated quotes and dynamic tag system (zero-scan performance)
-- **Authentication**: Enterprise-grade Cognito integration with self-registration and role-based access control
-- **Security**: Multi-layer API security (API keys for public + JWT for authenticated users) with group-based permissions and CORS support
-- **User Management**: Self-service registration with email verification and automatic group assignment
-- **Performance**: Rate limiting, CloudWatch monitoring, tags metadata caching, custom domain with CDN
-- **Cross-Platform**: Mobile (iOS/Android) and Web (https://quote-me.anystupididea.com) with unified authentication
-- **Web Deployment**: Automated CloudFormation infrastructure with S3, CloudFront, Route53, and SSL
-
-### Advanced Capabilities
-- **Audio System**: Professional TTS with 20-50+ voice options, testing, and smart controls
-- **User Authentication**: Unified login system with self-registration and role-based features
-- **Admin Management**: Complete quote lifecycle management with real-time updates and advanced sorting
-- **Quote Detail Preview**: Preview quotes as they appear to shared users via dedicated menu option
-- **Quote Sorting**: Four-field sorting (Quote, Author, Created Date, Updated Date) with ascending/descending toggles
-- **Persistent Sort Preferences**: Admin Dashboard and Tags Editor sort settings saved across sessions
-- **Duplicate Management**: Intelligent duplicate detection with smart cleanup and preservation logic
-- **Progress Tracking**: Real-time batch processing with visual progress bars for long operations
-- **Dynamic Tag System**: Real-time tag loading and filtering with zero-scan database performance
-- **Tags Metadata Caching**: Efficient O(1) tag retrieval without database scanning
-- **Individual Tag Management**: Dedicated Tags Editor for adding, renaming, and deleting individual tags
-- **Data Integrity Enforcement**: Tag operations automatically synchronize with all affected quotes
-- **Automated Tag Cleanup**: Admin can remove unused tags with one-click cleanup and detailed reporting
-- **AI Tag Generation**: OpenAI GPT-4o-mini integration for intelligent tag generation:
-  - Enterprise-grade security with OpenAI API key stored securely in AWS Lambda
-  - Batch processing with user-controlled flow (5 quotes at a time)
-  - Real-time progress display showing quote context during processing delays
-  - Intelligent tag selection preferring existing tags over new ones
-  - Cross-platform support with CORS-compliant AWS Lambda proxy
-- **Import Progress**: Batch processing with real-time status updates and visual feedback
-- **Rate Limiting Protection**: Built-in delays and batch processing prevent API overload
-- **Metadata Filtering**: TAGS_METADATA records are properly filtered from quote listings
-- **Responsive Design**: Perfect layout across all device orientations and screen sizes
-- **Error Handling**: Comprehensive error management with user-friendly messaging
-- **State Management**: Persistent settings and authentication across app sessions
-- **Smart Navigation**: Context-aware menu system showing different options based on user authentication status
-
-### Resilience & Error Handling
-- **Automatic Retry Logic**: 500 errors trigger up to 3 retries with exponential backoff (500ms, 1000ms, 1500ms)
-- **Tag Validation**: Backend validates all requested tags and gracefully handles non-existent ones
-- **TTS State Management**: Enhanced audio controls work properly in simulator with timeout fallbacks
-- **Network Error Recovery**: Automatic retry for network failures with user feedback
-- **Tag Selection Validation**: Requires minimum 3 tags when not using "All" to ensure quote variety
-- **Substring Safety**: Handles quotes of any length without crashes in logging
-- **Rate Limit Messaging**: Clear, friendly messages when API rate limits are exceeded
-- **Server Error Messaging**: User-friendly "Server issue, retrying..." during automatic retries
-
-### Development Standards
-- **Code Architecture**: Clean separation of concerns with service layer patterns
-- **Environment Management**: Automated environment synchronization with AWS outputs
-- **Testing**: Comprehensive API testing with rate limit validation and admin regression tests with temporary user management
-- **Documentation**: Complete technical documentation with usage examples
-- **Security**: No hardcoded credentials, environment-based configuration management
-
-### Future Enhancements
-- **Daily Nuggets Feature**: Backend implementation for scheduled quote delivery
-  - Email delivery system using AWS SES for daily morning quotes
-  - Push notification system for mobile app quote delivery
-  - User-configurable delivery times and frequency
-  - Smart quote rotation to avoid repetition
-- Additional authentication providers (Google, Apple Sign-In)
-- Advanced analytics and usage metrics
-- Push notifications for new quotes
-- Offline mode with local caching
-- Try to keep file sizes manageable. Put distinct classes in separate files, grouped where they belong (e.g., screens, models, widgets).
-- Always prefer using the defined application themes defined in themes.dart over setting specific text styling (e.g., colors, fonts) on the fly within display widgets. Better to define something in themes, so that if/when themes change, or when we toggle from light to dark, we have a better change of being confident in a minimum number of failed conversioons elsewhere.
+## Development Guidelines
+- Keep file sizes manageable with proper separation of concerns
+- Always use themes.dart for styling (never inline styles)
+- Edit existing files rather than creating new ones
+- Only create documentation when explicitly requested

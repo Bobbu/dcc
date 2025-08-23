@@ -106,6 +106,163 @@ class _QuoteScreenState extends State<QuoteScreen> {
     }
   }
 
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isLargeScreen = screenWidth > 600;
+        
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: isLargeScreen ? 450 : 350,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.format_quote,
+                              color: Theme.of(context).colorScheme.onPrimary,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Quote Me',
+                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '1.0.0',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 179),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '© 2025 Quote Me App\nAll rights reserved.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 179),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Quote Me is your daily source of inspiration and motivation. '
+                        'Discover wisdom from great thinkers, leaders, and authors throughout history.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: isLargeScreen ? 14 : 13,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Features:',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '• Curated collection of inspirational quotes\n'
+                          '• Filter by categories and tags\n'
+                          '• Text-to-speech with customizable voices\n'
+                          '• Share quotes with friends\n'
+                          '• Propose your favorite quotes\n'
+                          '• Dark and light theme support',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: isLargeScreen ? 14 : 13,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Built with Flutter and powered by AWS serverless technology.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontStyle: FontStyle.italic,
+                          color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 179),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        showLicensePage(
+                          context: context,
+                          applicationName: 'Quote Me',
+                          applicationVersion: '1.0.0',
+                          applicationIcon: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.format_quote,
+                              color: Theme.of(context).colorScheme.onPrimary,
+                              size: 28,
+                            ),
+                          ),
+                          applicationLegalese: '© 2025 Quote Me App',
+                        );
+                      },
+                      child: Text('View licenses'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Close'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _initTts() {
     flutterTts = FlutterTts();
     
@@ -629,6 +786,9 @@ class _QuoteScreenState extends State<QuoteScreen> {
                 case 'logout':
                   await _handleLogout();
                   break;
+                case 'about':
+                  _showAboutDialog();
+                  break;
               }
             },
             itemBuilder: (context) => [
@@ -680,6 +840,17 @@ class _QuoteScreenState extends State<QuoteScreen> {
                       ],
                     ),
                   ),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'about',
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8),
+                      Text('About'),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'logout',
                   child: Row(
@@ -691,6 +862,17 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   ),
                 ),
               ] else ...[
+                PopupMenuItem(
+                  value: 'about',
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8),
+                      Text('About'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
                  PopupMenuItem(
                   value: 'login',
                   child: Row(
