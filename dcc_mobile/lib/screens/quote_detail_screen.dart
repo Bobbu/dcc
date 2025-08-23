@@ -106,9 +106,9 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
     }
     
     shareText.writeln();
-    shareText.writeln('View this quote: https://quote-me.anystupididea.com/quote/${widget.quoteId}');
-    shareText.writeln();
     shareText.writeln('Shared from Quote Me');
+    shareText.writeln();
+    shareText.writeln('View this quote: https://quote-me.anystupididea.com/quote/${widget.quoteId}');
     
     try {
       await Share.share(

@@ -12,6 +12,12 @@ class AppThemes {
   static const Color _darkChipBackground = Color(0xFFE0E0E0);
   static const Color _darkChipText = Color(0xFF212121);
 
+  // Define status colors for consistent use across the app
+  static const Color _pendingColor = Color(0xFFFF9800); // Orange
+  static const Color _approvedColor = Color(0xFF4CAF50); // Green  
+  static const Color _rejectedColor = Color(0xFFE53935); // Red
+  static const Color _inactiveColor = Color(0xFF9E9E9E); // Grey
+
   // Define custom text styles for common use cases
   static const TextStyle _errorTextStyle = TextStyle(
     color: Color(0xFFD32F2F),
@@ -73,7 +79,7 @@ class AppThemes {
     labelLarge: _buttonTextStyle,
     // Normal body text
     bodyLarge: const TextStyle(
-      fontSize: 16,
+      fontSize: 20,
       color: Color(0xFF2C2C2C),
     ),
     // Secondary text
@@ -126,7 +132,7 @@ class AppThemes {
     labelLarge: _buttonTextStyle,
     // Normal body text
     bodyLarge: const TextStyle(
-      fontSize: 16,
+      fontSize: 20,
       color: Color(0xFFE0E0E0),
     ),
     // Secondary text
@@ -173,6 +179,12 @@ class AppThemes {
     return isDark ? const Color(0xFFB0B0B0) : const Color(0xFF424242);
   }
   static double dateIconSize(BuildContext context) => _dateIconSize;
+
+  // Status color accessors
+  static Color pendingColor(BuildContext context) => _pendingColor;
+  static Color approvedColor(BuildContext context) => _approvedColor;
+  static Color rejectedColor(BuildContext context) => _rejectedColor;
+  static Color inactiveColor(BuildContext context) => _inactiveColor;
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,

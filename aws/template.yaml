@@ -58,6 +58,31 @@ Resources:
             Method: GET
             RestApiId: !Ref ApiGatewayApi
 
+  # Quote Page Handler for social sharing meta tags
+  QuotePageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-quote-page-handler
+      CodeUri: lambda/
+      Handler: quote_page_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 10
+      Environment:
+        Variables:
+          QUOTES_TABLE: !Ref QuotesTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref QuotesTable
+      Events:
+        GetQuotePage:
+          Type: Api
+          Properties:
+            Path: /share/quote/{id}
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+
   # OPTIONS Handler for CORS
   OptionsFunction:
     Type: AWS::Serverless::Function
@@ -88,6 +113,14 @@ Resources:
           Type: Api
           Properties:
             Path: /quote/{id}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsShareQuote:
+          Type: Api
+          Properties:
+            Path: /share/quote/{id}
             Method: OPTIONS
             RestApiId: !Ref ApiGatewayApi
             Auth:
@@ -644,6 +677,136 @@ Resources:
           Properties:
             Path: /admin/export-s3
             Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # DynamoDB table for proposed quotes
+  ProposedQuotesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: dcc-proposed-quotes
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: proposer_email
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: created_date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ProposerEmailIndex
+          KeySchema:
+            - AttributeName: proposer_email
+              KeyType: HASH
+            - AttributeName: created_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+        - IndexName: StatusDateIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: created_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      Tags:
+        - Key: Environment
+          Value: Dev
+
+  # Lambda function for proposing quotes
+  ProposeQuoteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-propose-quote-handler
+      CodeUri: lambda/
+      Handler: propose_quote_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME: dcc-proposed-quotes
+          ENVIRONMENT: dev
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: dcc-proposed-quotes
+        - DynamoDBCrudPolicy:
+            TableName: dcc-quotes-optimized
+      Events:
+        ProposeQuoteApi:
+          Type: Api
+          Properties:
+            Path: /propose-quote
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        ProposeQuoteOptionsApi:
+          Type: Api
+          Properties:
+            Path: /propose-quote
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        GetProposedQuotesApi:
+          Type: Api
+          Properties:
+            Path: /proposed-quotes
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        GetProposedQuotesOptionsApi:
+          Type: Api
+          Properties:
+            Path: /proposed-quotes
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        UpdateProposedQuoteApi:
+          Type: Api
+          Properties:
+            Path: /proposed-quotes/{id}
+            Method: PUT
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UpdateProposedQuoteOptionsApi:
+          Type: Api
+          Properties:
+            Path: /proposed-quotes/{id}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        DeleteProposedQuoteApi:
+          Type: Api
+          Properties:
+            Path: /proposed-quotes/{id}
+            Method: DELETE
             RestApiId: !Ref ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer

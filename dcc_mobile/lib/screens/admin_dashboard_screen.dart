@@ -16,6 +16,7 @@ import '../services/export_service.dart';
 import '../widgets/export_destination_dialog.dart';
 import 'tags_editor_screen.dart';
 import 'candidate_quotes_screen.dart';
+import 'review_proposed_quotes_screen.dart';
 import '../themes.dart';
 import '../models/quote.dart';
 import '../widgets/admin/import_quotes_dialog.dart';
@@ -1321,6 +1322,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // Refresh quotes when returning in case new quotes were added
                   _refreshData();
                 });
+              } else if (value == 'review_proposed') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ReviewProposedQuotesScreen(),
+                  ),
+                ).then((_) {
+                  // Refresh quotes when returning in case new quotes were approved
+                  _refreshData();
+                });
               } else if (value == 'profile') {
                 Navigator.push(
                   context,
@@ -1420,6 +1430,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.auto_awesome, color: Colors.blue),
                     SizedBox(width: 8),
                     Text('Find New Quotes'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'review_proposed',
+                child: Row(
+                  children: [
+                    Icon(Icons.rate_review, color: Theme.of(context).colorScheme.primary),
+                    SizedBox(width: 8),
+                    Text('Review Proposed Quotes'),
                   ],
                 ),
               ),

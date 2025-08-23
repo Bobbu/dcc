@@ -17,6 +17,7 @@ import '../services/logger_service.dart';
 import '../themes.dart';
 import 'admin_dashboard_screen.dart';
 import 'user_profile_screen.dart';
+import 'propose_quote_screen.dart';
 
 
 class QuoteScreen extends StatefulWidget {
@@ -380,9 +381,9 @@ class _QuoteScreenState extends State<QuoteScreen> {
     }
     
     shareText.writeln();
-    shareText.writeln('View this quote: https://quote-me.anystupididea.com/quote/$_currentQuoteId');
-    shareText.writeln();
     shareText.writeln('Shared from Quote Me');
+    shareText.writeln();
+    shareText.writeln('View this quote: https://dcc.anystupididea.com/share/quote/$_currentQuoteId');
     
     try {
       await Share.share(
@@ -599,6 +600,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
                     }
                   }
                   break;
+                case 'propose':
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProposeQuoteScreen(),
+                      ),
+                    );
+                  }
+                  break;
                 case 'admin':
                   _openAdmin();
                   break;
@@ -645,6 +656,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
                       Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary),
                       SizedBox(width: 8),
                       Text('Profile'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'propose',
+                  child: Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8),
+                      Text('Propose a Quote'),
                     ],
                   ),
                 ),
