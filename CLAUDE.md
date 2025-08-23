@@ -56,8 +56,8 @@ flutter build web --release  # Web
 - **Infrastructure**: SAM template with API Gateway, Lambda, DynamoDB, Cognito
 - **Authentication**: Dual-layer (API Key for public, JWT for admin)
 - **Lambda Functions**:
-  - `quote_handler.py`: Public API with tag filtering, O(1) tag retrieval
-  - `admin_handler.py`: CRUD with tag management and data integrity
+  - `quote_handler.py`: Public API with tag filtering, O(1) tag retrieval, limit up to 1000
+  - `admin_handler.py`: CRUD with tag management and data integrity, limit up to 1000
   - `auth_handler.py`: User registration/verification
   - `options_handler.py`: CORS support
   - `openai_handler.py`: Secure GPT-4o-mini proxy for tag generation
@@ -75,9 +75,10 @@ flutter build web --release  # Web
   - `user_profile_screen.dart`: Profile management, Daily Nuggets prep
 - **Authentication**: AWS Amplify Cognito with JWT management
 - **Theme System**: Light/Dark/System modes with persistent preferences
-- **Audio**: TTS with 20-50+ voices, rate/pitch controls
+- **Audio**: TTS with 20-50+ voices, rate/pitch controls (default: OFF)
 ### Key Features
 - **About Dialog**: Responsive dialog with app info, accessible to all users
+- **Quote Retrieval Limit**: User-configurable limit (50-1000) for quote fetching
 - **AI Tag Generation**: GPT-4o-mini via secure Lambda proxy
 - **Import/Export**: TSV import, multi-format export (JSON/CSV)
 - **Duplicate Management**: Smart detection and cleanup
@@ -136,7 +137,8 @@ flutter build web --release  # Web
 
 ## Key Capabilities
 - **About Dialog**: App info accessible to all users
-- **Audio**: TTS with 50+ voices, rate/pitch controls
+- **Quote Retrieval Limit**: Configurable 50-1000 quotes per fetch (Settings screen)
+- **Audio**: TTS with 50+ voices, rate/pitch controls (default: OFF)
 - **Admin**: Full CRUD, search, sort, import/export
 - **AI Tags**: GPT-4o-mini via secure Lambda proxy
 - **Resilience**: Auto-retry, graceful error handling

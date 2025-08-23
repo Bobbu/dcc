@@ -12,7 +12,8 @@ class SettingsScreen extends StatefulWidget {
   final Map<String, String>? selectedVoice;
   final double speechRate;
   final double pitch;
-  final Function(bool, Set<String>, Map<String, String>?, double, double) onSettingsChanged;
+  final int quoteRetrievalLimit;
+  final Function(bool, Set<String>, Map<String, String>?, double, double, int) onSettingsChanged;
 
   const SettingsScreen({
     super.key,
@@ -21,6 +22,7 @@ class SettingsScreen extends StatefulWidget {
     this.selectedVoice,
     this.speechRate = 0.5,
     this.pitch = 1.0,
+    this.quoteRetrievalLimit = 50,
     required this.onSettingsChanged,
   });
 
@@ -46,6 +48,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Theme management
   String _selectedTheme = 'system';
   
+  // Quote retrieval limit
+  late int _quoteRetrievalLimit;
+  
   static const List<String> _fallbackCategories = [
     'All', 'Sports', 'Education', 'Science', 'Motivation', 'Funny', 'Persistence', 'Business'
   ];
@@ -58,6 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _selectedVoice = widget.selectedVoice;
     _speechRate = widget.speechRate;
     _pitch = widget.pitch;
+    _quoteRetrievalLimit = widget.quoteRetrievalLimit;
     
     // Initialize test TTS
     _testTts = FlutterTts();
@@ -117,7 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'locale': danielVoice['locale']?.toString() ?? '',
             };
             // Trigger settings update to save the default voice
-            widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch);
+            widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch, _quoteRetrievalLimit);
           }
         }
       });
@@ -191,7 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _updateSettings() {
-    widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch);
+    widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch, _quoteRetrievalLimit);
   }
   
   // Helper methods for TTS options
@@ -323,6 +329,80 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           onChanged: (value) {
                             if (value != null) {
                               _updateThemePreference(value);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Quote Retrieval Limit Section
+            Card(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
+                    ],
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.numbers,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Quote Retrieval Limit',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        title: Text(
+                          'Maximum quotes to retrieve',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Higher values provide more variety but may use more data',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: DropdownButton<int>(
+                          value: _quoteRetrievalLimit,
+                          items: const [
+                            DropdownMenuItem(value: 50, child: Text('50')),
+                            DropdownMenuItem(value: 100, child: Text('100')),
+                            DropdownMenuItem(value: 200, child: Text('200')),
+                            DropdownMenuItem(value: 500, child: Text('500')),
+                            DropdownMenuItem(value: 1000, child: Text('1000')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _quoteRetrievalLimit = value;
+                              });
+                              _updateSettings();
                             }
                           },
                         ),

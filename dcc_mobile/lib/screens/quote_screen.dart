@@ -38,11 +38,12 @@ class _QuoteScreenState extends State<QuoteScreen> {
   late FlutterTts flutterTts;
   
   // Settings
-  bool _audioEnabled = true;
+  bool _audioEnabled = false;  // Changed default to false
   Set<String> _selectedCategories = {'All'};
   Map<String, String>? _selectedVoice;
   double _speechRate = 0.5;
   double _pitch = 1.0;
+  int _quoteRetrievalLimit = 50;
   
   // Auth state
   bool _isSignedIn = false;
@@ -419,9 +420,12 @@ class _QuoteScreenState extends State<QuoteScreen> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _audioEnabled = prefs.getBool('audio_enabled') ?? true;
+      _audioEnabled = prefs.getBool('audio_enabled') ?? false;  // Changed default to false
       final categories = prefs.getStringList('selected_categories') ?? ['All'];
       _selectedCategories = Set<String>.from(categories);
+      
+      // Load quote retrieval limit
+      _quoteRetrievalLimit = prefs.getInt('quote_retrieval_limit') ?? 50;
       
       // Load selected voice
       final voiceName = prefs.getString('selected_voice_name');
@@ -443,6 +447,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('audio_enabled', _audioEnabled);
     await prefs.setStringList('selected_categories', _selectedCategories.toList());
+    await prefs.setInt('quote_retrieval_limit', _quoteRetrievalLimit);
     
     // Save selected voice
     if (_selectedVoice != null) {
@@ -465,13 +470,15 @@ class _QuoteScreenState extends State<QuoteScreen> {
           selectedVoice: _selectedVoice,
           speechRate: _speechRate,
           pitch: _pitch,
-          onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch) {
+          quoteRetrievalLimit: _quoteRetrievalLimit,
+          onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit) {
             setState(() {
               _audioEnabled = audioEnabled;
               _selectedCategories = categories;
               _selectedVoice = voice;
               _speechRate = speechRate;
               _pitch = pitch;
+              _quoteRetrievalLimit = quoteRetrievalLimit;
             });
             _saveSettings();
             // Apply all TTS settings immediately
@@ -624,15 +631,25 @@ class _QuoteScreenState extends State<QuoteScreen> {
     });
 
     try {
-      // Build URL with tag filtering
+      // Build URL with tag filtering and limit
       String url = apiEndpoint;
+      List<String> queryParams = [];
+      
       if (!_selectedCategories.contains('All') && _selectedCategories.isNotEmpty) {
         final tags = _selectedCategories.join(',');
-        url += '?tags=$tags';
+        queryParams.add('tags=$tags');
+      }
+      
+      // Add the quote retrieval limit
+      queryParams.add('limit=$_quoteRetrievalLimit');
+      
+      if (queryParams.isNotEmpty) {
+        url += '?' + queryParams.join('&');
       }
       
       LoggerService.debug('🌐 Making API request to: $url');
       LoggerService.debug('📋 Selected categories: $_selectedCategories');
+      LoggerService.debug('📊 Quote retrieval limit: $_quoteRetrievalLimit');
       
       final response = await http.get(
         Uri.parse(url),

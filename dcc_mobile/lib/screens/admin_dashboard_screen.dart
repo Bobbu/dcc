@@ -61,6 +61,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
+  int _quoteRetrievalLimit = 50;
 
   static final String _baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
 
@@ -69,12 +70,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     super.initState();
     _checkAdminAccess();
     _loadUserInfo();
-    _loadSortPreferences();
+    _initializeSettings();
     
     // Clear any residual search state
     _searchController.clear();
     _searchQuery = '';
     _searchResults = [];
+  }
+
+  Future<void> _initializeSettings() async {
+    // Load quote retrieval limit first
+    await _loadQuoteRetrievalLimit();
+    // Then load sort preferences (which calls _loadQuotes at the end)
+    await _loadSortPreferences();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload quote retrieval limit in case it was changed in settings
+    _loadQuoteRetrievalLimit();
   }
 
   @override
@@ -202,6 +217,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       await prefs.setBool('admin_sort_ascending', _sortAscending);
     } catch (e) {
       LoggerService.error('Failed to save sort preferences: $e');
+    }
+  }
+
+  Future<void> _loadQuoteRetrievalLimit() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final limit = prefs.getInt('quote_retrieval_limit') ?? 50;
+      LoggerService.debug('📊 Admin Dashboard loaded quote retrieval limit: $limit');
+      setState(() {
+        _quoteRetrievalLimit = limit;
+      });
+    } catch (e) {
+      LoggerService.error('Failed to load quote retrieval limit: $e');
+      setState(() {
+        _quoteRetrievalLimit = 50;
+      });
     }
   }
 
@@ -412,8 +443,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       String sortOrder = _sortAscending ? 'asc' : 'desc';
       
       // Use the new AdminApiService method with sorting
+      LoggerService.debug('🔢 Admin Dashboard calling getQuotesWithPagination with limit: $_quoteRetrievalLimit');
       final response = await AdminApiService.getQuotesWithPagination(
-        limit: 50,
+        limit: _quoteRetrievalLimit,
         sortBy: sortBy,
         sortOrder: sortOrder,
       );
@@ -458,8 +490,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       String sortOrder = _sortAscending ? 'asc' : 'desc';
       
       // Use the new AdminApiService method with sorting
+      LoggerService.debug('🔢 Admin Dashboard calling getQuotesWithPagination with limit: $_quoteRetrievalLimit');
       final response = await AdminApiService.getQuotesWithPagination(
-        limit: 50,
+        limit: _quoteRetrievalLimit,
         sortBy: sortBy,
         sortOrder: sortOrder,
       );
@@ -511,8 +544,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       String sortOrder = _sortAscending ? 'asc' : 'desc';
       
       // Use pagination with current sort order
+      LoggerService.debug('🔢 Admin Dashboard loading more with limit: $_quoteRetrievalLimit');
       final response = await AdminApiService.getQuotesWithPagination(
-        limit: 50,
+        limit: _quoteRetrievalLimit,
         lastKey: _lastKey,
         sortBy: sortBy,
         sortOrder: sortOrder,

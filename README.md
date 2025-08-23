@@ -24,9 +24,15 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Multi-User Support**: User-scoped preferences prevent cross-user data sharing
 - **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading with O(1) performance
-- **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High)
+- **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High). Default: OFF
 - **About Dialog**: Responsive information dialog accessible to all users with app features and version info
-- **Settings Management**: Comprehensive user preferences with appearance, audio, and category controls
+- **Settings Management**: Comprehensive user preferences:
+  - **Appearance**: Light/Dark/System theme modes
+  - **Quote Retrieval Limit**: Configurable from 50 to 1000 quotes per fetch (affects variety and data usage)
+  - **Audio Settings**: Enable/disable text-to-speech (default: OFF)
+  - **Voice Selection**: Choose from available system voices
+  - **Speech Controls**: Rate and pitch adjustment
+  - **Category Preferences**: Select preferred quote categories
 - **Admin Dashboard**: Complete quote management interface with powerful search functionality and export features
   - **Quote Preview**: View quotes as they appear to shared users
   - **Persistent Sorting**: Sort preferences saved across sessions
@@ -47,6 +53,7 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **CORS Support**: Full web application compatibility
 - **Rate Limiting**: Applied only to public API endpoints (1 req/sec sustained, 5 req/sec burst)
 - **Auto-scaling**: Serverless infrastructure scales automatically
+- **Configurable Limits**: Support for up to 1000 quotes per API request (user-configurable)
 
 ## 🛠️ Technology Stack
 
@@ -202,6 +209,7 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
 - **Search Functionality**: Universal search finds quotes by content, author, or tags
 - **Sort Options**: Four fields (Quote, Author, Created Date, Updated Date) with ascending/descending toggle
 - **Persistent Preferences**: Sort settings saved to SharedPreferences and restored on load
+- **Quote Retrieval**: Respects user's Quote Retrieval Limit setting (50-1000 quotes)
 - **Quote Management Menu**: Preview detail, Edit, and Delete options for each quote
 - **Duplicate Cleanup**: Intelligent detection and removal
 - **Batch Import**: Google Sheets TSV import with progress tracking

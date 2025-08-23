@@ -219,7 +219,7 @@ def get_quotes_by_author(author, query_params):
         
         # Pagination parameters
         limit = int(query_params.get('limit', '50'))
-        limit = min(limit, 100)  # Cap at 100
+        limit = min(limit, 1000)  # Cap at 1000
         
         last_key = query_params.get('last_key')
         exclusive_start_key = None
@@ -283,7 +283,7 @@ def get_quotes_by_tag(tag, query_params):
         
         # Pagination parameters
         limit = int(query_params.get('limit', '50'))
-        limit = min(limit, 100)  # Cap at 100
+        limit = min(limit, 1000)  # Cap at 1000
         
         last_key = query_params.get('last_key')
         exclusive_start_key = None
@@ -329,7 +329,7 @@ def search_quotes(query_params):
         
         search_text_lower = search_text.lower()
         limit = int(query_params.get('limit', '50'))
-        limit = min(limit, 100)  # Cap at 100
+        limit = min(limit, 1000)  # Cap at 1000
         
         # For now, use scan with filter (can be optimized with OpenSearch later)
         response = table.scan(

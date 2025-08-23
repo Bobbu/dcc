@@ -115,7 +115,7 @@ def admin_get_quotes(query_params):
     try:
         # Pagination parameters
         limit = int(query_params.get('limit', '50'))
-        limit = min(limit, 200)  # Cap at 200 for admin
+        limit = min(limit, 1000)  # Cap at 1000 for admin
         
         last_key = query_params.get('last_key')
         exclusive_start_key = None
@@ -1317,7 +1317,7 @@ def admin_search_quotes(query_params):
         
         # Pagination parameters
         limit = int(query_params.get('limit', '100'))
-        limit = min(limit, 200)  # Cap at 200 for performance
+        limit = min(limit, 1000)  # Cap at 1000 for performance
         
         last_key = query_params.get('last_key')
         exclusive_start_key = None
