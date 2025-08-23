@@ -270,6 +270,8 @@ class AdminApiService {
     required String query,
     int limit = 20,
     String? lastKey,
+    String sortBy = 'created_at',
+    String sortOrder = 'desc',
   }) async {
     try {
       LoggerService.debug('📡 Searching quotes: "$query" (limit: $limit)');
@@ -280,6 +282,8 @@ class AdminApiService {
       final queryParams = <String, String>{
         'q': query,
         'limit': limit.toString(),
+        'sort_by': sortBy,
+        'sort_order': sortOrder,
       };
       
       if (lastKey != null && lastKey.isNotEmpty) {

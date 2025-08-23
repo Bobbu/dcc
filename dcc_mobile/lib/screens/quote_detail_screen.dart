@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/logger_service.dart';
+import '../services/share_service.dart';
 import '../themes.dart';
 import 'quote_screen.dart';
 
@@ -30,6 +32,8 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
   List<String> _tags = [];
   bool _isLoading = true;
   String? _error;
+  Timer? _redirectTimer;
+  int _secondsRemaining = 30;
 
   static final String baseApiUrl = dotenv.env['API_URL'] ?? 'https://dcc.anystupididea.com';
   static final String apiKey = dotenv.env['API_KEY'] ?? '';
@@ -38,6 +42,28 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
   void initState() {
     super.initState();
     _fetchQuote();
+    _startRedirectTimer();
+  }
+
+  @override
+  void dispose() {
+    _redirectTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startRedirectTimer() {
+    _redirectTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _secondsRemaining--;
+        });
+        
+        if (_secondsRemaining <= 0) {
+          timer.cancel();
+          _navigateToMainApp();
+        }
+      }
+    });
   }
 
   Future<void> _fetchQuote() async {
@@ -90,86 +116,13 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
   Future<void> _shareQuote() async {
     if (_quote == null || _author == null) return;
     
-    LoggerService.debug('🔄 Starting share process...');
-    LoggerService.debug('  Platform: ${kIsWeb ? 'Web' : Platform.operatingSystem}');
-    if (!kIsWeb) {
-      LoggerService.debug('  Platform version: ${Platform.operatingSystemVersion}');
-    }
-    
-    final shareText = StringBuffer();
-    
-    shareText.writeln('"$_quote"');
-    shareText.writeln('- $_author');
-    
-    if (_tags.isNotEmpty) {
-      shareText.writeln('Tags: ${_tags.join(", ")}');
-    }
-    
-    shareText.writeln();
-    shareText.writeln('Shared from Quote Me');
-    shareText.writeln();
-    shareText.writeln('View this quote: https://quote-me.anystupididea.com/quote/${widget.quoteId}');
-    
-    try {
-      await Share.share(
-        shareText.toString(),
-        subject: 'Quote by $_author',
-        sharePositionOrigin: const Rect.fromLTWH(0, 0, 100, 100), // Required for iPad popover positioning
-      );
-      LoggerService.debug('✅ Share completed successfully');
-    } catch (e) {
-      LoggerService.error('❌ Share error details');
-      LoggerService.error('  Error type: ${e.runtimeType}');
-      LoggerService.error('  Error message: $e');
-      LoggerService.error('  Stack trace: ${StackTrace.current}');
-      
-      if (kIsWeb) {
-        // Web fallback: try clipboard
-        try {
-          await Clipboard.setData(ClipboardData(text: shareText.toString()));
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Quote copied to clipboard!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-        } catch (clipboardError) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Unable to share quote. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      } else {
-        // Native device fallback: try clipboard then show error
-        try {
-          await Clipboard.setData(ClipboardData(text: shareText.toString()));
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Share failed. Quote copied to clipboard instead.'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-        } catch (clipboardError) {
-          LoggerService.error('❌ Clipboard error', error: clipboardError);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Unable to share quote. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      }
-    }
+    await ShareService.shareQuote(
+      context: context,
+      quote: _quote!,
+      author: _author!,
+      quoteId: widget.quoteId,
+      tags: _tags,
+    );
   }
 
   void _navigateToMainApp() {
@@ -355,14 +308,28 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                 ),
                                 const SizedBox(width: 16),
                                 OutlinedButton.icon(
-                                  onPressed: _navigateToMainApp,
+                                  onPressed: () {
+                                    _redirectTimer?.cancel();
+                                    _navigateToMainApp();
+                                  },
                                   icon: const Icon(Icons.explore),
-                                  label: const Text('On to home page for fun'),
+                                  label: Text('Go to home ($_secondsRemaining s)'),
                                   style: OutlinedButton.styleFrom(
                                     side: BorderSide(color: Theme.of(context).colorScheme.primary),
                                   ),
                                 ),
                               ],
+                            ),
+                            
+                            const SizedBox(height: 16),
+                            
+                            // Countdown message
+                            Text(
+                              'Redirecting to home in $_secondsRemaining seconds...',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontStyle: FontStyle.italic,
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
                             ),
                             
                             const SizedBox(height: 24),

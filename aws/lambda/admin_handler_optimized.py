@@ -1319,6 +1319,12 @@ def admin_search_quotes(query_params):
         limit = int(query_params.get('limit', '100'))
         limit = min(limit, 1000)  # Cap at 1000 for performance
         
+        # Sort parameters
+        sort_by = query_params.get('sort_by', 'relevance')  # relevance, created_at, updated_at, quote, author
+        sort_order = query_params.get('sort_order', 'desc')  # asc or desc
+        
+        logger.info(f"Search sorting: sort_by={sort_by}, sort_order={sort_order}")
+        
         last_key = query_params.get('last_key')
         exclusive_start_key = None
         if last_key:
@@ -1378,28 +1384,54 @@ def admin_search_quotes(query_params):
                 if len(matched_quotes) >= limit:
                     break
         
-        # Sort by relevance (exact matches first, then partial matches)
-        def relevance_score(quote):
-            score = 0
-            quote_lower = quote['quote'].lower()
-            author_lower = quote['author'].lower()
+        # Sort by specified field
+        logger.info(f"Sorting {len(matched_quotes)} results by {sort_by} ({sort_order})")
+        if sort_by == 'relevance':
+            # Sort by relevance (exact matches first, then partial matches)
+            def relevance_score(quote):
+                score = 0
+                quote_lower = quote['quote'].lower()
+                author_lower = quote['author'].lower()
+                
+                # Exact matches get higher scores
+                if search_lower == quote_lower or search_lower == author_lower:
+                    score += 100
+                elif search_lower in quote_lower or search_lower in author_lower:
+                    score += 50
+                
+                # Tag matches
+                for tag in quote.get('tags', []):
+                    if search_lower == tag.lower():
+                        score += 30
+                    elif search_lower in tag.lower():
+                        score += 15
+                
+                return score
             
-            # Exact matches get higher scores
-            if search_lower == quote_lower or search_lower == author_lower:
-                score += 100
-            elif search_lower in quote_lower or search_lower in author_lower:
-                score += 50
+            matched_quotes.sort(key=relevance_score, reverse=True)
+        else:
+            # Sort by other fields
+            reverse_order = (sort_order == 'desc')
             
-            # Tag matches
-            for tag in quote.get('tags', []):
-                if search_lower == tag.lower():
-                    score += 30
-                elif search_lower in tag.lower():
-                    score += 15
-            
-            return score
-        
-        matched_quotes.sort(key=relevance_score, reverse=True)
+            if sort_by == 'quote':
+                matched_quotes.sort(key=lambda x: x.get('quote', '').lower(), reverse=reverse_order)
+            elif sort_by == 'author':
+                matched_quotes.sort(key=lambda x: x.get('author', '').lower(), reverse=reverse_order)
+            elif sort_by == 'created_at':
+                matched_quotes.sort(key=lambda x: x.get('created_at', ''), reverse=reverse_order)
+            elif sort_by == 'updated_at':
+                # Debug: log first few updated_at values before sorting
+                if matched_quotes:
+                    sample_dates = [q.get('updated_at', 'MISSING') for q in matched_quotes[:5]]
+                    logger.info(f"Sample updated_at values before sort: {sample_dates}")
+                matched_quotes.sort(key=lambda x: x.get('updated_at', ''), reverse=reverse_order)
+                # Debug: log first few updated_at values after sorting
+                if matched_quotes:
+                    sample_dates = [q.get('updated_at', 'MISSING') for q in matched_quotes[:5]]
+                    logger.info(f"Sample updated_at values after sort (reverse={reverse_order}): {sample_dates}")
+            else:
+                # Default to created_at if invalid sort field
+                matched_quotes.sort(key=lambda x: x.get('created_at', ''), reverse=reverse_order)
         
         # Prepare pagination info
         next_key = None

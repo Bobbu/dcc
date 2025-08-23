@@ -14,6 +14,7 @@ import 'settings_screen.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/logger_service.dart';
+import '../services/share_service.dart';
 import '../themes.dart';
 import 'admin_dashboard_screen.dart';
 import 'user_profile_screen.dart';
@@ -516,12 +517,6 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
 
   Future<void> _shareQuote() async {
-    LoggerService.debug('🔄 Starting share process...');
-    LoggerService.debug('  Platform: ${kIsWeb ? 'Web' : Platform.operatingSystem}');
-    if (!kIsWeb) {
-      LoggerService.debug('  Platform version: ${Platform.operatingSystemVersion}');
-    }
-    
     if (_quote == null || _author == null || _currentQuoteId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -532,83 +527,13 @@ class _QuoteScreenState extends State<QuoteScreen> {
       return;
     }
     
-    final shareText = StringBuffer();
-    
-    // Build share text with Option B format
-    shareText.writeln('"$_quote"');
-    shareText.writeln('- $_author');
-    
-    // Add tags if available
-    if (_currentTags.isNotEmpty) {
-      shareText.writeln();
-      shareText.writeln('Tags: ${_currentTags.join(", ")}');
-    }
-    
-    shareText.writeln();
-    shareText.writeln('Shared from Quote Me');
-    shareText.writeln();
-    shareText.writeln('View this quote: https://dcc.anystupididea.com/share/quote/$_currentQuoteId');
-    
-    try {
-      await Share.share(
-        shareText.toString(),
-        subject: 'Quote by $_author',
-        sharePositionOrigin: const Rect.fromLTWH(0, 0, 100, 100), // Required for iPad popover positioning
-      );
-      LoggerService.debug('✅ Share completed successfully');
-    } catch (e) {
-      LoggerService.debug('❌ Share error details:');
-      LoggerService.debug('  Error type: ${e.runtimeType}');
-      LoggerService.debug('  Error message: $e');
-      LoggerService.debug('  Stack trace: ${StackTrace.current}');
-      
-      if (kIsWeb) {
-        // Web fallback: try clipboard
-        try {
-          await Clipboard.setData(ClipboardData(text: shareText.toString()));
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Quote copied to clipboard!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-        } catch (clipboardError) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Unable to share quote. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      } else {
-        // Native device fallback: try clipboard then show error
-        try {
-          await Clipboard.setData(ClipboardData(text: shareText.toString()));
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Share failed. Quote copied to clipboard instead.'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-        } catch (clipboardError) {
-          LoggerService.debug('❌ Clipboard error: $clipboardError');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Unable to share quote. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      }
-    }
+    await ShareService.shareQuote(
+      context: context,
+      quote: _quote!,
+      author: _author!,
+      quoteId: _currentQuoteId!,
+      tags: _currentTags,
+    );
   }
 
   Future<void> _getQuote({int retryCount = 0}) async {

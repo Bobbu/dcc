@@ -72,10 +72,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _loadUserInfo();
     _initializeSettings();
     
-    // Clear any residual search state
-    _searchController.clear();
-    _searchQuery = '';
-    _searchResults = [];
+    // Don't clear search state - it should be preserved
+    // The controller starts empty anyway on first load
   }
 
   Future<void> _initializeSettings() async {
@@ -89,7 +87,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Reload quote retrieval limit in case it was changed in settings
-    _loadQuoteRetrievalLimit();
+    _loadQuoteRetrievalLimit().then((_) {
+      // After loading the limit, refresh the data respecting search/sort state
+      if (_quotes.isNotEmpty || _searchResults.isNotEmpty) {
+        // Only refresh if we already have data (not the initial load)
+        _refreshData();
+      }
+    });
   }
 
   @override
@@ -177,8 +181,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     // Save preferences
     _saveSortPreferences();
     
-    // Trigger server-side sorting
-    _loadQuotesWithSort();
+    // Check if we're in search mode
+    final currentSearchText = _searchController.text.trim();
+    if (currentSearchText.isNotEmpty) {
+      // We're searching - refresh the search with new sort
+      _performSearch(currentSearchText, forceRefresh: true);
+    } else {
+      // No search - load all quotes with new sort
+      _loadQuotesWithSort();
+    }
   }
 
   Future<void> _loadSortPreferences() async {
@@ -261,13 +272,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     query = query.trim();
     
     if (query.isEmpty) {
-      // Clear search
+      // Clear search and reload all quotes
       setState(() {
         _searchQuery = '';
         _searchResults = [];
         _isSearching = false;
         _isPreparingSearch = false;
       });
+      // Load all quotes with current sort preferences
+      await _loadQuotes();
       return;
     }
     
@@ -285,13 +298,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _isSearching = true;
       _isPreparingSearch = false;  // Stop preparing, start actual search
       _searchResults = [];
+      // Note: _isSorting might be true if we're sorting - will be cleared when search completes
     });
     
     try {
-      // Use the new AdminApiService search method
+      // Convert sort field to backend format
+      String sortBy = _getSortFieldString(_sortField);
+      String sortOrder = _sortAscending ? 'asc' : 'desc';
+      
+      LoggerService.debug('🔍 Search with sort: field=$_sortField, sortBy=$sortBy, sortOrder=$sortOrder, ascending=$_sortAscending');
+      
+      // Use the new AdminApiService search method with current sort preferences
       final searchResults = await AdminApiService.searchQuotes(
         query: query,
-        limit: 1000,
+        limit: _quoteRetrievalLimit,  // Use the user's configured limit
+        sortBy: sortBy,
+        sortOrder: sortOrder,
       );
       
       final searchQuotes = searchResults
@@ -301,12 +323,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       setState(() {
         _searchResults = searchQuotes;
         _isSearching = false;
+        _isSorting = false;  // Clear the sorting flag
       });
       
       LoggerService.info('✅ Found ${searchQuotes.length} quotes matching "$query"');
     } catch (e) {
       setState(() {
         _isSearching = false;
+        _isSorting = false;  // Clear the sorting flag on error too
         _error = 'Search error: $e';
       });
     }
@@ -418,11 +442,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _refreshData() async {
     // This method respects the current search state
-    if (_searchQuery.isNotEmpty) {
-      // We're in search mode - refresh the search results (force refresh to get new data)
-      await _performSearch(_searchQuery, forceRefresh: true);
+    // Check both the search query and the controller text (in case one is out of sync)
+    final currentSearchText = _searchController.text.trim();
+    
+    if (currentSearchText.isNotEmpty) {
+      // We have text in the search field - refresh the search results
+      await _performSearch(currentSearchText, forceRefresh: true);
+    } else if (_searchQuery.isNotEmpty) {
+      // Search query exists but controller is empty - clear and load all
+      await _performSearch('', forceRefresh: true);
     } else {
-      // No search active - refresh all quotes
+      // No search active - refresh all quotes with current sort
       await _loadQuotes();
     }
   }
