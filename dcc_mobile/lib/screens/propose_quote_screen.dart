@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/auth_service.dart';
 import '../services/logger_service.dart';
+import '../themes.dart';
 
 class ProposeQuoteScreen extends StatefulWidget {
   const ProposeQuoteScreen({super.key});
@@ -185,16 +186,16 @@ class _ProposeQuoteScreenState extends State<ProposeQuoteScreen> {
     }
   }
 
-  Color _getStatusColor(String status) {
+  Color _getStatusColor(String status, BuildContext context) {
     switch (status) {
       case 'pending':
-        return Colors.orange;
+        return AppThemes.pendingColor(context);
       case 'approved':
-        return Colors.green;
+        return AppThemes.approvedColor(context);
       case 'rejected':
-        return Colors.red;
+        return AppThemes.rejectedColor(context);
       default:
-        return Colors.grey;
+        return AppThemes.inactiveColor(context);
     }
   }
 
@@ -287,10 +288,12 @@ class _ProposeQuoteScreenState extends State<ProposeQuoteScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
+                      Center(
                         child: ElevatedButton(
                           onPressed: _isSubmitting ? null : _submitQuote,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          ),
                           child: _isSubmitting
                               ? const SizedBox(
                                   height: 20,
@@ -332,7 +335,7 @@ class _ProposeQuoteScreenState extends State<ProposeQuoteScreen> {
             else
               ...(_myProposedQuotes.map((quote) {
                 final status = quote['status'] ?? 'pending';
-                final statusColor = _getStatusColor(status);
+                final statusColor = _getStatusColor(status, context);
                 final statusIcon = _getStatusIcon(status);
                 
                 return Card(
@@ -357,18 +360,18 @@ class _ProposeQuoteScreenState extends State<ProposeQuoteScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
-                                vertical: 2,
+                                vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 51),
+                                color: statusColor,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 status.toUpperCase(),
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: statusColor,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),

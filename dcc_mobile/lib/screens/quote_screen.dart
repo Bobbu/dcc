@@ -798,23 +798,49 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
               }
             },
             itemBuilder: (context) => [
-              if (_isSignedIn) ...[
-                if (_userName != null)
-                  PopupMenuItem(
-                    enabled: false,
-                    child: Row(
-                      children: [
-                        Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Hi, ${_userName != null && _userName!.isNotEmpty ? _toTitleCase(_userName!) : _userName ?? ''}',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ],
-                    ),
+              // Greeting Section (Registered Users Only)
+              if (_isSignedIn && _userName != null) ...[
+                PopupMenuItem(
+                  enabled: false,
+                  child: Row(
+                    children: [
+                      Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Hi, ${_userName != null && _userName!.isNotEmpty ? _toTitleCase(_userName!) : _userName ?? ''}',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ],
                   ),
-                if (_userName != null)
-                  const PopupMenuDivider(),
+                ),
+                const PopupMenuDivider(),
+              ],
+              
+              // Any User Section
+              PopupMenuItem(
+                value: 'about',
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                    SizedBox(width: 8),
+                    Text('About'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
+                    SizedBox(width: 8),
+                    Text('Settings'),
+                  ],
+                ),
+              ),
+              
+              // Registered User Section
+              if (_isSignedIn) ...[
+                const PopupMenuDivider(),
                 PopupMenuItem(
                   value: 'profile',
                   child: Row(
@@ -822,16 +848,6 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                       Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary),
                       SizedBox(width: 8),
                       Text('Profile'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'propose',
-                  child: Row(
-                    children: [
-                      Icon(Icons.lightbulb_outline, color: Theme.of(context).colorScheme.primary),
-                      SizedBox(width: 8),
-                      Text('Propose a Quote'),
                     ],
                   ),
                 ),
@@ -845,38 +861,36 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
-                if (_isAdmin)
-                   PopupMenuItem(
-                    value: 'admin',
-                    child: Row(
-                      children: [
-                        Icon(Icons.admin_panel_settings, color: Theme.of(context).colorScheme.primary),
-                        SizedBox(width: 8),
-                        Text('Admin Dashboard'),
-                      ],
-                    ),
+                PopupMenuItem(
+                  value: 'propose',
+                  child: Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8),
+                      Text('Propose a Quote'),
+                    ],
                   ),
+                ),
+              ],
+              
+              // Admin User Section
+              if (_isSignedIn && _isAdmin) ...[
                 const PopupMenuDivider(),
                 PopupMenuItem(
-                  value: 'settings',
+                  value: 'admin',
                   child: Row(
                     children: [
-                      Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
+                      Icon(Icons.admin_panel_settings, color: Theme.of(context).colorScheme.primary),
                       SizedBox(width: 8),
-                      Text('Settings'),
+                      Text('Admin Dashboard'),
                     ],
                   ),
                 ),
-                PopupMenuItem(
-                  value: 'about',
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
-                      SizedBox(width: 8),
-                      Text('About'),
-                    ],
-                  ),
-                ),
+              ],
+              
+              // Sign Out Section (Registered Users Only)
+              if (_isSignedIn) ...[
+                const PopupMenuDivider(),
                 const PopupMenuItem(
                   value: 'logout',
                   child: Row(
@@ -887,29 +901,12 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
-              ] else ...[
-                PopupMenuItem(
-                  value: 'settings',
-                  child: Row(
-                    children: [
-                      Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
-                      SizedBox(width: 8),
-                      Text('Settings'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'about',
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
-                      SizedBox(width: 8),
-                      Text('About'),
-                    ],
-                  ),
-                ),
+              ],
+              
+              // Anonymous User Section
+              if (!_isSignedIn) ...[
                 const PopupMenuDivider(),
-                 PopupMenuItem(
+                PopupMenuItem(
                   value: 'login',
                   child: Row(
                     children: [
