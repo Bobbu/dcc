@@ -221,6 +221,30 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Auth:
               ApiKeyRequired: false
+        OptionsFavorites:
+          Type: Api
+          Properties:
+            Path: /favorites
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsFavoritesId:
+          Type: Api
+          Properties:
+            Path: /favorites/{quote_id}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsFavoritesCheck:
+          Type: Api
+          Properties:
+            Path: /favorites/{quote_id}/check
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
 
   # Auth Lambda function for registration and confirmation
   AuthFunction:
@@ -404,8 +428,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: dcc-openai-handler
-      CodeUri: ./
-      Handler: openai_handler.lambda_handler
+      CodeUri: lambda/
+      Handler: candidate_tags_handler.lambda_handler
       Runtime: python3.10
       Timeout: 30
       Environment:
@@ -427,7 +451,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: dcc-candidate-quotes-handler
-      CodeUri: ./
+      CodeUri: lambda/
       Handler: candidate_quotes_handler.lambda_handler
       Runtime: python3.10
       Timeout: 30
@@ -682,6 +706,37 @@ Resources:
               Authorizer: CognitoAuthorizer
               ApiKeyRequired: false
 
+  # DynamoDB table for user favorites
+  FavoritesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: dcc-user-favorites
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: quote_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+        - AttributeName: quote_id
+          KeyType: RANGE
+      LocalSecondaryIndexes:
+        - IndexName: UserCreatedAtIndex
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: Environment
+          Value: Dev
+
   # DynamoDB table for proposed quotes
   ProposedQuotesTable:
     Type: AWS::DynamoDB::Table
@@ -731,6 +786,63 @@ Resources:
       Tags:
         - Key: Environment
           Value: Dev
+
+  # Lambda function for user favorites
+  FavoritesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-favorites-handler
+      CodeUri: lambda/
+      Handler: favorites_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          FAVORITES_TABLE_NAME: !Ref FavoritesTable
+          QUOTES_TABLE_NAME: dcc-quotes-optimized
+          ENVIRONMENT: dev
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FavoritesTable
+        - DynamoDBReadPolicy:
+            TableName: dcc-quotes-optimized
+      Events:
+        GetFavorites:
+          Type: Api
+          Properties:
+            Path: /favorites
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AddFavorite:
+          Type: Api
+          Properties:
+            Path: /favorites/{quote_id}
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        RemoveFavorite:
+          Type: Api
+          Properties:
+            Path: /favorites/{quote_id}
+            Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        CheckFavorite:
+          Type: Api
+          Properties:
+            Path: /favorites/{quote_id}/check
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
 
   # Lambda function for proposing quotes
   ProposeQuoteFunction:

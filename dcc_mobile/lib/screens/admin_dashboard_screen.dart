@@ -24,6 +24,7 @@ import '../widgets/admin/import_results_dialog.dart';
 import '../widgets/admin/duplicate_cleanup_dialog.dart';
 import '../widgets/admin/tag_generation_dialogs.dart';
 import '../widgets/admin/edit_quote_dialog.dart';
+import '../widgets/favorite_heart_button.dart';
 import 'quote_detail_screen.dart';
 import 'user_profile_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1994,7 +1995,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                       ),
                                     ],
                                   ),
-                                  trailing: PopupMenuButton<String>(
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      FavoriteHeartButton(
+                                        quoteId: quote.id,
+                                        size: 20,
+                                        showTooltip: false,
+                                      ),
+                                      PopupMenuButton<String>(
                                     onSelected: (value) {
                                       if (value == 'preview') {
                                         Navigator.push(
@@ -2068,6 +2077,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                           ],
                                         ),
                                       ),
+                                    ],
+                                  ),
                                     ],
                                   ),
                                 ),

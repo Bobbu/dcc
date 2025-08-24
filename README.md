@@ -11,6 +11,11 @@ A comprehensive quote management system with enterprise-grade features, includin
 
 ### Mobile & Web Applications
 - **Cross-Platform**: iOS, Android, and Web support via Flutter
+- **Favorites System**: Personal quote collections with heart icons
+  - **Heart Icons**: Native favorites throughout the app with real-time updates
+  - **My Favorites Screen**: Dedicated collection view with native sharing
+  - **Platform-Specific UI**: Cupertino share icons on iOS/macOS, Material elsewhere
+  - **Persistent Storage**: Favorites synced across devices with JWT authentication
 - **Advanced Theming**: Complete theme system with user control
   - **Theme Selection**: Light, Dark, or System preference with instant switching
   - **Persistent Settings**: Theme choice saved across app sessions
@@ -37,6 +42,7 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Quote Preview**: View quotes as they appear to shared users
   - **Persistent Sorting**: Sort preferences saved across sessions
   - **Four Sort Fields**: Quote, Author, Created Date, Updated Date
+  - **AI Tag Recommendations**: "Recommend Tags" feature using GPT-4o-mini for intelligent tag suggestions
 - **Tag Management**: Dedicated editor for individual tag operations with persistent sort preferences
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
 - **Duplicate Detection**: Intelligent duplicate cleanup with preservation logic
@@ -265,7 +271,9 @@ quote-me/
 │   │   ├── quote_handler.py    # Public API
 │   │   ├── admin_handler.py    # Admin API
 │   │   ├── auth_handler.py     # Registration/verification
-│   │   └── options_handler.py  # CORS handler
+│   │   ├── options_handler.py  # CORS handler
+│   │   ├── openai_handler.py   # AI tag generation proxy
+│   │   └── favorites_handler.py # User favorites management
 │   └── samconfig.toml
 ├── dcc_mobile/           # Flutter app
 │   ├── lib/
@@ -409,7 +417,8 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
   - [ ] User preference storage in DynamoDB
   - [ ] Smart quote rotation algorithm
   - [ ] Delivery time customization
-- [ ] User favorites and personal collections
+- [x] User favorites and personal collections
+- [x] AI-powered tag recommendations with "Recommend Tags" feature
 - [ ] Social sharing features
 - [ ] Quote collections/categories
 - [ ] Analytics dashboard

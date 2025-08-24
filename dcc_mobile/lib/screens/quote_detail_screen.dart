@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/logger_service.dart';
 import '../services/share_service.dart';
 import '../themes.dart';
+import '../widgets/favorite_heart_button.dart';
 import 'quote_screen.dart';
 
 
@@ -297,6 +298,11 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
+                                FavoriteHeartButton(
+                                  quoteId: widget.quoteId,
+                                  size: 28,
+                                ),
+                                const SizedBox(width: 16),
                                 ElevatedButton.icon(
                                   onPressed: _shareQuote,
                                   icon: Icon(

@@ -9,6 +9,7 @@ This directory contains the AWS SAM application for the Quote Me API backend.
   - Quote retrieval (public with API key)
   - Admin CRUD operations (Cognito JWT auth)
   - OpenAI proxy for tag generation (secure)
+  - User favorites management (JWT auth)
 - **DynamoDB**: Quote storage with tag metadata
 - **Cognito**: User authentication and authorization
 
@@ -60,7 +61,13 @@ CERTIFICATE_ARN=arn:aws:acm:us-east-1:123456789:certificate/abc-123
 - `PUT /admin/quotes/{id}` - Update quote  
 - `DELETE /admin/quotes/{id}` - Delete quote
 - `GET /admin/quotes` - List all quotes
-- `POST /admin/generate-tags` - **AI tag generation (secure proxy)**
+- `POST /admin/generate-tags` - **AI tag generation with "Recommend Tags" feature**
+
+### User Features (JWT Authentication Required)
+- `GET /favorites` - Get user's favorite quotes
+- `POST /favorites/{id}` - Add quote to favorites
+- `DELETE /favorites/{id}` - Remove quote from favorites
+- `GET /favorites/{id}/check` - Check if quote is favorited
 
 ### Admin Tag Management
 - `GET /admin/tags` - Get all tags

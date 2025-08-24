@@ -61,6 +61,7 @@ flutter build web --release  # Web
   - `auth_handler.py`: User registration/verification
   - `options_handler.py`: CORS support
   - `openai_handler.py`: Secure GPT-4o-mini proxy for tag generation
+  - `favorites_handler.py`: User favorites management with JWT authentication
 - **Performance**: Tags metadata caching, GSI indexes, zero-scan operations
 - **Security**: Rate limiting (public only), email verification, role-based access
 
@@ -68,23 +69,26 @@ flutter build web --release  # Web
 ### Flutter App (`dcc_mobile/`)
 - **Platforms**: iOS, Android, Web (https://quote-me.anystupididea.com)
 - **Key Screens**:
-  - `quote_screen.dart`: Main app with About dialog, unified auth menu
+  - `quote_screen.dart`: Main app with About dialog, unified auth menu, heart favorites
   - `settings_screen.dart`: Theme selector, voice controls, tag preferences
-  - `admin_dashboard_screen.dart`: Full CRUD, search, import/export
+  - `admin_dashboard_screen.dart`: Full CRUD, search, import/export, AI tag recommendations
   - `tags_editor_screen.dart`: Individual tag management
   - `user_profile_screen.dart`: Profile management, Daily Nuggets prep
+  - `favorites_screen.dart`: Personal favorites collection with native share icons
 - **Authentication**: AWS Amplify Cognito with JWT management
 - **Theme System**: Light/Dark/System modes with persistent preferences
 - **Audio**: TTS with 20-50+ voices, rate/pitch controls (default: OFF)
 ### Key Features
 - **About Dialog**: Responsive dialog with app info, accessible to all users
 - **Quote Retrieval Limit**: User-configurable limit (50-1000) for quote fetching
-- **AI Tag Generation**: GPT-4o-mini via secure Lambda proxy
+- **AI Tag Generation**: GPT-4o-mini via secure Lambda proxy with "Recommend Tags" feature
+- **Favorites System**: Heart icons throughout app, personal favorites collection
 - **Import/Export**: TSV import, multi-format export (JSON/CSV)
 - **Duplicate Management**: Smart detection and cleanup
 - **Search**: Universal search across quotes, authors, tags
 - **Sorting**: 4-field sorting with persistent preferences
 - **Progress Tracking**: Real-time status for batch operations
+- **Native UX**: Platform-specific icons (Cupertino on iOS/macOS, Material elsewhere)
 
 ### Web Infrastructure
 - **CloudFormation**: S3, CloudFront, Route53, ACM for SSL
@@ -123,6 +127,12 @@ flutter build web --release  # Web
 - `DELETE /admin/tags/unused` - Remove orphaned tags
 - `POST /admin/generate-tags` - GPT-4o-mini tag generation
 
+### User Features (JWT Authentication)
+- `GET /favorites` - Get user's favorite quotes
+- `POST /favorites/{id}` - Add quote to favorites
+- `DELETE /favorites/{id}` - Remove quote from favorites
+- `GET /favorites/{id}/check` - Check if quote is favorited
+
 ## User Management
 - **Registration**: Self-service with email verification
 - **Groups**: "Users" (auto), "Admins" (manual)
@@ -139,8 +149,9 @@ flutter build web --release  # Web
 - **About Dialog**: App info accessible to all users
 - **Quote Retrieval Limit**: Configurable 50-1000 quotes per fetch (Settings screen)
 - **Audio**: TTS with 50+ voices, rate/pitch controls (default: OFF)
-- **Admin**: Full CRUD, search, sort, import/export
+- **Admin**: Full CRUD, search, sort, import/export with AI tag recommendations
 - **AI Tags**: GPT-4o-mini via secure Lambda proxy
+- **Favorites**: Personal quote collections with heart icons and native sharing
 - **Resilience**: Auto-retry, graceful error handling
 - **Standards**: Clean architecture, automated testing
 

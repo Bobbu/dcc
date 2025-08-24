@@ -81,7 +81,7 @@ Return the response as a JSON array with this structure:
   }}
 ]"""
 
-        # Call OpenAI API using requests (same as existing openai_handler.py)
+        # Call OpenAI API using requests (similar to candidate_tags_handler.py)
         response = requests.post(
             'https://api.openai.com/v1/chat/completions',
             headers={

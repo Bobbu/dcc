@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../services/admin_api_service.dart';
 import '../../services/logger_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../services/auth_service.dart';
 
 class EditQuoteDialog extends StatefulWidget {
   final bool isEditing;
@@ -27,6 +31,7 @@ class _EditQuoteDialogState extends State<EditQuoteDialog> {
   Set<String> _selectedTags = {};
   bool _isLoadingTags = true;
   bool _isSaving = false;
+  bool _isRecommending = false;
   final TextEditingController _newTagController = TextEditingController();
 
   @override
@@ -58,6 +63,105 @@ class _EditQuoteDialogState extends State<EditQuoteDialog> {
         _availableTags.add(newTag);
         _selectedTags.add(newTag);
         _newTagController.clear();
+      });
+    }
+  }
+
+  Future<void> _recommendTags() async {
+    final quote = widget.quoteController.text.trim();
+    final author = widget.authorController.text.trim();
+    
+    if (quote.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a quote first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isRecommending = true;
+    });
+    
+    try {
+      final baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
+      final token = await AuthService.getIdToken();
+      
+      LoggerService.debug('Recommending tags for quote: "$quote" by $author');
+      LoggerService.debug('Using endpoint: $baseUrl/admin/generate-tags');
+      
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+      
+      final requestBody = {
+        'quote': quote,
+        'author': author.isNotEmpty ? author : 'Unknown',
+        'existingTags': _availableTags,
+      };
+      
+      LoggerService.debug('Request body: ${json.encode(requestBody)}');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/admin/generate-tags'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode(requestBody),
+      );
+      
+      LoggerService.debug('Response status: ${response.statusCode}');
+      LoggerService.debug('Response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final recommendedTags = List<String>.from(data['tags'] ?? []);
+        
+        if (recommendedTags.isNotEmpty) {
+          setState(() {
+            // Add recommended tags to selected tags
+            _selectedTags.addAll(recommendedTags);
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Added ${recommendedTags.length} recommended tags'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No tags recommended'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      } else if (response.statusCode == 429) {
+        throw Exception('Rate limit exceeded. Please wait a moment and try again.');
+      } else {
+        throw Exception('Failed to get tag recommendations');
+      }
+    } catch (e) {
+      LoggerService.error('Error recommending tags', error: e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isRecommending = false;
       });
     }
   }
@@ -117,7 +221,7 @@ class _EditQuoteDialogState extends State<EditQuoteDialog> {
               const SizedBox(height: 12),
             ],
             
-            // Add new tag field
+            // Add new tag field and Recommend Tags button
             Row(
               children: [
                 Expanded(
@@ -138,6 +242,23 @@ class _EditQuoteDialogState extends State<EditQuoteDialog> {
                   color: Theme.of(context).colorScheme.primary,
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            // Recommend Tags button
+            Center(
+              child: ElevatedButton.icon(
+                onPressed: _isRecommending ? null : _recommendTags,
+                icon: _isRecommending 
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.auto_awesome),
+                label: Text(_isRecommending ? 'Getting recommendations...' : 'Recommend Tags'),
+              ),
             ),
             const SizedBox(height: 12),
             

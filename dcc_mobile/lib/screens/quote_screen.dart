@@ -19,6 +19,8 @@ import '../themes.dart';
 import 'admin_dashboard_screen.dart';
 import 'user_profile_screen.dart';
 import 'propose_quote_screen.dart';
+import 'favorites_screen.dart';
+import '../widgets/favorite_heart_button.dart';
 
 
 class QuoteScreen extends StatefulWidget {
@@ -169,14 +171,6 @@ class _QuoteScreenState extends State<QuoteScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        '© 2025 Quote Me App\nAll rights reserved.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 179),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
                         'Quote Me is your daily source of inspiration and motivation. '
                         'Discover wisdom from great thinkers, leaders, and authors throughout history.',
                         textAlign: TextAlign.center,
@@ -214,10 +208,13 @@ class _QuoteScreenState extends State<QuoteScreen> {
                       Text(
                         'Built with Flutter and powered by AWS serverless technology.',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontStyle: FontStyle.italic,
-                          color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 179),
-                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Copyright © 2025 Catalyst Technology LLC\nAll rights reserved.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),
@@ -709,6 +706,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
                     );
                   }
                   break;
+                case 'favorites':
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const FavoritesScreen(),
+                      ),
+                    );
+                  }
+                  break;
                 case 'admin':
                   _openAdmin();
                   break;
@@ -768,6 +775,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
                       Icon(Icons.lightbulb_outline, color: Theme.of(context).colorScheme.primary),
                       SizedBox(width: 8),
                       Text('Propose a Quote'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'favorites',
+                  child: Row(
+                    children: [
+                      Icon(Icons.favorite, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8),
+                      Text('My Favorites'),
                     ],
                   ),
                 ),
@@ -925,6 +942,12 @@ class _QuoteScreenState extends State<QuoteScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
+                                  if (_currentQuoteId != null)
+                                    FavoriteHeartButton(
+                                      quoteId: _currentQuoteId!,
+                                      size: 28,
+                                    ),
+                                  const SizedBox(width: 8),
                                   IconButton(
                                     onPressed: _audioEnabled 
                                       ? () {
