@@ -194,12 +194,14 @@ class _FavoriteHeartButtonState extends State<FavoriteHeartButton>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // final unfavoritedColor = theme.brightness == Brightness.dark
+    //     ? theme.colorScheme.onSurface.withOpacity(0.6)
+    //     : theme.colorScheme.onSurface.withOpacity(0.7);
+    final unfavoritedColor = Colors.red;
+
     if (!_isSignedIn) {
-      return Icon(
-        Icons.favorite_border,
-        size: widget.size,
-        color: Colors.grey,
-      );
+      return const SizedBox.shrink();
     }
 
     Widget heartIcon = AnimatedBuilder(
@@ -210,7 +212,7 @@ class _FavoriteHeartButtonState extends State<FavoriteHeartButton>
           child: Icon(
             _isFavorite ? Icons.favorite : Icons.favorite_border,
             size: widget.size,
-            color: _isFavorite ? Colors.red : Colors.grey,
+            color: _isFavorite ? Colors.red : unfavoritedColor,
           ),
         );
       },

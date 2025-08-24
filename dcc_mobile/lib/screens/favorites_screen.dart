@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/favorite.dart';
 import '../services/favorites_service.dart';
 import '../services/auth_service.dart';
@@ -169,9 +169,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 ),
                 IconButton(
                   icon: Icon(
-                    (Platform.isIOS || Platform.isMacOS) 
-                        ? CupertinoIcons.share 
-                        : Icons.share, 
+                    kIsWeb ? Icons.share : CupertinoIcons.share,
                     size: 18
                   ),
                   onPressed: () => _shareQuote(quote.quote, quote.author, favorite.quoteId, quote.tags),

@@ -27,6 +27,7 @@ import '../widgets/admin/edit_quote_dialog.dart';
 import '../widgets/favorite_heart_button.dart';
 import 'quote_detail_screen.dart';
 import 'user_profile_screen.dart';
+import 'settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -752,6 +753,69 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _openSettings() async {
+    try {
+      // Load settings from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final audioEnabled = prefs.getBool('audio_enabled') ?? false;
+      final selectedCategories = prefs.getStringList('selected_categories')?.toSet() ?? {'All'};
+      final speechRate = prefs.getDouble('speech_rate') ?? 0.5;
+      final pitch = prefs.getDouble('pitch') ?? 1.0;
+      
+      // Load voice settings
+      Map<String, String>? selectedVoice;
+      final voiceName = prefs.getString('selected_voice_name');
+      final voiceLocale = prefs.getString('selected_voice_locale');
+      if (voiceName != null && voiceLocale != null) {
+        selectedVoice = {'name': voiceName, 'locale': voiceLocale};
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SettingsScreen(
+            audioEnabled: audioEnabled,
+            selectedCategories: selectedCategories,
+            selectedVoice: selectedVoice,
+            speechRate: speechRate,
+            pitch: pitch,
+            quoteRetrievalLimit: _quoteRetrievalLimit,
+            isAdmin: true,
+            onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit) {
+              // Update the quote retrieval limit when settings change
+              setState(() {
+                _quoteRetrievalLimit = quoteRetrievalLimit;
+              });
+              
+              // Save settings to SharedPreferences
+              _saveSettingsToPrefs(audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit);
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      LoggerService.error('Error opening settings', error: e);
+    }
+  }
+
+  Future<void> _saveSettingsToPrefs(bool audioEnabled, Set<String> categories, Map<String, String>? voice, double speechRate, double pitch, int quoteRetrievalLimit) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('audio_enabled', audioEnabled);
+      await prefs.setStringList('selected_categories', categories.toList());
+      await prefs.setInt('quote_retrieval_limit', quoteRetrievalLimit);
+      await prefs.setDouble('speech_rate', speechRate);
+      await prefs.setDouble('pitch', pitch);
+      
+      if (voice != null) {
+        await prefs.setString('selected_voice_name', voice['name']!);
+        await prefs.setString('selected_voice_locale', voice['locale']!);
+      }
+    } catch (e) {
+      LoggerService.error('Error saving settings', error: e);
+    }
+  }
+
   Future<void> _signOut() async {
     try {
       await AuthService.signOut();
@@ -1403,6 +1467,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     builder: (context) => const UserProfileScreen(),
                   ),
                 );
+              } else if (value == 'settings') {
+                _openSettings();
               } else if (value == 'logout') {
                 _signOut();
               }
@@ -1516,6 +1582,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 8),
                     Text('Profile'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
+                    SizedBox(width: 8),
+                    Text('Settings'),
                   ],
                 ),
               ),

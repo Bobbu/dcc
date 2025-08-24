@@ -30,7 +30,7 @@ class QuoteScreen extends StatefulWidget {
   State<QuoteScreen> createState() => _QuoteScreenState();
 }
 
-class _QuoteScreenState extends State<QuoteScreen> {
+class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   String? _quote;
   String? _author;
   String? _currentQuoteId;
@@ -59,9 +59,38 @@ class _QuoteScreenState extends State<QuoteScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initTts();
     _loadSettings();
     _checkAuthStatus();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    try {
+      flutterTts.stop();
+    } catch (e) {
+      LoggerService.debug('Error stopping TTS in dispose: $e');
+    }
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App came back into focus, refresh auth status
+      _checkAuthStatus();
+    }
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Check if we're coming back to this screen
+    if (ModalRoute.of(context)?.isCurrent ?? false) {
+      _checkAuthStatus();
+    }
   }
   
   String _toTitleCase(String text) {
@@ -74,22 +103,34 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
   
   Future<void> _checkAuthStatus() async {
+    LoggerService.debug('🔄 Checking auth status in QuoteScreen...');
     final isSignedIn = await AuthService.isSignedIn();
+    LoggerService.debug('  Is signed in: $isSignedIn');
+    
     if (isSignedIn) {
       final isAdmin = await AuthService.isUserInAdminGroup();
       final userName = await AuthService.getUserName();
-      setState(() {
-        _isSignedIn = true;
-        _isAdmin = isAdmin;
-        _userName = userName;
-      });
+      LoggerService.debug('  Is admin: $isAdmin');
+      LoggerService.debug('  User name: $userName');
+      
+      if (mounted) {
+        setState(() {
+          _isSignedIn = true;
+          _isAdmin = isAdmin;
+          _userName = userName;
+        });
+        LoggerService.debug('✅ Auth state updated: signedIn=$_isSignedIn, admin=$_isAdmin');
+      }
     } else {
       // Clear state when not signed in
-      setState(() {
-        _isSignedIn = false;
-        _isAdmin = false;
-        _userName = null;
-      });
+      LoggerService.debug('  User not signed in, clearing state');
+      if (mounted) {
+        setState(() {
+          _isSignedIn = false;
+          _isAdmin = false;
+          _userName = null;
+        });
+      }
     }
   }
 
@@ -100,6 +141,10 @@ class _QuoteScreenState extends State<QuoteScreen> {
         _isSignedIn = false;
         _isAdmin = false;
         _userName = null;
+        _quote = null;
+        _author = null;
+        _currentQuoteId = null;
+        _error = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -193,10 +238,11 @@ class _QuoteScreenState extends State<QuoteScreen> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           '• Curated collection of inspirational quotes\n'
-                          '• Filter by categories and tags\n'
-                          '• Text-to-speech with customizable voices\n'
+                          '• Filter by categories using tags\n'
+                          '• Text-to-speech (pretty goofy) with customizable voices\n'
                           '• Share quotes with friends\n'
-                          '• Propose your favorite quotes\n'
+                          '• Favorite quotes that you love\n'
+                          '• Propose new quotes\n'
                           '• Dark and light theme support',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             fontSize: isLargeScreen ? 14 : 13,
@@ -405,15 +451,6 @@ class _QuoteScreenState extends State<QuoteScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    try {
-      flutterTts.stop();
-    } catch (e) {
-      LoggerService.debug('Error stopping TTS in dispose: $e');
-    }
-    super.dispose();
-  }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -469,6 +506,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
           speechRate: _speechRate,
           pitch: _pitch,
           quoteRetrievalLimit: _quoteRetrievalLimit,
+          isAdmin: _isAdmin,
           onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit) {
             setState(() {
               _audioEnabled = audioEnabled;
@@ -488,27 +526,43 @@ class _QuoteScreenState extends State<QuoteScreen> {
   }
 
   Future<void> _openAdmin() async {
+    LoggerService.debug('🚀 Opening admin from QuoteScreen...');
+    
     // Check if user is already signed in as admin
     final isSignedIn = await AuthService.isSignedIn();
-    if (isSignedIn && await AuthService.isUserInAdminGroup()) {
+    final isAdmin = isSignedIn ? await AuthService.isUserInAdminGroup() : false;
+    
+    LoggerService.debug('  Current auth: signedIn=$isSignedIn, admin=$isAdmin');
+    
+    if (isSignedIn && isAdmin) {
       // Already signed in as admin, go directly to dashboard
       if (mounted) {
-        Navigator.push(
+        LoggerService.debug('  Navigating to AdminDashboardScreen...');
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => const AdminDashboardScreen(),
           ),
         );
+        // ALWAYS refresh auth status when returning from admin dashboard
+        LoggerService.debug('  Returned from AdminDashboard, refreshing auth...');
+        await _checkAuthStatus();
       }
     } else {
       // Not signed in or not admin, show login screen
       if (mounted) {
-        Navigator.push(
+        LoggerService.debug('  Navigating to LoginScreen...');
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => const LoginScreen(),
           ),
         );
+        // Refresh auth status if login was successful
+        if (result == true) {
+          LoggerService.debug('  Login successful, refreshing auth...');
+          await _checkAuthStatus();
+        }
       }
     }
   }
@@ -665,21 +719,21 @@ class _QuoteScreenState extends State<QuoteScreen> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: Icon(
-              (!kIsWeb && Platform.isAndroid) 
-                ? Icons.share 
-                : CupertinoIcons.share,
+          if (_quote != null && _author != null)
+            IconButton(
+              icon: Icon(
+                (!kIsWeb && Platform.isAndroid) 
+                  ? Icons.share 
+                  : CupertinoIcons.share,
+              ),
+              onPressed: _shareQuote,
+              tooltip: 'Share Quote',
             ),
-            onPressed: _shareQuote,
-            tooltip: 'Share Quote',
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: _openSettings,
-            tooltip: 'Settings',
-          ),
           PopupMenuButton<String>(
+            onOpened: () {
+              // Refresh auth status when menu opens to ensure correct options
+              _checkAuthStatus();
+            },
             onSelected: (value) async {
               switch (value) {
                 case 'profile':
@@ -734,6 +788,9 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   break;
                 case 'logout':
                   await _handleLogout();
+                  break;
+                case 'settings':
+                  _openSettings();
                   break;
                 case 'about':
                   _showAboutDialog();
@@ -801,6 +858,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   ),
                 const PopupMenuDivider(),
                 PopupMenuItem(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8),
+                      Text('Settings'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
                   value: 'about',
                   child: Row(
                     children: [
@@ -821,6 +888,16 @@ class _QuoteScreenState extends State<QuoteScreen> {
                   ),
                 ),
               ] else ...[
+                PopupMenuItem(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
+                      SizedBox(width: 8),
+                      Text('Settings'),
+                    ],
+                  ),
+                ),
                 PopupMenuItem(
                   value: 'about',
                   child: Row(

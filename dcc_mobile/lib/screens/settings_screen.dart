@@ -13,6 +13,7 @@ class SettingsScreen extends StatefulWidget {
   final double speechRate;
   final double pitch;
   final int quoteRetrievalLimit;
+  final bool isAdmin;
   final Function(bool, Set<String>, Map<String, String>?, double, double, int) onSettingsChanged;
 
   const SettingsScreen({
@@ -23,6 +24,7 @@ class SettingsScreen extends StatefulWidget {
     this.speechRate = 0.5,
     this.pitch = 1.0,
     this.quoteRetrievalLimit = 50,
+    this.isAdmin = false,
     required this.onSettingsChanged,
   });
 
@@ -340,7 +342,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Quote Retrieval Limit Section
+            // Quote Retrieval Limit Section (Admin Only)
+            if (widget.isAdmin) ...[
             Card(
               child: Container(
                 decoration: BoxDecoration(
@@ -413,6 +416,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            ],
             
             // Audio Settings Section
             Card(
