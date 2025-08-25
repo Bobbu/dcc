@@ -49,6 +49,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _isLoadingMore = false;
   bool _hasMoreQuotes = true;
   String? _lastKey;
+  // Search-specific pagination state
+  bool _hasMoreSearchResults = false;
+  String? _searchLastKey;
   String? _error;
   String? _userEmail;
   SortField _sortField = SortField.createdAt;
@@ -64,6 +67,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
   int _quoteRetrievalLimit = 50;
+  
+  // Scroll control
+  final ScrollController _scrollController = ScrollController();
+  bool _showGoToTop = false;
+  bool _showGoToBottom = true;
 
   static final String _baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
 
@@ -74,8 +82,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _loadUserInfo();
     _initializeSettings();
     
+    // Set up scroll listener for Go to Top/Bottom buttons
+    _scrollController.addListener(_onScroll);
+    
     // Don't clear search state - it should be preserved
     // The controller starts empty anyway on first load
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _initializeSettings() async {
@@ -96,13 +115,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _refreshData();
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _debounceTimer?.cancel();
-    super.dispose();
   }
 
   String _formatDate(String dateString) {
@@ -300,6 +312,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _isSearching = true;
       _isPreparingSearch = false;  // Stop preparing, start actual search
       _searchResults = [];
+      _searchLastKey = null;
+      _hasMoreSearchResults = false;
       // Note: _isSorting might be true if we're sorting - will be cleared when search completes
     });
     
@@ -310,15 +324,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       
       LoggerService.debug('🔍 Search with sort: field=$_sortField, sortBy=$sortBy, sortOrder=$sortOrder, ascending=$_sortAscending');
       
-      // Use the new AdminApiService search method with current sort preferences
-      final searchResults = await AdminApiService.searchQuotes(
+      // Use the new AdminApiService search method with pagination support
+      final response = await AdminApiService.searchQuotesWithPagination(
         query: query,
         limit: _quoteRetrievalLimit,  // Use the user's configured limit
         sortBy: sortBy,
         sortOrder: sortOrder,
       );
       
-      final searchQuotes = searchResults
+      final searchQuotes = (response['quotes'] as List<Map<String, dynamic>>)
           .map((item) => Quote.fromJson(item))
           .toList();
       
@@ -326,9 +340,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _searchResults = searchQuotes;
         _isSearching = false;
         _isSorting = false;  // Clear the sorting flag
+        _searchLastKey = response['last_key'];
+        _hasMoreSearchResults = response['has_more'] ?? false;
       });
       
-      LoggerService.info('✅ Found ${searchQuotes.length} quotes matching "$query"');
+      LoggerService.info('✅ Found ${searchQuotes.length} quotes matching "$query" (has_more: $_hasMoreSearchResults)');
     } catch (e) {
       setState(() {
         _isSearching = false;
@@ -561,6 +577,50 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
   
+  bool _shouldShowLoadMore() {
+    if (_searchQuery.isNotEmpty) {
+      // In search mode - show if there are more search results
+      return _hasMoreSearchResults;
+    } else {
+      // In regular mode - show if there are more quotes
+      return _hasMoreQuotes;
+    }
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    
+    const double threshold = 100.0; // Show buttons when 100px from top/bottom
+    final double position = _scrollController.position.pixels;
+    final double maxScroll = _scrollController.position.maxScrollExtent;
+    
+    final bool shouldShowGoToTop = position > threshold;
+    final bool shouldShowGoToBottom = position < (maxScroll - threshold);
+    
+    if (_showGoToTop != shouldShowGoToTop || _showGoToBottom != shouldShowGoToBottom) {
+      setState(() {
+        _showGoToTop = shouldShowGoToTop;
+        _showGoToBottom = shouldShowGoToBottom;
+      });
+    }
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _scrollToBottom() {
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+  
   Future<void> _loadMoreQuotes() async {
     if (_isLoadingMore || !_hasMoreQuotes || _lastKey == null) return;
     
@@ -602,6 +662,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _error = 'Error loading more quotes: $e';
       });
       _showMessage('Failed to load more quotes', isError: true);
+    }
+  }
+
+  Future<void> _loadMoreSearchResults() async {
+    if (_isLoadingMore || !_hasMoreSearchResults || _searchLastKey == null) return;
+    
+    setState(() {
+      _isLoadingMore = true;
+    });
+    
+    try {
+      LoggerService.info('Loading more search results with pagination...');
+      
+      // Convert sort field to backend format
+      String sortBy = _getSortFieldString(_sortField);
+      String sortOrder = _sortAscending ? 'asc' : 'desc';
+      
+      // Load more search results with current sort order
+      LoggerService.debug('🔢 Admin Dashboard loading more search results with limit: $_quoteRetrievalLimit');
+      final response = await AdminApiService.searchQuotesWithPagination(
+        query: _searchQuery,
+        limit: _quoteRetrievalLimit,
+        lastKey: _searchLastKey,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
+      );
+      
+      final quotesData = response['quotes'] as List<Map<String, dynamic>>;
+      final newQuotes = quotesData.map((item) => Quote.fromJson(item)).toList();
+      
+      setState(() {
+        // Add new search results to existing ones
+        _searchResults.addAll(newQuotes);
+        _isLoadingMore = false;
+        _searchLastKey = response['last_key'];
+        _hasMoreSearchResults = response['has_more'] ?? false;
+      });
+      
+      LoggerService.info('✅ Loaded ${newQuotes.length} more search results for "$_searchQuery"');
+    } catch (e) {
+      setState(() {
+        _isLoadingMore = false;
+        _error = 'Error loading more search results: $e';
+      });
+      _showMessage('Failed to load more search results', isError: true);
     }
   }
 
@@ -1613,8 +1718,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         onPressed: () => _showQuoteDialog(),
         child: const Icon(Icons.add),
       ),
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           // User Info Header
           Container(
             width: double.infinity,
@@ -1972,8 +2079,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                           )
                         : ListView.builder(
+                            controller: _scrollController,
                             padding: const EdgeInsets.all(8),
-                            itemCount: _filteredQuotes.length + (_hasMoreQuotes && _searchQuery.isEmpty ? 1 : 0),
+                            itemCount: _filteredQuotes.length + (_shouldShowLoadMore() ? 1 : 0),
                             itemBuilder: (context, index) {
                               // Show Load More button at the end
                               if (index == _filteredQuotes.length) {
@@ -1983,9 +2091,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     child: _isLoadingMore
                                       ? const CircularProgressIndicator()
                                       : ElevatedButton.icon(
-                                          onPressed: _loadMoreQuotes,
+                                          onPressed: _searchQuery.isNotEmpty ? _loadMoreSearchResults : _loadMoreQuotes,
                                           icon: const Icon(Icons.expand_more),
-                                          label: const Text('Load More Quotes'),
+                                          label: Text(_searchQuery.isNotEmpty ? 'Load More Search Results' : 'Load More Quotes'),
                                         ),
                                   ),
                                 );
@@ -1998,6 +2106,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   vertical: 8,
                                 ),
                                 child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: Theme.of(context).colorScheme.primary,
+                                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16,
                                     vertical: 12,
@@ -2162,6 +2278,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             },
                           ),
           ),
+            ],
+          ),
+          // Go to Top button
+          if (_showGoToTop)
+            Positioned(
+              right: 16,
+              bottom: 140, // Position above the + button
+              child: FloatingActionButton(
+                mini: true,
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                onPressed: _scrollToTop,
+                heroTag: "go_to_top",
+                child: const Icon(Icons.keyboard_arrow_up),
+              ),
+            ),
+          // Go to Bottom button
+          if (_showGoToBottom)
+            Positioned(
+              right: 16,
+              bottom: 140, // Position above the + button
+              child: FloatingActionButton(
+                mini: true,
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                onPressed: _scrollToBottom,
+                heroTag: "go_to_bottom",
+                child: const Icon(Icons.keyboard_arrow_down),
+              ),
+            ),
         ],
       ),
     );

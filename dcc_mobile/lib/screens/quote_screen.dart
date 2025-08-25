@@ -104,7 +104,8 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   
   Future<void> _checkAuthStatus() async {
     LoggerService.debug('🔄 Checking auth status in QuoteScreen...');
-    final isSignedIn = await AuthService.isSignedIn();
+    // Use the new method that also initializes favorites cache for existing sessions
+    final isSignedIn = await AuthService.initializeAndCheckSignIn();
     LoggerService.debug('  Is signed in: $isSignedIn');
     
     if (isSignedIn) {

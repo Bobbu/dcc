@@ -7,7 +7,7 @@ from boto3.dynamodb.conditions import Key, Attr
 
 # Initialize DynamoDB
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table(os.environ.get('QUOTES_TABLE', 'dcc-quotes'))
+table = dynamodb.Table(os.environ.get('QUOTES_TABLE_NAME', 'dcc-quotes-optimized'))
 
 def get_user_claims(event):
     """Extract user claims from Cognito JWT token"""
@@ -250,28 +250,105 @@ def handle_delete_quote(event, user_claims):
         return create_response(500, {"error": "Internal server error"})
 
 def handle_list_quotes(event, user_claims):
-    """Handle GET /admin/quotes"""
+    """Handle GET /admin/quotes with proper sorting and pagination"""
     if not user_claims['is_admin']:
         return create_response(403, {"error": "Forbidden", "message": "Admin access required"})
     
     try:
-        # Get all quotes for admin view
-        response = table.scan()
-        all_items = response.get('Items', [])
+        # Parse query parameters
+        query_params = event.get('queryStringParameters') or {}
+        limit = min(int(query_params.get('limit', 50)), 1000)  # Cap at 1000
+        sort_by = query_params.get('sort_by', 'created_at')
+        sort_order = query_params.get('sort_order', 'desc')
+        last_key = query_params.get('last_key')
         
-        # Filter out metadata records - only include actual quotes
-        quotes = [item for item in all_items if item.get('id') != 'TAGS_METADATA']
+        print(f"Admin quotes request: limit={limit}, sort_by={sort_by}, sort_order={sort_order}")
         
-        # Sort by creation date (newest first)
-        quotes.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        # Validate sort field
+        valid_sort_fields = {'quote', 'author', 'created_at', 'updated_at'}
+        if sort_by not in valid_sort_fields:
+            return create_response(400, {
+                "error": "Invalid sort field", 
+                "valid_fields": list(valid_sort_fields)
+            })
+        
+        # Validate sort order
+        if sort_order not in ['asc', 'desc']:
+            return create_response(400, {
+                "error": "Invalid sort order", 
+                "valid_orders": ['asc', 'desc']
+            })
+        
+        # Get all quotes (we'll sort in memory since DynamoDB doesn't support arbitrary field sorting)
+        scan_params = {}
+        all_quotes = []
+        
+        while True:
+            if last_key and len(all_quotes) == 0:  # Only use last_key on first scan
+                try:
+                    import json
+                    scan_params['ExclusiveStartKey'] = json.loads(last_key)
+                except:
+                    pass  # Invalid last_key, ignore it
+            
+            response = table.scan(**scan_params)
+            items = response.get('Items', [])
+            
+            # Filter out metadata records - only include actual quotes
+            quotes_batch = [item for item in items if item.get('id') != 'TAGS_METADATA']
+            all_quotes.extend(quotes_batch)
+            
+            # Check if we have more data
+            if 'LastEvaluatedKey' not in response:
+                break
+            scan_params['ExclusiveStartKey'] = response['LastEvaluatedKey']
+        
+        print(f"Retrieved {len(all_quotes)} total quotes from database")
+        
+        # Sort quotes based on requested field and order
+        reverse_sort = (sort_order == 'desc')
+        
+        if sort_by == 'quote':
+            all_quotes.sort(key=lambda x: x.get('quote', '').lower(), reverse=reverse_sort)
+        elif sort_by == 'author':
+            all_quotes.sort(key=lambda x: x.get('author', '').lower(), reverse=reverse_sort)
+        elif sort_by == 'created_at':
+            all_quotes.sort(key=lambda x: x.get('created_at', ''), reverse=reverse_sort)
+        elif sort_by == 'updated_at':
+            all_quotes.sort(key=lambda x: x.get('updated_at', ''), reverse=reverse_sort)
+        
+        # Apply pagination after sorting
+        total_count = len(all_quotes)
+        quotes_page = all_quotes[:limit]
+        
+        # Determine if there are more quotes
+        has_more = len(all_quotes) > limit
+        next_last_key = None
+        
+        if has_more and len(quotes_page) > 0:
+            # Create a simple pagination key based on the last item's sort field
+            last_item = quotes_page[-1]
+            next_last_key = json.dumps({
+                'id': last_item['id'],
+                'sort_field': last_item.get(sort_by, ''),
+                'sort_by': sort_by,
+                'sort_order': sort_order
+            })
+        
+        print(f"Returning {len(quotes_page)} quotes (total: {total_count}, has_more: {has_more})")
         
         return create_response(200, {
-            "quotes": quotes,
-            "count": len(quotes)
+            "quotes": quotes_page,
+            "total_count": total_count,
+            "count": len(quotes_page),
+            "has_more": has_more,
+            "last_key": next_last_key
         })
         
     except Exception as e:
         print(f"Error listing quotes: {e}")
+        import traceback
+        traceback.print_exc()
         return create_response(500, {"error": "Internal server error"})
 
 def handle_get_tags(event, user_claims):

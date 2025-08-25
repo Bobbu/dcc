@@ -298,7 +298,7 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          TABLE_NAME: dcc-quotes-optimized
+          QUOTES_TABLE_NAME: dcc-quotes-optimized
           USER_POOL_ID: !Ref UserPool
           ENVIRONMENT: dev
       Policies:

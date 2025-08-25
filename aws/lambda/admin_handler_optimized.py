@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 dynamodb = boto3.resource('dynamodb')
 cognito_client = boto3.client('cognito-idp')
 
-table_name = os.environ['TABLE_NAME']
+table_name = os.environ.get('QUOTES_TABLE_NAME', os.environ.get('TABLE_NAME', 'dcc-quotes-optimized'))
 user_pool_id = os.environ['USER_POOL_ID']
 table = dynamodb.Table(table_name)
 
@@ -138,33 +138,65 @@ def admin_get_quotes(query_params):
         # Track pagination info
         last_evaluated_key = None
         
-        # Build query based on filters
+        # Build query based on filters and sorting requirements
         if tag_filter and tag_filter != 'All':
             # Filter by tag using tag-quote mappings
             quotes = get_quotes_by_tag_admin(tag_filter, limit, exclusive_start_key)
+            last_evaluated_key = None  # Tag filtering doesn't support pagination yet
         elif author_filter:
             # Filter by author using AuthorDateIndex
             quotes = get_quotes_by_author_admin(author_filter, limit, exclusive_start_key)
+            last_evaluated_key = None  # Author filtering doesn't support pagination yet
         else:
-            # Get all quotes using TypeDateIndex
-            # Add filter to ensure we only get actual quotes (PK starts with QUOTE#)
-            query_params_dict = {
-                'IndexName': 'TypeDateIndex',
-                'KeyConditionExpression': Key('type').eq('quote'),
-                'FilterExpression': 'begins_with(PK, :quote_prefix)',
-                'ExpressionAttributeValues': {
-                    ':quote_prefix': 'QUOTE#'
-                },
-                'Limit': limit,
-                'ScanIndexForward': scan_forward  # Control sort order
-            }
-            
-            if exclusive_start_key:
-                query_params_dict['ExclusiveStartKey'] = exclusive_start_key
+            # For quote/author sorting, we need to get ALL quotes to sort properly
+            if sort_by in ['quote', 'author']:
+                logger.info(f"Fetching all quotes for {sort_by} sorting")
+                quotes = []
+                current_last_key = None
                 
-            response = table.query(**query_params_dict)
-            quotes = response['Items']
-            last_evaluated_key = response.get('LastEvaluatedKey')
+                # Get all quotes in batches
+                while True:
+                    batch_params = {
+                        'IndexName': 'TypeDateIndex',
+                        'KeyConditionExpression': Key('type').eq('quote'),
+                        'FilterExpression': 'begins_with(PK, :quote_prefix)',
+                        'ExpressionAttributeValues': {
+                            ':quote_prefix': 'QUOTE#'
+                        },
+                        'Limit': 1000  # Batch size
+                    }
+                    
+                    if current_last_key:
+                        batch_params['ExclusiveStartKey'] = current_last_key
+                    
+                    batch_response = table.query(**batch_params)
+                    quotes.extend(batch_response['Items'])
+                    
+                    current_last_key = batch_response.get('LastEvaluatedKey')
+                    if not current_last_key:
+                        break
+                
+                logger.info(f"Fetched {len(quotes)} total quotes for sorting")
+                last_evaluated_key = None  # No pagination when doing full sort
+            else:
+                # For date sorting, use normal pagination
+                query_params_dict = {
+                    'IndexName': 'TypeDateIndex',
+                    'KeyConditionExpression': Key('type').eq('quote'),
+                    'FilterExpression': 'begins_with(PK, :quote_prefix)',
+                    'ExpressionAttributeValues': {
+                        ':quote_prefix': 'QUOTE#'
+                    },
+                    'Limit': limit,
+                    'ScanIndexForward': scan_forward  # Control sort order
+                }
+                
+                if exclusive_start_key:
+                    query_params_dict['ExclusiveStartKey'] = exclusive_start_key
+                    
+                response = table.query(**query_params_dict)
+                quotes = response['Items']
+                last_evaluated_key = response.get('LastEvaluatedKey')
         
         # Apply search filter if provided
         if search_query:
@@ -175,32 +207,57 @@ def admin_get_quotes(query_params):
                     search_lower in quote.get('author', '').lower())
             ]
         
-        # Format quotes for response
-        formatted_quotes = []
-        for quote in quotes:
-            formatted_quote = format_admin_quote_response(quote)
-            formatted_quotes.append(formatted_quote)
-        
-        # Sort by requested field if not using database sorting
+        # Sort by requested field BEFORE formatting and pagination
         if sort_by in ['quote', 'author']:
             try:
                 reverse = sort_order == 'desc'
-                formatted_quotes.sort(key=lambda x: x.get(sort_by, '').lower(), reverse=reverse)
-            except:
-                pass
+                quotes.sort(key=lambda x: x.get(sort_by, '').lower(), reverse=reverse)
+                logger.info(f"Sorted {len(quotes)} quotes by {sort_by} ({'desc' if reverse else 'asc'})")
+            except Exception as e:
+                logger.error(f"Error sorting quotes: {e}")
+        elif sort_by in ['updated_at', 'created_at'] and sort_by != 'created_at':
+            # Sort by updated_at if not already sorted by database
+            try:
+                reverse = sort_order == 'desc'
+                quotes.sort(key=lambda x: x.get(sort_by, ''), reverse=reverse)
+                logger.info(f"Sorted {len(quotes)} quotes by {sort_by} ({'desc' if reverse else 'asc'})")
+            except Exception as e:
+                logger.error(f"Error sorting quotes by {sort_by}: {e}")
         
-        # Get total count (efficiently using metadata or count query)
-        total_count = get_total_quotes_count()
+        # Apply pagination AFTER sorting
+        total_quotes_count = len(quotes)
+        start_index = 0
+        if exclusive_start_key and sort_by in ['quote', 'author']:
+            # For custom sorting, pagination is more complex
+            # For now, disable pagination for quote/author sorting
+            pass
+            
+        # Get the requested page
+        paginated_quotes = quotes[start_index:start_index + limit]
+        
+        # Format quotes for response
+        formatted_quotes = []
+        for quote in paginated_quotes:
+            formatted_quote = format_admin_quote_response(quote)
+            formatted_quotes.append(formatted_quote)
+        
+        # Determine if there are more quotes
+        if sort_by in ['quote', 'author']:
+            # For full dataset sorting, check if we have more after current page
+            has_more = (start_index + limit) < total_quotes_count
+        else:
+            # For database-sorted results, use DynamoDB's pagination info
+            has_more = last_evaluated_key is not None
         
         result = {
             'quotes': formatted_quotes,
             'count': len(formatted_quotes),
-            'total_count': total_count,
-            'has_more': last_evaluated_key is not None
+            'total_count': total_quotes_count if sort_by in ['quote', 'author'] else get_total_quotes_count(),
+            'has_more': has_more
         }
         
         # Add pagination info if available
-        if last_evaluated_key:
+        if last_evaluated_key and sort_by not in ['quote', 'author']:
             result['last_key'] = urllib.parse.quote(json.dumps(last_evaluated_key, cls=DecimalEncoder))
         
         return {
@@ -1325,64 +1382,66 @@ def admin_search_quotes(query_params):
         
         logger.info(f"Search sorting: sort_by={sort_by}, sort_order={sort_order}")
         
-        last_key = query_params.get('last_key')
-        exclusive_start_key = None
-        if last_key:
-            try:
-                exclusive_start_key = json.loads(urllib.parse.unquote(last_key))
-            except:
-                logger.warning(f"Invalid last_key: {last_key}")
+        # For search, we use offset-based pagination instead of cursor-based
+        # This is because we need to filter results in-memory
+        offset = int(query_params.get('last_key', '0')) if query_params.get('last_key', '').isdigit() else 0
         
         # Convert search query to lowercase for case-insensitive search
         search_lower = search_query.lower()
         
-        # Query all quotes using TypeDateIndex, then filter in Python for better control
-        query_params = {
-            'IndexName': 'TypeDateIndex',
-            'KeyConditionExpression': Key('type').eq('quote'),
-            'Limit': limit * 5,  # Query more to account for filtering
-            'ScanIndexForward': False  # Newest first
-        }
-        
-        if exclusive_start_key:
-            query_params['ExclusiveStartKey'] = exclusive_start_key
-        
-        response = table.query(**query_params)
-        
-        # Additional case-insensitive filtering in Python for better matches
+        # Get ALL quotes and filter them (since we need to paginate filtered results)
+        # This is more efficient than trying to do cursor-based pagination with filtering
+        logger.info("Fetching all quotes for search filtering...")
         matched_quotes = []
-        for item in response.get('Items', []):
-            quote_text = item.get('quote', '').lower()
-            author_name = item.get('author', '').lower()
-            tags = [tag.lower() for tag in item.get('tags', [])]
+        last_evaluated_key = None
+        
+        while True:
+            query_params_db = {
+                'IndexName': 'TypeDateIndex',
+                'KeyConditionExpression': Key('type').eq('quote'),
+                'Limit': 1000  # Process in batches
+            }
             
-            # Check if search query matches quote, author, or any tag
-            if (search_lower in quote_text or 
-                search_lower in author_name or 
-                any(search_lower in tag for tag in tags)):
+            if last_evaluated_key:
+                query_params_db['ExclusiveStartKey'] = last_evaluated_key
+            
+            response = table.query(**query_params_db)
+            
+            # Filter matching quotes in this batch
+            for item in response.get('Items', []):
+                quote_text = item.get('quote', '').lower()
+                author_name = item.get('author', '').lower()
+                tags = [tag.lower() for tag in item.get('tags', [])]
                 
-                # Extract ID from PK if id field doesn't exist
-                quote_id = item.get('id', '')
-                if not quote_id and item.get('PK'):
-                    quote_id = item.get('PK', '').replace('QUOTE#', '')
-                
-                quote_data = {
-                    'id': quote_id,
-                    'quote': item.get('quote', ''),
-                    'author': item.get('author', ''),
-                    'tags': item.get('tags', []),
-                    'created_at': item.get('created_at', ''),
-                    'updated_at': item.get('updated_at', '')
-                }
-                
-                if item.get('created_by'):
-                    quote_data['created_by'] = item.get('created_by')
-                
-                matched_quotes.append(quote_data)
-                
-                # Stop if we have enough results
-                if len(matched_quotes) >= limit:
-                    break
+                # Check if search query matches quote, author, or any tag
+                if (search_lower in quote_text or 
+                    search_lower in author_name or 
+                    any(search_lower in tag for tag in tags)):
+                    
+                    # Extract ID from PK if id field doesn't exist
+                    quote_id = item.get('id', '')
+                    if not quote_id and item.get('PK'):
+                        quote_id = item.get('PK', '').replace('QUOTE#', '')
+                    
+                    quote_data = {
+                        'id': quote_id,
+                        'quote': item.get('quote', ''),
+                        'author': item.get('author', ''),
+                        'tags': item.get('tags', []),
+                        'created_at': item.get('created_at', ''),
+                        'updated_at': item.get('updated_at', '')
+                    }
+                    
+                    if item.get('created_by'):
+                        quote_data['created_by'] = item.get('created_by')
+                    
+                    matched_quotes.append(quote_data)
+            
+            last_evaluated_key = response.get('LastEvaluatedKey')
+            if not last_evaluated_key:
+                break
+        
+        logger.info(f"Found {len(matched_quotes)} total matches for '{search_query}'")
         
         # Sort by specified field
         logger.info(f"Sorting {len(matched_quotes)} results by {sort_by} ({sort_order})")
@@ -1433,22 +1492,29 @@ def admin_search_quotes(query_params):
                 # Default to created_at if invalid sort field
                 matched_quotes.sort(key=lambda x: x.get('created_at', ''), reverse=reverse_order)
         
-        # Prepare pagination info
-        next_key = None
-        if response.get('LastEvaluatedKey') and len(matched_quotes) >= limit:
-            next_key = urllib.parse.quote(json.dumps(response['LastEvaluatedKey']))
+        # Apply offset-based pagination to the sorted results
+        total_matches = len(matched_quotes)
+        start_index = offset
+        end_index = min(start_index + limit, total_matches)
+        paginated_quotes = matched_quotes[start_index:end_index]
+        
+        # Calculate next offset for pagination
+        next_offset = end_index if end_index < total_matches else None
+        has_more = next_offset is not None
         
         result = {
-            'quotes': matched_quotes[:limit],  # Ensure we don't exceed limit
-            'total_found': len(matched_quotes),
+            'quotes': paginated_quotes,
+            'total_found': total_matches,
             'search_query': search_query,
-            'has_more': next_key is not None
+            'has_more': has_more,
+            'offset': start_index,
+            'limit': limit
         }
         
-        if next_key:
-            result['last_evaluated_key'] = next_key
+        if next_offset is not None:
+            result['last_evaluated_key'] = str(next_offset)  # Use offset as continuation token
         
-        logger.info(f"✅ Found {len(matched_quotes)} quotes matching '{search_query}'")
+        logger.info(f"✅ Returning {len(paginated_quotes)} of {total_matches} quotes matching '{search_query}' (offset: {start_index})")
         
         return {
             'statusCode': 200,

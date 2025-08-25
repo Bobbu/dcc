@@ -266,7 +266,7 @@ class AdminApiService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> searchQuotes({
+  static Future<Map<String, dynamic>> searchQuotesWithPagination({
     required String query,
     int limit = 20,
     String? lastKey,
@@ -301,7 +301,13 @@ class AdminApiService {
         final data = json.decode(response.body);
         final quotes = List<Map<String, dynamic>>.from(data['quotes'] ?? []);
         LoggerService.info('✅ Search found ${quotes.length} quotes for "$query"');
-        return quotes;
+        
+        return {
+          'quotes': quotes,
+          'total_count': data['total_count'] ?? quotes.length,
+          'last_key': data['last_evaluated_key'],  // Backend uses 'last_evaluated_key' not 'last_key'
+          'has_more': data['has_more'] ?? false,
+        };
       } else if (response.statusCode == 401) {
         throw Exception('Authentication required or expired');
       } else if (response.statusCode == 403) {
@@ -313,6 +319,24 @@ class AdminApiService {
       LoggerService.error('❌ Error searching quotes: $e', error: e);
       rethrow;
     }
+  }
+
+  // Backward compatibility method - returns just the quotes list
+  static Future<List<Map<String, dynamic>>> searchQuotes({
+    required String query,
+    int limit = 20,
+    String? lastKey,
+    String sortBy = 'created_at',
+    String sortOrder = 'desc',
+  }) async {
+    final result = await searchQuotesWithPagination(
+      query: query,
+      limit: limit,
+      lastKey: lastKey,
+      sortBy: sortBy,
+      sortOrder: sortOrder,
+    );
+    return result['quotes'] as List<Map<String, dynamic>>;
   }
 
   static Future<List<Map<String, dynamic>>> getQuotesByAuthor({

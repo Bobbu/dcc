@@ -2,6 +2,7 @@ import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'logger_service.dart';
+import 'favorites_service.dart';
 
 class AuthService {
   static bool _isConfigured = false;
@@ -57,6 +58,25 @@ class AuthService {
       return session.isSignedIn;
     } catch (e) {
       LoggerService.error('Error checking sign-in status: $e', error: e);
+      return false;
+    }
+  }
+
+  /// Check if user is signed in and preload favorites if so
+  /// This should be called when the app starts
+  static Future<bool> initializeAndCheckSignIn() async {
+    try {
+      final isUserSignedIn = await isSignedIn();
+      if (isUserSignedIn) {
+        LoggerService.info('User already signed in, preloading favorites...');
+        // Run in background to avoid blocking app initialization
+        FavoritesService.preloadFavorites().catchError((e) {
+          LoggerService.error('Failed to preload favorites during initialization', error: e);
+        });
+      }
+      return isUserSignedIn;
+    } catch (e) {
+      LoggerService.error('Error during auth initialization: $e', error: e);
       return false;
     }
   }
@@ -124,8 +144,14 @@ class AuthService {
         password: password,
       );
       
-      // No longer checking for admin group here - 
-      // let the calling code decide what to do based on user role
+      // If sign-in was successful, preload favorites for efficient lookups
+      if (result.isSignedIn) {
+        LoggerService.info('Sign-in successful, preloading favorites...');
+        // Run in background to avoid blocking the sign-in process
+        FavoritesService.preloadFavorites().catchError((e) {
+          LoggerService.error('Failed to preload favorites after sign-in', error: e);
+        });
+      }
       
       return result;
     } catch (e) {
@@ -136,6 +162,9 @@ class AuthService {
 
   static Future<void> signOut() async {
     try {
+      // Clear favorites cache before signing out
+      FavoritesService.clearCache();
+      
       await Amplify.Auth.signOut();
       LoggerService.info('✅ Signed out successfully');
     } catch (e) {
