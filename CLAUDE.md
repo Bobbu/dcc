@@ -62,8 +62,10 @@ flutter build web --release  # Web
   - `options_handler.py`: CORS support
   - `openai_handler.py`: Secure GPT-4o-mini proxy for tag generation
   - `favorites_handler.py`: User favorites management with JWT authentication
+  - `daily_nuggets_handler.py`: Subscription management and scheduled email delivery
 - **Performance**: Tags metadata caching, GSI indexes, zero-scan operations
 - **Security**: Rate limiting (public only), email verification, role-based access
+- **Email Delivery**: AWS SES for Daily Nuggets, EventBridge for scheduling
 
 
 ### Flutter App (`dcc_mobile/`)
@@ -73,8 +75,9 @@ flutter build web --release  # Web
   - `settings_screen.dart`: Theme selector, voice controls, tag preferences
   - `admin_dashboard_screen.dart`: Full CRUD, search, import/export, AI tag recommendations
   - `tags_editor_screen.dart`: Individual tag management
-  - `user_profile_screen.dart`: Profile management, Daily Nuggets prep
+  - `user_profile_screen.dart`: Profile management, Daily Nuggets subscription
   - `favorites_screen.dart`: Personal favorites collection with native share icons
+  - `daily_nuggets_admin_screen.dart`: Admin view for managing subscribers
 - **Authentication**: AWS Amplify Cognito with JWT management
 - **Theme System**: Light/Dark/System modes with persistent preferences
 - **Audio**: TTS with 20-50+ voices, rate/pitch controls (default: OFF)
@@ -83,6 +86,7 @@ flutter build web --release  # Web
 - **Quote Retrieval Limit**: User-configurable limit (50-1000) for quote fetching
 - **AI Tag Generation**: GPT-4o-mini via secure Lambda proxy with "Recommend Tags" feature
 - **Favorites System**: Heart icons throughout app, personal favorites collection
+- **Daily Nuggets**: Email subscriptions with timezone-aware delivery at 8 AM daily
 - **Import/Export**: TSV import, multi-format export (JSON/CSV)
 - **Duplicate Management**: Smart detection and cleanup
 - **Search**: Universal search across quotes, authors, tags
@@ -126,12 +130,17 @@ flutter build web --release  # Web
 - **Tags**: GET/POST/PUT/DELETE `/admin/tags[/{tag}]`
 - `DELETE /admin/tags/unused` - Remove orphaned tags
 - `POST /admin/generate-tags` - GPT-4o-mini tag generation
+- `GET /admin/subscriptions` - View all Daily Nuggets subscribers
 
 ### User Features (JWT Authentication)
 - `GET /favorites` - Get user's favorite quotes
 - `POST /favorites/{id}` - Add quote to favorites
 - `DELETE /favorites/{id}` - Remove quote from favorites
 - `GET /favorites/{id}/check` - Check if quote is favorited
+- `GET /subscriptions` - Get Daily Nuggets subscription status
+- `PUT /subscriptions` - Update Daily Nuggets subscription
+- `DELETE /subscriptions` - Cancel Daily Nuggets subscription
+- `POST /subscriptions/test` - Send test Daily Nuggets email
 
 ## User Management
 - **Registration**: Self-service with email verification
@@ -150,6 +159,7 @@ flutter build web --release  # Web
 - **Quote Retrieval Limit**: Configurable 50-1000 quotes per fetch (Settings screen)
 - **Audio**: TTS with 50+ voices, rate/pitch controls (default: OFF)
 - **Admin**: Full CRUD, search, sort, import/export with AI tag recommendations
+- **Daily Nuggets**: Email subscriptions with admin management and timezone-aware delivery
 - **AI Tags**: GPT-4o-mini via secure Lambda proxy
 - **Favorites**: Personal quote collections with heart icons and native sharing
 - **Resilience**: Auto-retry, graceful error handling

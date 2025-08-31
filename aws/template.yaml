@@ -924,6 +924,249 @@ Resources:
               Authorizer: CognitoAuthorizer
               ApiKeyRequired: false
 
+  # Daily Nuggets function for subscription management and email delivery
+  DailyNuggetsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-daily-nuggets-handler
+      CodeUri: lambda/
+      Handler: daily_nuggets_handler.handler
+      Runtime: python3.10
+      Timeout: 60
+      Environment:
+        Variables:
+          QUOTES_TABLE_NAME: dcc-quotes-optimized
+          SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTable
+          USER_POOL_ID: !Ref UserPool
+          SENDER_EMAIL: noreply@anystupididea.com
+          CORS_ORIGIN: "*"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: dcc-quotes-optimized
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SubscriptionsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: "*"
+        - Statement:
+            Effect: Allow
+            Action:
+              - cognito-idp:GetUser
+            Resource: !GetAtt UserPool.Arn
+      Events:
+        GetSubscription:
+          Type: Api
+          Properties:
+            Path: /subscriptions
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UpdateSubscription:
+          Type: Api
+          Properties:
+            Path: /subscriptions
+            Method: PUT
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        DeleteSubscription:
+          Type: Api
+          Properties:
+            Path: /subscriptions
+            Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        TestEmail:
+          Type: Api
+          Properties:
+            Path: /subscriptions/test
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AdminGetSubscriptions:
+          Type: Api
+          Properties:
+            Path: /admin/subscriptions
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AdminSubscriptionsOptions:
+          Type: Api
+          Properties:
+            Path: /admin/subscriptions
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        SubscriptionOptions:
+          Type: Api
+          Properties:
+            Path: /subscriptions
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+
+  # DynamoDB table for subscription preferences
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: dcc-subscriptions
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: Environment
+          Value: Dev
+
+  # EventBridge Rules for different timezones (8 AM delivery)
+  EventBridgeRuleEastern:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-nuggets-eastern
+      Description: "Trigger Daily Nuggets delivery at 8 AM Eastern Time"
+      ScheduleExpression: "cron(0 12 * * ? *)"  # 8 AM EST = 12 PM UTC (winter) / 1 PM UTC (summer)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt DailyNuggetsFunction.Arn
+          Id: "DailyNuggetsEasternTarget"
+          Input: !Sub |
+            {
+              "source": "aws.scheduler",
+              "detail": {
+                "timezone": "America/New_York"
+              }
+            }
+
+  EventBridgeRuleCentral:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-nuggets-central
+      Description: "Trigger Daily Nuggets delivery at 8 AM Central Time"
+      ScheduleExpression: "cron(0 13 * * ? *)"  # 8 AM CST = 1 PM UTC (winter) / 2 PM UTC (summer)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt DailyNuggetsFunction.Arn
+          Id: "DailyNuggetsCentralTarget"
+          Input: !Sub |
+            {
+              "source": "aws.scheduler",
+              "detail": {
+                "timezone": "America/Chicago"
+              }
+            }
+
+  EventBridgeRuleMountain:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-nuggets-mountain
+      Description: "Trigger Daily Nuggets delivery at 8 AM Mountain Time"
+      ScheduleExpression: "cron(0 14 * * ? *)"  # 8 AM MST = 2 PM UTC (winter) / 3 PM UTC (summer)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt DailyNuggetsFunction.Arn
+          Id: "DailyNuggetsMountainTarget"
+          Input: !Sub |
+            {
+              "source": "aws.scheduler",
+              "detail": {
+                "timezone": "America/Denver"
+              }
+            }
+
+  EventBridgeRulePacific:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-nuggets-pacific
+      Description: "Trigger Daily Nuggets delivery at 8 AM Pacific Time"
+      ScheduleExpression: "cron(0 15 * * ? *)"  # 8 AM PST = 3 PM UTC (winter) / 4 PM UTC (summer)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt DailyNuggetsFunction.Arn
+          Id: "DailyNuggetsPacificTarget"
+          Input: !Sub |
+            {
+              "source": "aws.scheduler",
+              "detail": {
+                "timezone": "America/Los_Angeles"
+              }
+            }
+
+  EventBridgeRuleLondon:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: daily-nuggets-london
+      Description: "Trigger Daily Nuggets delivery at 8 AM London Time"
+      ScheduleExpression: "cron(0 8 * * ? *)"  # 8 AM GMT = 8 AM UTC (winter) / 7 AM UTC (summer)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt DailyNuggetsFunction.Arn
+          Id: "DailyNuggetsLondonTarget"
+          Input: !Sub |
+            {
+              "source": "aws.scheduler",
+              "detail": {
+                "timezone": "Europe/London"
+              }
+            }
+
+  # Lambda permissions for EventBridge
+  DailyNuggetsEventPermissionEastern:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DailyNuggetsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventBridgeRuleEastern.Arn
+
+  DailyNuggetsEventPermissionCentral:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DailyNuggetsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventBridgeRuleCentral.Arn
+
+  DailyNuggetsEventPermissionMountain:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DailyNuggetsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventBridgeRuleMountain.Arn
+
+  DailyNuggetsEventPermissionPacific:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DailyNuggetsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventBridgeRulePacific.Arn
+
+  DailyNuggetsEventPermissionLondon:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DailyNuggetsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventBridgeRuleLondon.Arn
+
   # Gateway Response for CORS on 4xx errors
   GatewayResponse4xx:
     Type: AWS::ApiGateway::GatewayResponse

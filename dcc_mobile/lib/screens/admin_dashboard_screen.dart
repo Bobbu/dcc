@@ -17,6 +17,7 @@ import '../widgets/export_destination_dialog.dart';
 import 'tags_editor_screen.dart';
 import 'candidate_quotes_screen.dart';
 import 'review_proposed_quotes_screen.dart';
+import 'daily_nuggets_admin_screen.dart';
 import '../themes.dart';
 import '../models/quote.dart';
 import '../widgets/admin/import_quotes_dialog.dart';
@@ -1537,6 +1538,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // Refresh quotes when returning from Tags Editor in case tags were changed
                   _refreshData();
                 });
+              } else if (value == 'daily_nuggets') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const DailyNuggetsAdminScreen(),
+                  ),
+                );
               } else if (value == 'cleanup_tags') {
                 _showCleanupTagsDialog();
               } else if (value == 'cleanup_duplicates') {
@@ -1606,6 +1613,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.local_offer, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 8),
                     Text('Manage Tags'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'daily_nuggets',
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
+                    SizedBox(width: 8),
+                    Text('Daily Nuggets Subscribers'),
                   ],
                 ),
               ),

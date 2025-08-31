@@ -24,8 +24,8 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **User Authentication**: Self-registration with email verification and unified login
 - **User Profile Management**: 
   - **Display Name**: Edit and update user's display name (syncs with Cognito)
-  - **Daily Nuggets** (Coming Soon): Subscribe to receive daily inspirational quotes
-  - **Delivery Options**: Choose between Email or Push Notifications for daily quotes
+  - **Daily Nuggets**: Subscribe to receive daily inspirational quotes via email at 8 AM in your timezone
+  - **Delivery Options**: Email delivery (Push Notifications coming soon)
   - **Multi-User Support**: User-scoped preferences prevent cross-user data sharing
 - **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading with O(1) performance
@@ -43,6 +43,7 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Persistent Sorting**: Sort preferences saved across sessions
   - **Four Sort Fields**: Quote, Author, Created Date, Updated Date
   - **AI Tag Recommendations**: "Recommend Tags" feature using GPT-4o-mini for intelligent tag suggestions
+  - **Daily Nuggets Management**: View and manage all subscriber data with filtering and statistics
 - **Tag Management**: Dedicated editor for individual tag operations with persistent sort preferences
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
 - **Duplicate Detection**: Intelligent duplicate cleanup with preservation logic
@@ -54,6 +55,7 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Public/Anonymous APIs**: API Key only (rate limited) - quotes, tags, registration
   - **Admin APIs**: JWT token + "Admins" group membership (no rate limits) - CRUD operations
 - **User Management**: Self-service registration with Cognito and role-based groups
+- **Email Delivery**: AWS SES for Daily Nuggets with EventBridge scheduling
 - **Custom Domain**: SSL-secured endpoints via Route53 and CloudFront
 - **High Performance**: Tags metadata caching for zero-scan operations
 - **CORS Support**: Full web application compatibility
@@ -73,9 +75,11 @@ A comprehensive quote management system with enterprise-grade features, includin
 ### Backend
 - **AWS SAM**: Infrastructure as Code
 - **Lambda**: Python 3.10 serverless functions with OPTIONS handlers
-- **DynamoDB**: NoSQL database with metadata caching
+- **DynamoDB**: NoSQL database with metadata caching and subscription management
 - **API Gateway**: RESTful API with CORS and multi-layer authentication
 - **Cognito**: User authentication, self-registration, and role-based authorization
+- **SES**: Email delivery service for Daily Nuggets
+- **EventBridge**: Scheduled triggers for timezone-aware email delivery
 - **CloudFront**: CDN for web distribution and API caching
 - **Route53**: DNS management with automatic SSL
 - **ACM**: SSL certificate management
@@ -169,6 +173,22 @@ curl -H "X-Api-Key: YOUR_API_KEY" \
   https://dcc.anystupididea.com/tags
 ```
 
+### Daily Nuggets Endpoints
+
+**Subscribe to Daily Nuggets**
+```bash
+curl -X PUT -H "Authorization: Bearer YOUR_ID_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"is_subscribed":true,"delivery_method":"email","timezone":"America/New_York"}' \
+  https://dcc.anystupididea.com/subscriptions
+```
+
+**Send Test Email**
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
+  https://dcc.anystupididea.com/subscriptions/test
+```
+
 ### User Registration
 
 **Register New User**
@@ -207,6 +227,10 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"quote":"...", "author":"...", "tags":["..."]}' \
   https://dcc.anystupididea.com/admin/quotes
+
+# View Daily Nuggets subscribers
+curl -H "Authorization: Bearer YOUR_ID_TOKEN" \
+  https://dcc.anystupididea.com/admin/subscriptions
 ```
 
 ## 📋 Admin Features
@@ -273,7 +297,8 @@ quote-me/
 │   │   ├── auth_handler.py     # Registration/verification
 │   │   ├── options_handler.py  # CORS handler
 │   │   ├── openai_handler.py   # AI tag generation proxy
-│   │   └── favorites_handler.py # User favorites management
+│   │   ├── favorites_handler.py # User favorites management
+│   │   └── daily_nuggets_handler.py # Daily Nuggets subscriptions and email delivery
 │   └── samconfig.toml
 ├── dcc_mobile/           # Flutter app
 │   ├── lib/
@@ -410,13 +435,15 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 - [x] Theme preference system (Light/Dark/System)
 - [x] Enhanced theming with consistent contrast
 - [x] User Profile Management with display name editing
-- [ ] **Daily Nuggets Feature** (In Progress)
-  - [ ] AWS SES integration for email delivery
+- [x] **Daily Nuggets Feature**
+  - [x] AWS SES integration for email delivery
+  - [x] EventBridge scheduling for timezone-aware delivery at 8 AM
+  - [x] User subscription management in Profile screen
+  - [x] Admin subscriber management dashboard
+  - [x] Test email functionality
   - [ ] Push notification system for mobile apps
-  - [ ] Scheduled Lambda for daily quote selection
-  - [ ] User preference storage in DynamoDB
-  - [ ] Smart quote rotation algorithm
-  - [ ] Delivery time customization
+  - [x] User preference storage in DynamoDB
+  - [x] Smart quote rotation algorithm
 - [x] User favorites and personal collections
 - [x] AI-powered tag recommendations with "Recommend Tags" feature
 - [ ] Social sharing features

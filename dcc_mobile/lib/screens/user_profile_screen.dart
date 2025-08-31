@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
 import '../services/auth_service.dart';
 import '../services/logger_service.dart';
+import '../services/daily_nuggets_service.dart';
 import '../themes.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -23,11 +26,61 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   // Subscription settings
   bool _subscribeToDailyNuggets = false;
   String _deliveryMethod = 'email'; // 'email' or 'notifications'
+  String _selectedTimezone = 'America/New_York'; // Default timezone
+  List<String> _timezones = []; // List of available timezones
   
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    _loadTimezones();
+  }
+  
+  Future<void> _loadTimezones() async {
+    try {
+      // Get the device's current timezone
+      final String deviceTimezone = await FlutterTimezone.getLocalTimezone();
+      
+      // Define major timezones for selection
+      final majorTimezones = [
+        'America/New_York',
+        'America/Chicago',
+        'America/Denver',
+        'America/Los_Angeles',
+        'America/Phoenix',
+        'America/Anchorage',
+        'Pacific/Honolulu',
+        'Europe/London',
+        'Europe/Paris',
+        'Europe/Berlin',
+        'Asia/Tokyo',
+        'Asia/Shanghai',
+        'Asia/Kolkata',
+        'Australia/Sydney',
+        'Australia/Melbourne',
+        'America/Toronto',
+        'America/Mexico_City',
+        'America/Sao_Paulo',
+        'Africa/Cairo',
+        'Asia/Dubai',
+      ];
+      
+      setState(() {
+        _timezones = majorTimezones;
+        // Use device timezone if it's in our list, otherwise default to New York
+        if (majorTimezones.contains(deviceTimezone)) {
+          _selectedTimezone = deviceTimezone;
+        }
+      });
+      
+      LoggerService.info('Device timezone detected: $deviceTimezone');
+    } catch (e) {
+      LoggerService.error('Error loading timezones: $e', error: e);
+      // Fallback to basic timezones
+      setState(() {
+        _timezones = ['America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Europe/London'];
+      });
+    }
   }
 
   @override
@@ -44,11 +97,42 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final email = await AuthService.getUserEmail();
       final name = await AuthService.getUserName();
       
-      // Load subscription preferences from SharedPreferences (user-scoped)
-      final prefs = await SharedPreferences.getInstance();
-      final userPrefix = email != null ? '${email}_' : 'default_';
-      final subscribeToDailyNuggets = prefs.getBool('${userPrefix}subscribe_daily_nuggets') ?? false;
-      final deliveryMethod = prefs.getString('${userPrefix}delivery_method') ?? 'email';
+      // Load subscription preferences from backend first, fallback to local storage
+      bool subscribeToDailyNuggets = false;
+      String deliveryMethod = 'email';
+      String timezone = _selectedTimezone;
+      
+      try {
+        // Try to get subscription from backend
+        final subscription = await DailyNuggetsService.getSubscription();
+        if (subscription != null) {
+          subscribeToDailyNuggets = subscription.isSubscribed;
+          // Force email delivery method until push notifications are implemented
+          deliveryMethod = subscription.deliveryMethod == 'notifications' ? 'email' : subscription.deliveryMethod;
+          timezone = subscription.timezone;
+          LoggerService.info('📧 Loaded subscription from backend: subscribed=$subscribeToDailyNuggets');
+        } else {
+          LoggerService.info('📧 No backend subscription found, checking local preferences');
+          // Fallback to local preferences for migration
+          final prefs = await SharedPreferences.getInstance();
+          final userPrefix = email != null ? '${email}_' : 'default_';
+          subscribeToDailyNuggets = prefs.getBool('${userPrefix}subscribe_daily_nuggets') ?? false;
+          // Force email delivery method until push notifications are implemented
+          final savedMethod = prefs.getString('${userPrefix}delivery_method') ?? 'email';
+          deliveryMethod = savedMethod == 'notifications' ? 'email' : savedMethod;
+          timezone = prefs.getString('${userPrefix}timezone') ?? _selectedTimezone;
+        }
+      } catch (e) {
+        LoggerService.error('📧 Error loading backend subscription, using local: $e');
+        // Fallback to local preferences if backend fails
+        final prefs = await SharedPreferences.getInstance();
+        final userPrefix = email != null ? '${email}_' : 'default_';
+        subscribeToDailyNuggets = prefs.getBool('${userPrefix}subscribe_daily_nuggets') ?? false;
+        // Force email delivery method until push notifications are implemented
+        final savedMethod = prefs.getString('${userPrefix}delivery_method') ?? 'email';
+        deliveryMethod = savedMethod == 'notifications' ? 'email' : savedMethod;
+        timezone = prefs.getString('${userPrefix}timezone') ?? _selectedTimezone;
+      }
       
       setState(() {
         _userEmail = email;
@@ -56,6 +140,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _nameController.text = name ?? '';
         _subscribeToDailyNuggets = subscribeToDailyNuggets;
         _deliveryMethod = deliveryMethod;
+        _selectedTimezone = timezone;
         _isLoading = false;
       });
       
@@ -87,16 +172,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         await AuthService.updateUserName(newName);
       }
       
-      // Save subscription preferences to SharedPreferences (local only for now, user-scoped)
+      // Save subscription preferences to backend and local storage
+      try {
+        // Save to backend first
+        await DailyNuggetsService.updateSubscription(
+          isSubscribed: _subscribeToDailyNuggets,
+          deliveryMethod: _deliveryMethod,
+          timezone: _selectedTimezone,
+        );
+        LoggerService.info('📧 Subscription saved to backend successfully');
+      } catch (e) {
+        LoggerService.error('📧 Error saving to backend, saving locally: $e');
+        // Don't throw error - still save locally as fallback
+      }
+      
+      // Also save to local storage as backup/cache
       final prefs = await SharedPreferences.getInstance();
       final userPrefix = _userEmail != null ? '${_userEmail}_' : 'default_';
       await prefs.setBool('${userPrefix}subscribe_daily_nuggets', _subscribeToDailyNuggets);
       await prefs.setString('${userPrefix}delivery_method', _deliveryMethod);
+      await prefs.setString('${userPrefix}timezone', _selectedTimezone);
       
       LoggerService.info('✅ Profile saved successfully');
       LoggerService.info('   Name: ${_nameController.text.trim()}');
       LoggerService.info('   Subscribe to Daily Nuggets: $_subscribeToDailyNuggets');
       LoggerService.info('   Delivery Method: $_deliveryMethod');
+      LoggerService.info('   Timezone: $_selectedTimezone');
       
       // Update local state
       setState(() {
@@ -105,8 +206,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile saved! Daily nugget preferences are stored locally and will sync with backend when implemented.'),
+          SnackBar(
+            content: Text(
+              _subscribeToDailyNuggets 
+                ? 'Profile saved! You\'ll receive daily quotes at 8:00 AM ${_selectedTimezone.split('/').last.replaceAll('_', ' ')} time.'
+                : 'Profile saved successfully!',
+            ),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
@@ -128,6 +233,48 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
     } finally {
       setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _sendTestEmail() async {
+    try {
+      await DailyNuggetsService.sendTestEmail();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Test email sent! Check your inbox in a few moments.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error sending test email: $e', error: e);
+      
+      String errorMessage = 'Failed to send test email';
+      Color errorColor = Colors.red;
+      
+      // Handle specific token exceptions more gracefully
+      if (e.toString().contains('expired') || e.toString().contains('session')) {
+        errorMessage = 'Your session has expired. Please sign out and sign in again to continue.';
+        errorColor = Colors.orange;
+      } else if (e.toString().contains('authentication') || e.toString().contains('sign in')) {
+        errorMessage = e.toString();
+        errorColor = Colors.orange;
+      } else {
+        errorMessage = 'Failed to send test email: $e';
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: errorColor,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -303,38 +450,105 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 contentPadding: const EdgeInsets.only(left: 8),
                               ),
                               
-                              // Notifications option
+                              // Notifications option (disabled for now)
                               RadioListTile<String>(
                                 title: Row(
                                   children: [
                                     Icon(
                                       Icons.notifications,
-                                      color: Theme.of(context).colorScheme.primary,
+                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
                                       size: 20,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Push Notifications',
-                                      style: Theme.of(context).textTheme.bodyLarge,
+                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'Coming Soon',
+                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.secondary,
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
                                 subtitle: Text(
                                   'Get notified directly on your device',
-                                  style: Theme.of(context).textTheme.bodyMedium,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                                  ),
                                 ),
                                 value: 'notifications',
                                 groupValue: _deliveryMethod,
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _deliveryMethod = value;
-                                    });
-                                  }
-                                },
+                                onChanged: null, // Disabled
                                 activeColor: Theme.of(context).colorScheme.primary,
                                 contentPadding: const EdgeInsets.only(left: 8),
                               ),
+                              
+                              const SizedBox(height: 16),
+                              
+                              // Timezone selection
+                              Text(
+                                'Delivery Time',
+                                style: Theme.of(context).textTheme.headlineSmall,
+                              ),
+                              const SizedBox(height: 8),
+                              DropdownButtonFormField<String>(
+                                value: _selectedTimezone,
+                                decoration: InputDecoration(
+                                  labelText: 'Your Timezone',
+                                  prefixIcon: Icon(Icons.access_time),
+                                  helperText: 'Quotes will be delivered at 8:00 AM in your selected timezone',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                items: _timezones.map((String timezone) {
+                                  // Format timezone display name
+                                  final parts = timezone.split('/');
+                                  final city = parts.last.replaceAll('_', ' ');
+                                  final region = parts.first;
+                                  
+                                  return DropdownMenuItem<String>(
+                                    value: timezone,
+                                    child: Text('$city ($region)'),
+                                  );
+                                }).toList(),
+                                onChanged: (String? newValue) {
+                                  if (newValue != null) {
+                                    setState(() {
+                                      _selectedTimezone = newValue;
+                                    });
+                                  }
+                                },
+                              ),
+                              
+                              const SizedBox(height: 16),
+                              
+                              // Test Email Button
+                              if (_subscribeToDailyNuggets && _deliveryMethod == 'email') ...[
+                                Center(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _sendTestEmail,
+                                    icon: const Icon(Icons.email_outlined),
+                                    label: const Text('Send Test Email'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
                               
                               const SizedBox(height: 8),
                               Container(

@@ -107,6 +107,22 @@ class AuthService {
     }
   }
 
+  /// Refresh the current user session to get fresh tokens
+  static Future<void> refreshCurrentSession() async {
+    try {
+      LoggerService.info('🔄 Attempting to refresh user session...');
+      final session = await Amplify.Auth.fetchAuthSession(options: const FetchAuthSessionOptions(forceRefresh: true));
+      if (session.isSignedIn) {
+        LoggerService.info('✅ Session refreshed successfully');
+      } else {
+        throw Exception('Session refresh resulted in signed out state');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Failed to refresh session: $e', error: e);
+      rethrow;
+    }
+  }
+
   static Future<Map<String, String>?> getUserAttributes() async {
     try {
       final attributes = await Amplify.Auth.fetchUserAttributes();

@@ -28,23 +28,48 @@ if [ -z "$OPENAI_API_KEY" ]; then
 fi
 
 echo -e "${YELLOW}Building SAM application...${NC}"
-sam build
+sam build --cached 2>&1 | grep -v "File with same data already exists" | grep -v "skipping upload"
 
-if [ $? -ne 0 ]; then
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo -e "${RED}Build failed!${NC}"
     exit 1
 fi
 
-echo -e "${YELLOW}Deploying to AWS...${NC}"
-sam deploy --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY"
+echo -e "${YELLOW}Validating template...${NC}"
+sam validate --lint
 
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Deployment successful!${NC}"
+echo -e "${YELLOW}Deploying to AWS...${NC}"
+echo "This may take a few minutes..."
+
+# Capture deployment output
+DEPLOY_OUTPUT=$(sam deploy --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY" 2>&1)
+DEPLOY_STATUS=$?
+
+# Check if it's just "no changes"
+if echo "$DEPLOY_OUTPUT" | grep -q "No changes to deploy"; then
+    echo -e "${GREEN}✓ Stack is already up to date - no changes needed${NC}"
+    echo ""
+    echo -e "${GREEN}All infrastructure is deployed and ready:${NC}"
+    echo "  • API endpoints are active"
+    echo "  • DynamoDB tables are configured"
+    echo "  • Lambda functions are deployed"
+    echo "  • Daily Nuggets feature is operational"
+elif [ $DEPLOY_STATUS -eq 0 ]; then
+    echo -e "${GREEN}✓ Deployment successful!${NC}"
     echo ""
     echo "Your OpenAI API key is securely stored in AWS Lambda."
     echo "The Flutter app will use the proxy endpoint for tag generation."
-    echo "Don't forget to update the Flutter app with your API Gateway URL."
+    
+    # Show key outputs
+    echo ""
+    echo -e "${YELLOW}Key Resources:${NC}"
+    aws cloudformation describe-stacks --stack-name dcc-demo-sam-app \
+        --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
+        --output text | xargs -I {} echo "  • API URL: {}"
 else
+    # Only show actual errors, not upload progress
+    echo "$DEPLOY_OUTPUT" | grep -v "Uploading to" | grep -v "File with same data"
     echo -e "${RED}Deployment failed!${NC}"
+    echo "Please check the error messages above."
     exit 1
 fi
