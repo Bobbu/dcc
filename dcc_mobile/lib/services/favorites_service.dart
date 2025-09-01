@@ -11,7 +11,6 @@ class FavoritesService {
   // Cache for favorite quote IDs - stored as a Set for O(1) lookup
   static Set<String> _cachedFavoriteIds = <String>{};
   static bool _cacheInitialized = false;
-  static DateTime? _lastCacheUpdate;
   
   static Future<Map<String, String>> _getHeaders() async {
     final token = await AuthService.getIdToken();
@@ -34,7 +33,6 @@ class FavoritesService {
       // Update cache with quote IDs
       _cachedFavoriteIds = favorites.map((fav) => fav.quoteId).toSet();
       _cacheInitialized = true;
-      _lastCacheUpdate = DateTime.now();
       
       LoggerService.info('✅ Favorites cache initialized with ${_cachedFavoriteIds.length} items');
     } catch (e) {
@@ -47,7 +45,6 @@ class FavoritesService {
   static void clearCache() {
     _cachedFavoriteIds.clear();
     _cacheInitialized = false;
-    _lastCacheUpdate = null;
     LoggerService.info('Favorites cache cleared');
   }
 

@@ -9,8 +9,8 @@ class AdminApiService {
   static final String baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
   
   static void _logBaseUrl() {
-    print('🔧 API_ENDPOINT from env: ${dotenv.env['API_ENDPOINT']}');
-    print('🔧 Computed baseUrl: $baseUrl');
+    LoggerService.info('🔧 API_ENDPOINT from env: ${dotenv.env['API_ENDPOINT']}');
+    LoggerService.info('🔧 Computed baseUrl: $baseUrl');
   }
 
   static Future<Map<String, String>> _getAuthHeaders() async {

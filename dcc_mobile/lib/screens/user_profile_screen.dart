@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import '../services/auth_service.dart';
 import '../services/logger_service.dart';
 import '../services/daily_nuggets_service.dart';
-import '../themes.dart';
 import 'login_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -357,7 +355,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 enabled: false,
                               ),
                               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -429,7 +427,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   _subscribeToDailyNuggets = value;
                                 });
                               },
-                              activeColor: Theme.of(context).colorScheme.primary,
+                              activeThumbColor: Theme.of(context).colorScheme.primary,
                               contentPadding: EdgeInsets.zero,
                             ),
                             
@@ -442,27 +440,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                               const SizedBox(height: 8),
                               
-                              // Email option
-                              RadioListTile<String>(
-                                title: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.email,
-                                      color: Theme.of(context).colorScheme.primary,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Email',
-                                      style: Theme.of(context).textTheme.bodyLarge,
-                                    ),
-                                  ],
-                                ),
-                                subtitle: Text(
-                                  'Receive quotes in your inbox daily',
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                                value: 'email',
+                              // Delivery Method Selection
+                              RadioGroup<String>(
                                 groupValue: _deliveryMethod,
                                 onChanged: (value) {
                                   if (value != null) {
@@ -471,53 +450,76 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     });
                                   }
                                 },
-                                activeColor: Theme.of(context).colorScheme.primary,
-                                contentPadding: const EdgeInsets.only(left: 8),
-                              ),
-                              
-                              // Notifications option (disabled for now)
-                              RadioListTile<String>(
-                                title: Row(
+                                child: Column(
                                   children: [
-                                    Icon(
-                                      Icons.notifications,
-                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Push Notifications',
-                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                                    // Email option
+                                    RadioListTile<String>(
+                                      title: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.email,
+                                            color: Theme.of(context).colorScheme.primary,
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Email',
+                                            style: Theme.of(context).textTheme.bodyLarge,
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(12),
+                                      subtitle: Text(
+                                        'Receive quotes in your inbox daily',
+                                        style: Theme.of(context).textTheme.bodyMedium,
                                       ),
-                                      child: Text(
-                                        'Coming Soon',
-                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.secondary,
+                                      value: 'email',
+                                      contentPadding: const EdgeInsets.only(left: 8),
+                                    ),
+                                    
+                                    // Notifications option (disabled for now)
+                                    RadioListTile<String>(
+                                      title: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.notifications,
+                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Push Notifications',
+                                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              'Coming Soon',
+                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: Theme.of(context).colorScheme.secondary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      subtitle: Text(
+                                        'Get notified directly on your device',
+                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
                                         ),
                                       ),
+                                      value: 'notifications',
+                                      // Note: onChanged is null (disabled) - RadioGroup will handle this
+                                      contentPadding: const EdgeInsets.only(left: 8),
                                     ),
                                   ],
                                 ),
-                                subtitle: Text(
-                                  'Get notified directly on your device',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
-                                  ),
-                                ),
-                                value: 'notifications',
-                                groupValue: _deliveryMethod,
-                                onChanged: null, // Disabled
-                                activeColor: Theme.of(context).colorScheme.primary,
-                                contentPadding: const EdgeInsets.only(left: 8),
                               ),
                               
                               const SizedBox(height: 16),
@@ -529,7 +531,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
-                                value: _selectedTimezone,
+                                initialValue: _selectedTimezone,
                                 decoration: InputDecoration(
                                   labelText: 'Your Timezone',
                                   prefixIcon: Icon(Icons.access_time),
@@ -579,10 +581,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                                  color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                                    color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3),
                                   ),
                                 ),
                                 child: Row(

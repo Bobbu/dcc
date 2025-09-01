@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
 import '../services/openai_quote_finder_service.dart';
 import '../services/admin_api_service.dart';
 import '../services/logger_service.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class CandidateQuotesScreen extends StatefulWidget {
-  const CandidateQuotesScreen({Key? key}) : super(key: key);
+  const CandidateQuotesScreen({super.key});
 
   @override
-  _CandidateQuotesScreenState createState() => _CandidateQuotesScreenState();
+  State<CandidateQuotesScreen> createState() => _CandidateQuotesScreenState();
 }
 
 class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
@@ -31,6 +27,9 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
       return;
     }
 
+    // Extract ScaffoldMessenger before async operations
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     setState(() {
       _isLoading = true;
       _candidateQuotes = [];
@@ -41,6 +40,8 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
     try {
       final result = await OpenAIQuoteFinderService.fetchCandidateQuotes(author);
       
+      if (!mounted) return;
+      
       setState(() {
         _candidateQuotes = List<Map<String, dynamic>>.from(result['quotes'] ?? []);
         _selectedQuotes = List<bool>.generate(_candidateQuotes.length, (_) => false, growable: true);
@@ -48,17 +49,20 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
       });
 
       if (_candidateQuotes.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           SnackBar(content: Text('No quotes found for $author')),
         );
       }
     } catch (e) {
       LoggerService.error('Error fetching candidate quotes: $e', error: e);
+      
+      if (!mounted) return;
+      
       setState(() {
         _isLoading = false;
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(content: Text('Failed to fetch quotes: ${e.toString()}')),
       );
     }
@@ -78,6 +82,9 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
       );
       return;
     }
+
+    // Extract ScaffoldMessenger before async operations
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     setState(() {
       _isAdding = true;
@@ -123,6 +130,8 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
         await Future.delayed(const Duration(milliseconds: 300));
       }
 
+      if (!mounted) return;
+      
       setState(() {
         _isAdding = false;
         
@@ -143,19 +152,21 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
         message += '${message.isNotEmpty ? ', ' : ''}Failed to add $failCount quote${failCount > 1 ? 's' : ''}';
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(message),
           backgroundColor: successCount > 0 ? Colors.green : Colors.red,
         ),
       );
     } catch (e) {
+      if (!mounted) return;
+      
       setState(() {
         _isAdding = false;
       });
       
       LoggerService.error('❌ Error in _addSelectedQuotes: $e', error: e);
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text('Failed to add quotes: ${e.toString()}'),
           backgroundColor: Colors.red,
@@ -164,129 +175,6 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
     }
   }
 
-  Future<bool> _showDuplicateConfirmationDialog(
-    String quoteText,
-    String author,
-    List<dynamic> duplicates,
-    int totalCount,
-  ) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.orange.shade600),
-              const SizedBox(width: 8),
-              const Expanded(child: Text('Possible Duplicate Found')),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Candidate quote:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '"${quoteText.length > 100 ? '${quoteText.substring(0, 100)}...' : quoteText}"',
-                        style: const TextStyle(fontStyle: FontStyle.italic),
-                      ),
-                      Text('— $author'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Found $totalCount similar quote${totalCount > 1 ? 's' : ''}:',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 150,
-                  child: ListView.builder(
-                    itemCount: duplicates.length > 3 ? 3 : duplicates.length, // Show max 3
-                    itemBuilder: (context, index) {
-                      final duplicate = duplicates[index];
-                      final matchReason = duplicate['match_reason'] ?? '';
-                      
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '"${duplicate['quote'].toString().length > 60 ? '${duplicate['quote'].toString().substring(0, 60)}...' : duplicate['quote']}"',
-                                style: const TextStyle(
-                                  fontStyle: FontStyle.italic,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              Text(
-                                '— ${duplicate['author']}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              if (matchReason.isNotEmpty)
-                                Text(
-                                  'Match: ${matchReason.replaceAll('_', ' ')}',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Add this quote anyway?',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Skip'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Add Anyway'),
-            ),
-          ],
-        );
-      },
-    );
-    
-    return result ?? false;
-  }
 
   Widget _buildQuoteCard(Map<String, dynamic> quote, int index) {
     final theme = Theme.of(context);
@@ -343,18 +231,6 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
     );
   }
 
-  IconData _getConfidenceIcon(String confidence) {
-    switch (confidence.toLowerCase()) {
-      case 'high':
-        return Icons.verified;
-      case 'medium':
-        return Icons.help_outline;
-      case 'low':
-        return Icons.warning_amber;
-      default:
-        return Icons.help_outline;
-    }
-  }
 
   Color _getConfidenceColor(String confidence, ThemeData theme) {
     switch (confidence.toLowerCase()) {
@@ -473,7 +349,7 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
                     Icon(
                       Icons.search_off,
                       size: 64,
-                      color: theme.colorScheme.primary.withOpacity(0.3),
+                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
                     ),
                     const SizedBox(height: 16),
                     Text(

@@ -48,12 +48,11 @@ class ShareService {
       LoggerService.error('  Error message: $e');
       LoggerService.error('  Stack trace: ${StackTrace.current}');
       
-      await _handleShareError(context, shareText.toString(), e);
+      await _handleShareError(shareText.toString(), e);
     }
   }
 
   static Future<void> _handleShareError(
-    BuildContext context,
     String shareText,
     dynamic error,
   ) async {
@@ -61,46 +60,17 @@ class ShareService {
       // Web fallback: try clipboard
       try {
         await Clipboard.setData(ClipboardData(text: shareText));
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Quote copied to clipboard!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        LoggerService.info('✅ Share failed, but quote copied to clipboard as fallback');
       } catch (clipboardError) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Unable to share quote. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        LoggerService.error('❌ Share failed and clipboard fallback also failed', error: clipboardError);
       }
     } else {
       // Native device fallback: try clipboard then show error
       try {
         await Clipboard.setData(ClipboardData(text: shareText));
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Share failed. Quote copied to clipboard instead.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
+        LoggerService.info('✅ Share failed, but quote copied to clipboard as fallback');
       } catch (clipboardError) {
-        LoggerService.error('❌ Clipboard error', error: clipboardError);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Unable to share quote. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        LoggerService.error('❌ Both share and clipboard failed', error: clipboardError);
       }
     }
   }

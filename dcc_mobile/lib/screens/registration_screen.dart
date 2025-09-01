@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/logger_service.dart';
-import '../themes.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});

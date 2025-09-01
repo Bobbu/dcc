@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import '../services/logger_service.dart';
 import '../themes.dart';
 
 class TagsEditorScreen extends StatefulWidget {
@@ -275,7 +276,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
       // Now load tags with the saved sort preferences
       await _loadTags();
     } catch (e) {
-      print('Failed to load sort preferences: $e');
+      LoggerService.error('Failed to load sort preferences', error: e);
       // Fall back to default and load tags anyway
       await _loadTags();
     }
@@ -287,7 +288,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
       await prefs.setString('tags_editor_sort_by', _sortBy);
       await prefs.setBool('tags_editor_sort_ascending', _sortAscending);
     } catch (e) {
-      print('Failed to save sort preferences: $e');
+      LoggerService.error('Failed to save sort preferences', error: e);
     }
   }
 
@@ -360,7 +361,7 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
       int hour12 = date.hour == 0 ? 12 : (date.hour > 12 ? date.hour - 12 : date.hour);
       String amPm = date.hour >= 12 ? 'pm' : 'am';
       
-      return '${months[date.month - 1]} ${date.day}, ${date.year} at ${hour12}:${date.minute.toString().padLeft(2, '0')} $amPm';
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour12:${date.minute.toString().padLeft(2, '0')} $amPm';
     } catch (e) {
       return dateString; // Return original string if parsing fails
     }

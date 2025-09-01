@@ -303,7 +303,7 @@ class _DailyNuggetsAdminScreenState extends State<DailyNuggetsAdminScreen> {
                             children: [
                               Expanded(
                                 child: DropdownButtonFormField<String>(
-                                  value: _selectedTimezone,
+                                  initialValue: _selectedTimezone,
                                   decoration: InputDecoration(
                                     labelText: 'Timezone',
                                     border: OutlineInputBorder(
@@ -338,7 +338,7 @@ class _DailyNuggetsAdminScreenState extends State<DailyNuggetsAdminScreen> {
                                     _showActiveOnly = selected;
                                   });
                                 },
-                                selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                                selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                               ),
                             ],
                           ),
@@ -379,13 +379,13 @@ class _DailyNuggetsAdminScreenState extends State<DailyNuggetsAdminScreen> {
                                     Icon(
                                       Icons.inbox,
                                       size: 64,
-                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
                                     ),
                                     const SizedBox(height: 16),
                                     Text(
                                       'No subscribers found',
                                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                                       ),
                                     ),
                                   ],
@@ -405,8 +405,8 @@ class _DailyNuggetsAdminScreenState extends State<DailyNuggetsAdminScreen> {
                                 return ListTile(
                                   leading: CircleAvatar(
                                     backgroundColor: isActive 
-                                      ? Colors.green.withOpacity(0.2)
-                                      : Colors.orange.withOpacity(0.2),
+                                      ? Colors.green.withValues(alpha: 0.2)
+                                      : Colors.orange.withValues(alpha: 0.2),
                                     child: Icon(
                                       isActive ? Icons.check_circle : Icons.pause_circle,
                                       color: isActive ? Colors.green : Colors.orange,
@@ -427,7 +427,7 @@ class _DailyNuggetsAdminScreenState extends State<DailyNuggetsAdminScreen> {
                                           Icon(
                                             Icons.access_time,
                                             size: 14,
-                                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
@@ -442,7 +442,7 @@ class _DailyNuggetsAdminScreenState extends State<DailyNuggetsAdminScreen> {
                                           Icon(
                                             Icons.calendar_today,
                                             size: 14,
-                                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
@@ -460,7 +460,7 @@ class _DailyNuggetsAdminScreenState extends State<DailyNuggetsAdminScreen> {
                                                 ? Icons.email 
                                                 : Icons.notifications,
                                               size: 14,
-                                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
@@ -478,7 +478,7 @@ class _DailyNuggetsAdminScreenState extends State<DailyNuggetsAdminScreen> {
                                       if (!isActive)
                                         Chip(
                                           label: const Text('Inactive'),
-                                          backgroundColor: Colors.orange.withOpacity(0.2),
+                                          backgroundColor: Colors.orange.withValues(alpha: 0.2),
                                           labelStyle: const TextStyle(
                                             color: Colors.orange,
                                             fontSize: 12,

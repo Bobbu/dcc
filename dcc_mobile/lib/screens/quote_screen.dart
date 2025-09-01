@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:async';
@@ -9,7 +8,6 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:share_plus/share_plus.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
@@ -626,7 +624,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
       queryParams.add('limit=$_quoteRetrievalLimit');
       
       if (queryParams.isNotEmpty) {
-        url += '?' + queryParams.join('&');
+        url += '?${queryParams.join('&')}';
       }
       
       LoggerService.debug('🌐 Making API request to: $url');

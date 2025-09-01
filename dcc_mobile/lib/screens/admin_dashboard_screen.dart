@@ -10,7 +10,6 @@ import '../helpers/download_helper_stub.dart'
     if (dart.library.html) '../helpers/download_helper_web.dart';
 import '../services/auth_service.dart';
 import '../services/admin_api_service.dart';
-import '../services/openai_proxy_service.dart';
 import '../services/logger_service.dart';
 import '../services/export_service.dart';
 import '../widgets/export_destination_dialog.dart';
@@ -58,12 +57,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   SortField _sortField = SortField.createdAt;
   bool _sortAscending = false;
   bool _isImporting = false;
-  bool _isLoadingTags = false;
   int _importProgress = 0;
   int _importTotal = 0;
   String _importStatus = '';
   // Tag filter removed - using search functionality instead
-  List<String> _availableTags = []; // Keep for compatibility but not used
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
@@ -869,7 +866,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                     ),
                   ),
-                )).toList(),
+                )),
                 if (duplicateCount > 3)
                   Text('... and ${duplicateCount - 3} more similar quote(s).'),
                 SizedBox(height: 12),
@@ -1086,6 +1083,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (voiceName != null && voiceLocale != null) {
         selectedVoice = {'name': voiceName, 'locale': voiceLocale};
       }
+
+      // Check if widget is still mounted before using context
+      if (!mounted) return;
 
       Navigator.push(
         context,

@@ -4,7 +4,6 @@ import 'admin_dashboard_screen.dart';
 import 'user_profile_screen.dart';
 import 'registration_screen.dart';
 import 'forgot_password_screen.dart';
-import '../themes.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool redirectToProfileAfterLogin;

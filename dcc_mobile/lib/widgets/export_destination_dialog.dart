@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
 
 enum ExportDestination { download, clipboard, s3 }
 enum ExportFormat { json, csv }
@@ -43,7 +42,7 @@ class _ExportDestinationDialogState extends State<ExportDestinationDialog> {
         : widget.itemCount! * 50;
     
     if (estimatedBytes < 1024) {
-      return '~${estimatedBytes} bytes';
+      return '~$estimatedBytes bytes';
     } else if (estimatedBytes < 1024 * 1024) {
       return '~${(estimatedBytes / 1024).toStringAsFixed(1)} KB';
     } else {
@@ -126,44 +125,12 @@ class _ExportDestinationDialogState extends State<ExportDestinationDialog> {
             ),
             const SizedBox(height: 12),
             
-            // Download option (Web only)
-            if (kIsWeb) ...[
-              RadioListTile<ExportDestination>(
-                title: const Text('Download'),
-                subtitle: const Text('Download file to your device'),
-                secondary: const Icon(Icons.download),
-                value: ExportDestination.download,
-                groupValue: _selectedDestination,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedDestination = value;
-                  });
-                },
-              ),
-            ],
-            
-            // Clipboard option
-            RadioListTile<ExportDestination>(
-              title: const Text('Clipboard'),
-              subtitle: Text(
-                isClipboardSafe 
-                  ? 'Copy to clipboard for easy sharing'
-                  : widget.itemCount == null
-                    ? 'Full database export - use Cloud Storage instead'
-                    : 'Large dataset - consider using Cloud Storage',
-                style: TextStyle(
-                  color: isClipboardSafe ? null : theme.colorScheme.error,
-                ),
-              ),
-              secondary: Icon(
-                Icons.content_copy,
-                color: isClipboardSafe ? null : theme.colorScheme.error,
-              ),
-              value: ExportDestination.clipboard,
+            // Export Destination Selection
+            RadioGroup<ExportDestination>(
               groupValue: _selectedDestination,
               onChanged: (value) {
-                if (!isClipboardSafe) {
-                  // Show warning dialog
+                // Handle special clipboard warning logic
+                if (value == ExportDestination.clipboard && !isClipboardSafe) {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
@@ -196,20 +163,46 @@ class _ExportDestinationDialogState extends State<ExportDestinationDialog> {
                   });
                 }
               },
-            ),
-            
-            // S3 Cloud Storage option
-            RadioListTile<ExportDestination>(
-              title: const Text('Cloud Storage'),
-              subtitle: const Text('Export to cloud with shareable link (48 hours)'),
-              secondary: const Icon(Icons.cloud_upload),
-              value: ExportDestination.s3,
-              groupValue: _selectedDestination,
-              onChanged: (value) {
-                setState(() {
-                  _selectedDestination = value;
-                });
-              },
+              child: Column(
+                children: [
+                  // Download option (Web only)
+                  if (kIsWeb)
+                    RadioListTile<ExportDestination>(
+                      title: const Text('Download'),
+                      subtitle: const Text('Download file to your device'),
+                      secondary: const Icon(Icons.download),
+                      value: ExportDestination.download,
+                    ),
+                  
+                  // Clipboard option
+                  RadioListTile<ExportDestination>(
+                    title: const Text('Clipboard'),
+                    subtitle: Text(
+                      isClipboardSafe 
+                        ? 'Copy to clipboard for easy sharing'
+                        : widget.itemCount == null
+                          ? 'Full database export - use Cloud Storage instead'
+                          : 'Large dataset - consider using Cloud Storage',
+                      style: TextStyle(
+                        color: isClipboardSafe ? null : theme.colorScheme.error,
+                      ),
+                    ),
+                    secondary: Icon(
+                      Icons.content_copy,
+                      color: isClipboardSafe ? null : theme.colorScheme.error,
+                    ),
+                    value: ExportDestination.clipboard,
+                  ),
+                  
+                  // S3 Cloud Storage option
+                  RadioListTile<ExportDestination>(
+                    title: const Text('Cloud Storage'),
+                    subtitle: const Text('Export to cloud with shareable link (48 hours)'),
+                    secondary: const Icon(Icons.cloud_upload),
+                    value: ExportDestination.s3,
+                  ),
+                ],
+              ),
             ),
             
             const SizedBox(height: 20),
@@ -223,35 +216,31 @@ class _ExportDestinationDialogState extends State<ExportDestinationDialog> {
             const SizedBox(height: 12),
             
             // Format selection
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile<ExportFormat>(
-                    title: const Text('JSON'),
-                    dense: true,
-                    value: ExportFormat.json,
-                    groupValue: _selectedFormat,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedFormat = value!;
-                      });
-                    },
+            RadioGroup<ExportFormat>(
+              groupValue: _selectedFormat,
+              onChanged: (value) {
+                setState(() {
+                  _selectedFormat = value!;
+                });
+              },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<ExportFormat>(
+                      title: const Text('JSON'),
+                      dense: true,
+                      value: ExportFormat.json,
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: RadioListTile<ExportFormat>(
-                    title: const Text('CSV'),
-                    dense: true,
-                    value: ExportFormat.csv,
-                    groupValue: _selectedFormat,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedFormat = value!;
-                      });
-                    },
+                  Expanded(
+                    child: RadioListTile<ExportFormat>(
+                      title: const Text('CSV'),
+                      dense: true,
+                      value: ExportFormat.csv,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             
             if (_selectedDestination == ExportDestination.s3) ...[

@@ -72,7 +72,8 @@ class _EditQuoteDialogState extends State<EditQuoteDialog> {
     final author = widget.authorController.text.trim();
     
     if (quote.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text('Please enter a quote first'),
           backgroundColor: Colors.orange,
@@ -313,13 +314,16 @@ class _EditQuoteDialogState extends State<EditQuoteDialog> {
               _isSaving = true;
             });
             
+            // Extract Navigator before async operation
+            final navigator = Navigator.of(context);
+            
             try {
               // Wait for the save operation to complete
               await widget.onSave(_selectedTags.toList());
               
               // Only close dialog after successful save
               if (mounted) {
-                Navigator.of(context).pop();
+                navigator.pop();
               }
             } catch (e) {
               // Handle error - don't close dialog

@@ -3,7 +3,6 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
-import '../themes.dart';
 import '../main.dart';
 
 class SettingsScreen extends StatefulWidget {

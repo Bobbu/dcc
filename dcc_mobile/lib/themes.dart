@@ -8,7 +8,6 @@ class AppThemes {
   
   // Define consistent chip colors
   static const Color _lightChipBackground = Color(0xFF5C6BC0); // Slightly lighter than selected chips
-  static const Color _lightChipText = Colors.white;
   static const Color _darkChipBackground = Color(0xFFE0E0E0);
   static const Color _darkChipText = Color(0xFF212121);
 
@@ -50,7 +49,6 @@ class AppThemes {
     fontWeight: FontWeight.w400,
   );
 
-  static const Color _dateIconColor = Color(0xFF424242); // Colors.grey.shade800
   static const double _dateIconSize = 16;
 
   // Custom text theme for light mode
