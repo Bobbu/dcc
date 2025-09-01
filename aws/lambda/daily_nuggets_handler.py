@@ -69,6 +69,14 @@ def handler(event, context):
                 }
             return get_all_subscriptions()
         
+        # Handle OPTIONS requests (CORS preflight)
+        if http_method == 'OPTIONS':
+            return {
+                'statusCode': 200,
+                'headers': CORS_HEADERS,
+                'body': ''
+            }
+        
         # User endpoints - extract user email from JWT token
         user_email = get_user_email_from_token(event)
         
@@ -365,7 +373,7 @@ def send_daily_email(recipient_email, quote_data):
                 </div>
                 <div class="footer">
                     <p>You're receiving this because you subscribed to Daily Nuggets.</p>
-                    <p><a href="#" class="unsubscribe">Manage your subscription</a> in the Quote Me app.</p>
+                    <p><a href="https://quote-me.anystupididea.com/profile" class="unsubscribe">Manage your subscription</a> in the Quote Me app.</p>
                 </div>
             </div>
         </body>

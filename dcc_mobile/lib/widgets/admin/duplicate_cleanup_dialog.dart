@@ -87,6 +87,19 @@ class _DuplicateCleanupDialogState extends State<DuplicateCleanupDialog> {
                     'By default, the oldest quote in each group is kept (unchecked). You can change the selection below.',
                     style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
                   ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      border: Border.all(color: Colors.amber.shade200),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'Enhanced Detection: Now finds duplicates with minor differences in punctuation, spacing, or author attribution.',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ),
                 ],
               ),
             ),

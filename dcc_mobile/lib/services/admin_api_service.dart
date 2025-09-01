@@ -7,6 +7,11 @@ import '../models/tag.dart';
 
 class AdminApiService {
   static final String baseUrl = dotenv.env['API_ENDPOINT']?.replaceAll('/quote', '') ?? '';
+  
+  static void _logBaseUrl() {
+    print('🔧 API_ENDPOINT from env: ${dotenv.env['API_ENDPOINT']}');
+    print('🔧 Computed baseUrl: $baseUrl');
+  }
 
   static Future<Map<String, String>> _getAuthHeaders() async {
     final token = await AuthService.getIdToken();
@@ -183,6 +188,18 @@ class AdminApiService {
         final data = json.decode(response.body);
         LoggerService.info('✅ Quote created successfully');
         return data;
+      } else if (response.statusCode == 409) {
+        // Handle duplicate detection
+        final duplicateData = json.decode(response.body);
+        LoggerService.info('🔍 Duplicate quote detected by server');
+        // Return the duplicate data with a special flag so caller can handle it
+        return {
+          'isDuplicate': true,
+          'error': duplicateData['error'],
+          'message': duplicateData['message'],
+          'duplicate_count': duplicateData['duplicate_count'],
+          'duplicates': duplicateData['duplicates'],
+        };
       } else if (response.statusCode == 401) {
         throw Exception('Authentication required or expired');
       } else if (response.statusCode == 403) {
@@ -262,6 +279,55 @@ class AdminApiService {
       }
     } catch (e) {
       LoggerService.error('❌ Error deleting quote: $e', error: e);
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> checkForDuplicates({
+    required String quote,
+    required String author,
+  }) async {
+    try {
+      LoggerService.debug('📡 Checking for duplicates via admin API...');
+      
+      final headers = await _getAuthHeaders();
+      final body = json.encode({
+        'quote': quote,
+        'author': author,
+      });
+
+      _logBaseUrl(); // Debug: log the base URL
+      
+      final url = '$baseUrl/admin/check-duplicate';
+      LoggerService.debug('📡 Making request to URL: $url');
+      LoggerService.debug('📡 Request headers: $headers');
+      LoggerService.debug('📡 Request body: $body');
+      
+      final response = await http.post(
+        Uri.parse(url),
+        headers: headers,
+        body: body,
+      );
+
+      LoggerService.debug('📡 Duplicate check response status: ${response.statusCode}');
+      LoggerService.debug('📡 Duplicate check response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        LoggerService.info('✅ Duplicate check completed: ${data['message']}');
+        return data;
+      } else if (response.statusCode == 401) {
+        throw Exception('Authentication required or expired');
+      } else if (response.statusCode == 403) {
+        throw Exception('Admin access required');
+      } else if (response.statusCode == 404) {
+        throw Exception('Not found');
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error'] ?? 'Failed to check for duplicates');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error checking for duplicates: $e', error: e);
       rethrow;
     }
   }

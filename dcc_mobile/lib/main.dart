@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/quote_screen.dart';
+import 'screens/user_profile_screen.dart';
 import 'screens/quote_detail_screen.dart';
 import 'services/auth_service.dart';
 import 'services/logger_service.dart';
@@ -128,6 +129,13 @@ final GoRouter _router = GoRouter(
         final quoteId = state.pathParameters['id']!;
         LoggerService.debug('📖 Navigating to quote detail screen with ID: $quoteId');
         return QuoteDetailScreen(quoteId: quoteId);
+      },
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (BuildContext context, GoRouterState state) {
+        LoggerService.debug('👤 Navigating to user profile screen');
+        return const UserProfileScreen();
       },
     ),
   ],

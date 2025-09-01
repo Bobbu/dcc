@@ -16,6 +16,7 @@ import '../services/auth_service.dart';
 import '../services/logger_service.dart';
 import '../services/share_service.dart';
 import '../themes.dart';
+import '../utils/cleanup_local_profile.dart';
 import 'admin_dashboard_screen.dart';
 import 'user_profile_screen.dart';
 import 'propose_quote_screen.dart';
@@ -113,6 +114,10 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
       final userName = await AuthService.getUserName();
       LoggerService.debug('  Is admin: $isAdmin');
       LoggerService.debug('  User name: $userName');
+      
+      // Clean up any old local profile data (one-time migration)
+      // This ensures we use server as single source of truth
+      await CleanupLocalProfile.cleanupLocalProfileData();
       
       if (mounted) {
         setState(() {

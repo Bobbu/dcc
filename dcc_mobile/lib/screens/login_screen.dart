@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'admin_dashboard_screen.dart';
+import 'user_profile_screen.dart';
 import 'registration_screen.dart';
 import 'forgot_password_screen.dart';
 import '../themes.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool redirectToProfileAfterLogin;
+  
+  const LoginScreen({
+    super.key,
+    this.redirectToProfileAfterLogin = false,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -48,7 +54,14 @@ class _LoginScreenState extends State<LoginScreen> {
           
           if (!mounted) return;
           
-          if (isAdmin) {
+          if (widget.redirectToProfileAfterLogin) {
+            // User came from profile deep link - redirect back to profile
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const UserProfileScreen(),
+              ),
+            );
+          } else if (isAdmin) {
             // Navigate to admin dashboard
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
@@ -184,6 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
                             enabled: !_isLoading,
                             decoration: const InputDecoration(
                               labelText: 'Email Address',
@@ -206,6 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: !_isPasswordVisible,
+                            textInputAction: TextInputAction.done,
                             enabled: !_isLoading,
                             decoration: InputDecoration(
                               labelText: 'Password',
@@ -228,6 +243,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 return 'Please enter your password';
                               }
                               return null;
+                            },
+                            onFieldSubmitted: (_) {
+                              if (!_isLoading) {
+                                _signIn();
+                              }
                             },
                           ),
 

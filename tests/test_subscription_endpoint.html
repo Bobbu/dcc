@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Subscription API</title>
+</head>
+<body>
+    <h1>Daily Nuggets Subscription API Test</h1>
+    <div id="results"></div>
+    <button onclick="testSubscription()">Test Get Subscription</button>
+    <button onclick="updateSubscription(true)">Subscribe</button>
+    <button onclick="updateSubscription(false)">Unsubscribe</button>
+    
+    <script>
+        // These would normally come from your Auth service
+        const USER_POOL_ID = 'us-east-1_ecyuILBAu';
+        const CLIENT_ID = '2idvhvlhgbheglr0hptel5j55';
+        const BASE_URL = 'https://dcc.anystupididea.com';
+        
+        let authToken = null;
+        
+        function log(message) {
+            const results = document.getElementById('results');
+            results.innerHTML += '<div>' + new Date().toISOString() + ': ' + message + '</div>';
+        }
+        
+        async function getAuthToken() {
+            if (authToken) return authToken;
+            
+            // This is a simplified test - in real app this comes from Cognito
+            const email = 'rob@catalyst.technology'; // Your email
+            const password = prompt('Enter password for ' + email + ':');
+            
+            if (!password) {
+                log('❌ Password required');
+                return null;
+            }
+            
+            try {
+                // Using AWS SDK would be better, but this is a quick test
+                log('🔐 Getting auth token...');
+                log('ℹ️ In real app, this would use AWS Amplify/Cognito');
+                log('❌ Manual token entry required for security');
+                
+                authToken = prompt('Paste your JWT token from mobile app debug logs:');
+                return authToken;
+                
+            } catch (e) {
+                log('❌ Auth error: ' + e.message);
+                return null;
+            }
+        }
+        
+        async function testSubscription() {
+            log('📧 Testing subscription API...');
+            
+            const token = await getAuthToken();
+            if (!token) return;
+            
+            try {
+                const response = await fetch(BASE_URL + '/subscriptions', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log('📡 Response status: ' + response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ Subscription data: ' + JSON.stringify(data, null, 2));
+                } else {
+                    const error = await response.text();
+                    log('❌ Error response: ' + error);
+                }
+                
+            } catch (e) {
+                log('❌ Network error: ' + e.message);
+            }
+        }
+        
+        async function updateSubscription(isSubscribed) {
+            log('📝 Updating subscription to: ' + isSubscribed);
+            
+            const token = await getAuthToken();
+            if (!token) return;
+            
+            try {
+                const response = await fetch(BASE_URL + '/subscriptions', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        'is_subscribed': isSubscribed,
+                        'delivery_method': 'email',
+                        'timezone': 'America/New_York'
+                    })
+                });
+                
+                log('📡 Update status: ' + response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ Update successful: ' + JSON.stringify(data, null, 2));
+                } else {
+                    const error = await response.text();
+                    log('❌ Update error: ' + error);
+                }
+                
+            } catch (e) {
+                log('❌ Network error: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>

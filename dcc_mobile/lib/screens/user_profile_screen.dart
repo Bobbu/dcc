@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import '../services/auth_service.dart';
 import '../services/logger_service.dart';
 import '../services/daily_nuggets_service.dart';
 import '../themes.dart';
+import 'login_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -32,8 +32,48 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserProfile();
-    _loadTimezones();
+    _checkAuthenticationAndLoad();
+  }
+
+  Future<void> _checkAuthenticationAndLoad() async {
+    try {
+      // Check if user is authenticated
+      final isSignedIn = await AuthService.isSignedIn();
+      
+      if (!isSignedIn) {
+        // User not signed in - redirect to login
+        LoggerService.info('🔒 User not authenticated, redirecting to login');
+        if (mounted) {
+          // Navigate to login with instruction to return to profile after login
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const LoginScreen(
+                redirectToProfileAfterLogin: true,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      // User is authenticated - load profile data
+      _loadUserProfile();
+      _loadTimezones();
+    } catch (e) {
+      LoggerService.error('🔒 Error checking authentication: $e');
+      // On error, redirect to login for safety
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const LoginScreen(
+              redirectToProfileAfterLogin: true,
+            ),
+          ),
+        );
+      }
+    }
   }
   
   Future<void> _loadTimezones() async {
@@ -97,13 +137,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final email = await AuthService.getUserEmail();
       final name = await AuthService.getUserName();
       
-      // Load subscription preferences from backend first, fallback to local storage
+      // Load subscription preferences from backend only (no local storage)
       bool subscribeToDailyNuggets = false;
       String deliveryMethod = 'email';
       String timezone = _selectedTimezone;
       
       try {
-        // Try to get subscription from backend
+        // Get subscription from backend - single source of truth
         final subscription = await DailyNuggetsService.getSubscription();
         if (subscription != null) {
           subscribeToDailyNuggets = subscription.isSubscribed;
@@ -112,26 +152,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           timezone = subscription.timezone;
           LoggerService.info('📧 Loaded subscription from backend: subscribed=$subscribeToDailyNuggets');
         } else {
-          LoggerService.info('📧 No backend subscription found, checking local preferences');
-          // Fallback to local preferences for migration
-          final prefs = await SharedPreferences.getInstance();
-          final userPrefix = email != null ? '${email}_' : 'default_';
-          subscribeToDailyNuggets = prefs.getBool('${userPrefix}subscribe_daily_nuggets') ?? false;
-          // Force email delivery method until push notifications are implemented
-          final savedMethod = prefs.getString('${userPrefix}delivery_method') ?? 'email';
-          deliveryMethod = savedMethod == 'notifications' ? 'email' : savedMethod;
-          timezone = prefs.getString('${userPrefix}timezone') ?? _selectedTimezone;
+          LoggerService.info('📧 No backend subscription found - user not subscribed');
+          // User has no subscription - use defaults
+          subscribeToDailyNuggets = false;
+          deliveryMethod = 'email';
+          timezone = _selectedTimezone;
         }
       } catch (e) {
-        LoggerService.error('📧 Error loading backend subscription, using local: $e');
-        // Fallback to local preferences if backend fails
-        final prefs = await SharedPreferences.getInstance();
-        final userPrefix = email != null ? '${email}_' : 'default_';
-        subscribeToDailyNuggets = prefs.getBool('${userPrefix}subscribe_daily_nuggets') ?? false;
-        // Force email delivery method until push notifications are implemented
-        final savedMethod = prefs.getString('${userPrefix}delivery_method') ?? 'email';
-        deliveryMethod = savedMethod == 'notifications' ? 'email' : savedMethod;
-        timezone = prefs.getString('${userPrefix}timezone') ?? _selectedTimezone;
+        LoggerService.error('📧 Error loading backend subscription: $e');
+        // If backend fails, use defaults (no fallback to local storage)
+        subscribeToDailyNuggets = false;
+        deliveryMethod = 'email';
+        timezone = _selectedTimezone;
       }
       
       setState(() {
@@ -172,9 +204,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         await AuthService.updateUserName(newName);
       }
       
-      // Save subscription preferences to backend and local storage
+      // Save subscription preferences to backend only (single source of truth)
       try {
-        // Save to backend first
         await DailyNuggetsService.updateSubscription(
           isSubscribed: _subscribeToDailyNuggets,
           deliveryMethod: _deliveryMethod,
@@ -182,16 +213,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         );
         LoggerService.info('📧 Subscription saved to backend successfully');
       } catch (e) {
-        LoggerService.error('📧 Error saving to backend, saving locally: $e');
-        // Don't throw error - still save locally as fallback
+        LoggerService.error('📧 Error saving subscription to backend: $e');
+        // Re-throw error to show user that save failed
+        throw Exception('Failed to save subscription preferences: $e');
       }
-      
-      // Also save to local storage as backup/cache
-      final prefs = await SharedPreferences.getInstance();
-      final userPrefix = _userEmail != null ? '${_userEmail}_' : 'default_';
-      await prefs.setBool('${userPrefix}subscribe_daily_nuggets', _subscribeToDailyNuggets);
-      await prefs.setString('${userPrefix}delivery_method', _deliveryMethod);
-      await prefs.setString('${userPrefix}timezone', _selectedTimezone);
       
       LoggerService.info('✅ Profile saved successfully');
       LoggerService.info('   Name: ${_nameController.text.trim()}');

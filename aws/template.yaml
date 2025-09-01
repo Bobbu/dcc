@@ -133,6 +133,14 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Auth:
               ApiKeyRequired: false
+        OptionsAdminCheckDuplicate:
+          Type: Api
+          Properties:
+            Path: /admin/check-duplicate
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
         OptionsAdminQuotesId:
           Type: Api
           Properties:
@@ -309,6 +317,15 @@ Resources:
           Type: Api
           Properties:
             Path: /admin/quotes
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        CheckDuplicate:
+          Type: Api
+          Properties:
+            Path: /admin/check-duplicate
             Method: POST
             RestApiId: !Ref ApiGatewayApi
             Auth:

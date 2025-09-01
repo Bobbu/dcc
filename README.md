@@ -25,6 +25,8 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **User Profile Management**: 
   - **Display Name**: Edit and update user's display name (syncs with Cognito)
   - **Daily Nuggets**: Subscribe to receive daily inspirational quotes via email at 8 AM in your timezone
+  - **Deep Link Support**: "Manage subscription" links in emails open Profile screen directly
+  - **Cross-Device Sync**: Profile data stored on server for consistency across all devices
   - **Delivery Options**: Email delivery (Push Notifications coming soon)
   - **Multi-User Support**: User-scoped preferences prevent cross-user data sharing
 - **Role-Based Access**: Different features for regular users vs administrators
@@ -46,8 +48,10 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Daily Nuggets Management**: View and manage all subscriber data with filtering and statistics
 - **Tag Management**: Dedicated editor for individual tag operations with persistent sort preferences
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
-- **Duplicate Detection**: Intelligent duplicate cleanup with preservation logic
+- **Server-Side Duplicate Detection**: Fuzzy matching prevents duplicates at quote creation with detailed feedback
 - **Export Functionality**: Complete data backup and export capabilities for admin users
+- **Desktop UX Enhancements**: Enter key login support for better web experience
+- **Security Features**: Authentication guards on all protected routes
 
 ### Backend Infrastructure
 - **Serverless Architecture**: AWS Lambda + API Gateway + DynamoDB
@@ -66,10 +70,10 @@ A comprehensive quote management system with enterprise-grade features, includin
 ## 🛠️ Technology Stack
 
 ### Frontend
-- **Flutter 3.0+**: Cross-platform framework for mobile and web
-- **AWS Amplify**: Cognito authentication integration
+- **Flutter 3.0+**: Cross-platform framework for mobile and web with GoRouter for deep linking
+- **AWS Amplify**: Cognito authentication integration with JWT management
 - **Material Design 3**: Modern UI components with comprehensive theming system
-- **SharedPreferences**: Local storage for settings persistence
+- **Server-First Architecture**: Profile data stored on server for cross-device consistency
 - **Flutter TTS**: Professional text-to-speech engine
 
 ### Backend
@@ -460,6 +464,30 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
+
+## 🆕 Recent Updates (September 2025)
+
+### ✅ Enhanced Duplicate Detection
+- **Server-Side Prevention**: Moved from client-side cleanup to server-side prevention
+- **Fuzzy Matching**: Detects similar quotes with punctuation and spacing variations
+- **Real-Time Feedback**: Shows detailed duplicate information before blocking creation
+- **All Entry Points**: Protects both manual creation and ChatGPT candidate imports
+
+### ✅ Daily Nuggets Deep Linking
+- **Email Integration**: "Manage subscription" links now open Profile screen directly
+- **Cross-Platform Support**: Works on web, mobile, and desktop
+- **Authentication Flow**: Seamlessly redirects to login when needed, then returns to profile
+
+### ✅ Profile Data Architecture
+- **Single Source of Truth**: All profile data stored on server, no local caching
+- **Cross-Device Consistency**: Same settings across mobile, web, and multiple devices
+- **Automatic Cleanup**: Old local data automatically removed on sign-in
+
+### ✅ Security & UX Enhancements
+- **Route Protection**: All protected screens require authentication
+- **CORS Resolution**: Web app can now access all backend APIs properly
+- **Desktop UX**: Enter key submits login form for better web experience
+- **Test Organization**: All test files organized in dedicated tests directory
 
 ## 📝 License
 

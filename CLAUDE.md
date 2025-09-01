@@ -35,6 +35,13 @@ cd aws
 ./tests/test_admin_api.sh
 python3 tests/test_tag_cleanup.py
 python3 tests/test_tag_editor.py
+
+# Duplicate Detection Tests
+./tests/test_duplicate_detection.sh
+
+# Subscription & Daily Nuggets Tests
+python3 tests/test_subscription_sync.py
+python3 tests/test_rob_subscription.py
 ```
 
 ### Flutter Development
@@ -86,12 +93,15 @@ flutter build web --release  # Web
 - **Quote Retrieval Limit**: User-configurable limit (50-1000) for quote fetching
 - **AI Tag Generation**: GPT-4o-mini via secure Lambda proxy with "Recommend Tags" feature
 - **Favorites System**: Heart icons throughout app, personal favorites collection
-- **Daily Nuggets**: Email subscriptions with timezone-aware delivery at 8 AM daily
+- **Daily Nuggets**: Email subscriptions with timezone-aware delivery at 8 AM daily + deep link management
 - **Import/Export**: TSV import, multi-format export (JSON/CSV)
-- **Duplicate Management**: Smart detection and cleanup
+- **Duplicate Detection**: Server-side prevention at quote creation with fuzzy matching
 - **Search**: Universal search across quotes, authors, tags
 - **Sorting**: 4-field sorting with persistent preferences
 - **Progress Tracking**: Real-time status for batch operations
+- **Cross-Device Sync**: Profile data stored on server as single source of truth
+- **Desktop UX**: Enter key login support for web users
+- **Security**: Authentication guards on all protected routes
 - **Native UX**: Platform-specific icons (Cupertino on iOS/macOS, Material elsewhere)
 
 ### Web Infrastructure
@@ -164,6 +174,15 @@ flutter build web --release  # Web
 - **Favorites**: Personal quote collections with heart icons and native sharing
 - **Resilience**: Auto-retry, graceful error handling
 - **Standards**: Clean architecture, automated testing
+
+## Recent Improvements (September 2025)
+- **✅ Duplicate Detection Restored**: Server-side fuzzy matching prevents duplicates at quote creation
+- **✅ Daily Nuggets Deep Links**: "Manage subscription" emails link directly to Profile screen
+- **✅ Profile Data Sync**: Removed local storage, server is single source of truth across devices
+- **✅ CORS Issues Fixed**: Web app can now access all subscription APIs properly
+- **✅ Authentication Security**: Profile routes protected, unauthenticated users redirected to login
+- **✅ Desktop UX Enhancement**: Enter key submits login form for better web experience
+- **✅ Test Organization**: All test files moved to `tests/` directory for better project structure
 
 ## Development Guidelines
 - Keep file sizes manageable with proper separation of concerns

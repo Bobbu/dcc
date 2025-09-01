@@ -7,6 +7,7 @@ from decimal import Decimal
 from datetime import datetime, timezone
 import uuid
 import urllib.parse
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +20,86 @@ cognito_client = boto3.client('cognito-idp')
 table_name = os.environ.get('QUOTES_TABLE_NAME', os.environ.get('TABLE_NAME', 'dcc-quotes-optimized'))
 user_pool_id = os.environ['USER_POOL_ID']
 table = dynamodb.Table(table_name)
+
+# Duplicate detection functions
+def normalize_text(text):
+    """Normalizes text for softer comparison by removing extra whitespace,
+    punctuation variations, and common differences"""
+    if not text:
+        return ""
+    
+    text = (text.strip()
+            .lower()
+            # Remove extra whitespace
+            .replace('\n', ' ')
+            .replace('\t', ' ')
+            # Normalize punctuation
+            .replace('"', '"').replace('"', '"')  # Smart quotes
+            .replace(''', "'").replace(''', "'")  # Smart apostrophes  
+            .replace('—', '-').replace('–', '-')  # Em/en dashes
+            .replace('…', '...')  # Ellipsis
+            # Remove trailing periods from authors
+            .rstrip('.'))
+    # Clean up multiple spaces
+    text = re.sub(r'\s+', ' ', text)
+    return text
+
+def calculate_similarity(text1, text2):
+    """Calculates similarity ratio between two strings using a simple
+    character-based approach suitable for quotes and author names"""
+    if not text1 and not text2:
+        return 1.0
+    if not text1 or not text2:
+        return 0.0
+    
+    # For very similar lengths, use character-by-character comparison
+    if abs(len(text1) - len(text2)) <= 3:
+        matches = 0
+        max_length = max(len(text1), len(text2))
+        
+        for i in range(max_length):
+            if i < len(text1) and i < len(text2) and text1[i] == text2[i]:
+                matches += 1
+        return matches / max_length if max_length > 0 else 0.0
+    
+    # For different lengths, use word-based comparison
+    words1 = text1.split(' ')
+    words2 = text2.split(' ')
+    
+    common_words = 0
+    for word1 in words1:
+        if word1 in words2 and len(word1) > 2:
+            common_words += 1
+    
+    total_words = len(words1) + len(words2)
+    return (2.0 * common_words) / total_words if total_words > 0 else 0.0
+
+def are_similar_quotes(quote1_text, quote1_author, quote2_text, quote2_author):
+    """Checks if two quotes are similar enough to be considered duplicates"""
+    normalized_quote1 = normalize_text(quote1_text)
+    normalized_quote2 = normalize_text(quote2_text)
+    normalized_author1 = normalize_text(quote1_author)
+    normalized_author2 = normalize_text(quote2_author)
+    
+    # Exact match after normalization
+    if normalized_quote1 == normalized_quote2 and normalized_author1 == normalized_author2:
+        return True, "exact_match"
+    
+    # Similar quote text with exact author match
+    quote_similarity = calculate_similarity(normalized_quote1, normalized_quote2)
+    if quote_similarity >= 0.90 and normalized_author1 == normalized_author2:
+        return True, f"similar_quote_same_author_{quote_similarity:.2f}"
+    
+    # Exact quote with similar author (handles attribution variations)
+    author_similarity = calculate_similarity(normalized_author1, normalized_author2)
+    if normalized_quote1 == normalized_quote2 and author_similarity >= 0.85:
+        return True, f"same_quote_similar_author_{author_similarity:.2f}"
+    
+    # Both quote and author are very similar (for cases with minor differences)
+    if quote_similarity >= 0.95 and author_similarity >= 0.90:
+        return True, f"both_similar_q{quote_similarity:.2f}_a{author_similarity:.2f}"
+    
+    return False, None
 
 # CORS headers
 CORS_HEADERS = {
@@ -284,6 +365,66 @@ def admin_create_quote(body, username):
                 'headers': CORS_HEADERS,
                 'body': json.dumps({'error': 'Quote text and author are required'})
             }
+        
+        # Check for duplicates
+        quote_text = body['quote'].strip()
+        author = body['author'].strip()
+        
+        logger.info(f"🔍 Checking for duplicates: '{quote_text[:50]}...' by '{author}'")
+        
+        try:
+            # Scan for potential duplicates using fuzzy matching
+            duplicates_found = []
+            scan_kwargs = {'ProjectionExpression': 'id, quote, author, created_at'}
+            
+            while True:
+                response = table.scan(**scan_kwargs)
+                
+                for item in response.get('Items', []):
+                    # Skip non-quote items (like metadata)
+                    if 'quote' not in item or 'author' not in item:
+                        continue
+                        
+                    is_similar, match_reason = are_similar_quotes(
+                        quote_text, author,
+                        item['quote'], item['author']
+                    )
+                    
+                    if is_similar:
+                        duplicates_found.append({
+                            "id": item.get('id'),
+                            "quote": item['quote'],
+                            "author": item['author'],
+                            "created_at": item.get('created_at'),
+                            "match_reason": match_reason
+                        })
+                
+                # Check if there are more items to scan
+                if 'LastEvaluatedKey' not in response:
+                    break
+                scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+            
+            logger.info(f"🔍 Found {len(duplicates_found)} potential duplicates")
+            if duplicates_found:
+                logger.info(f"❌ BLOCKING duplicate creation - found {len(duplicates_found)} matches")
+                return {
+                    'statusCode': 409,
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        "error": "Duplicate quote detected",
+                        "message": f"Found {len(duplicates_found)} similar quote(s)",
+                        "is_duplicate": True,
+                        "duplicate_count": len(duplicates_found),
+                        "duplicates": duplicates_found[:5]  # Return first 5 matches
+                    })
+                }
+            else:
+                logger.info("✅ No duplicates found, proceeding with creation")
+                
+        except Exception as e:
+            logger.error(f"Error checking for duplicates: {e}")
+            # Continue with quote creation if duplicate check fails
+            # This ensures the system is resilient to duplicate check failures
         
         # Generate quote ID
         quote_id = str(uuid.uuid4())

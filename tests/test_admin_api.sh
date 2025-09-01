@@ -206,7 +206,12 @@ except:
     if [ "$CREATED_QUOTE_ID" != "ERROR" ] && [ ! -z "$CREATED_QUOTE_ID" ]; then
         echo -e "${GREEN}✅ Created quote ID: $CREATED_QUOTE_ID${NC}"
         
-        # Test 4: Update the quote
+        # Test 4: Try to create the same quote again (should fail with 409)
+        echo -e "${BLUE}Test 4: Duplicate detection${NC}"
+        echo -e "${YELLOW}Testing duplicate prevention by trying to create same quote again...${NC}"
+        test_endpoint "POST" "/admin/quotes" 409 "Duplicate detection (should block)" "$NEW_QUOTE_DATA"
+        
+        # Test 6: Update the quote
         UPDATE_QUOTE_DATA='{
             "quote": "Updated test quote for regression testing",
             "author": "Updated Test Author",
@@ -214,7 +219,7 @@ except:
         }'
         test_endpoint "PUT" "/admin/quotes/$CREATED_QUOTE_ID" 200 "Update quote" "$UPDATE_QUOTE_DATA"
         
-        # Test 5: Delete the quote (cleanup)
+        # Test 7: Delete the quote (cleanup)
         test_endpoint "DELETE" "/admin/quotes/$CREATED_QUOTE_ID" 200 "Delete quote"
     else
         echo -e "${RED}❌ Could not extract quote ID, skipping update/delete tests${NC}"

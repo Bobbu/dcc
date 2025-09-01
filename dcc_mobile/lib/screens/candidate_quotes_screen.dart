@@ -90,20 +90,30 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
     try {
       for (final index in selectedIndices) {
         final quote = _candidateQuotes[index];
+        final quoteText = quote['quote'] ?? '';
+        final authorText = quote['author'] ?? '';
         
         try {
-          // Use AdminApiService.createQuote() method
-          await AdminApiService.createQuote(
-            quote: quote['quote'] ?? '',
-            author: quote['author'] ?? '',
+          // Server-side duplicate checking is now handled in the create quote endpoint
+          final result = await AdminApiService.createQuote(
+            quote: quoteText,
+            author: authorText,
             tags: [], // Leave untagged for "Generate tags for the tagless" to process
           );
           
-          successCount++;
-          successfulIndices.add(index);
-          final quoteText = quote['quote'] ?? '';
-          final truncated = quoteText.length > 50 ? quoteText.substring(0, 50) + '...' : quoteText;
-          LoggerService.info('✅ Successfully added quote: "$truncated"');
+          // Check if this was a duplicate detection
+          if (result['isDuplicate'] == true) {
+            // Skip duplicate quotes automatically in batch operations
+            failCount++;
+            final truncated = quoteText.length > 50 ? quoteText.substring(0, 50) + '...' : quoteText;
+            LoggerService.info('⏭️ Skipped duplicate quote: "$truncated"');
+          } else {
+            // Normal successful creation
+            successCount++;
+            successfulIndices.add(index);
+            final truncated = quoteText.length > 50 ? quoteText.substring(0, 50) + '...' : quoteText;
+            LoggerService.info('✅ Successfully added quote: "$truncated"');
+          }
         } catch (e) {
           failCount++;
           LoggerService.error('❌ Failed to add quote: $e', error: e);
@@ -152,6 +162,130 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
         ),
       );
     }
+  }
+
+  Future<bool> _showDuplicateConfirmationDialog(
+    String quoteText,
+    String author,
+    List<dynamic> duplicates,
+    int totalCount,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange.shade600),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Possible Duplicate Found')),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Candidate quote:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '"${quoteText.length > 100 ? '${quoteText.substring(0, 100)}...' : quoteText}"',
+                        style: const TextStyle(fontStyle: FontStyle.italic),
+                      ),
+                      Text('— $author'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Found $totalCount similar quote${totalCount > 1 ? 's' : ''}:',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 150,
+                  child: ListView.builder(
+                    itemCount: duplicates.length > 3 ? 3 : duplicates.length, // Show max 3
+                    itemBuilder: (context, index) {
+                      final duplicate = duplicates[index];
+                      final matchReason = duplicate['match_reason'] ?? '';
+                      
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '"${duplicate['quote'].toString().length > 60 ? '${duplicate['quote'].toString().substring(0, 60)}...' : duplicate['quote']}"',
+                                style: const TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              Text(
+                                '— ${duplicate['author']}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              if (matchReason.isNotEmpty)
+                                Text(
+                                  'Match: ${matchReason.replaceAll('_', ' ')}',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Add this quote anyway?',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Skip'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Add Anyway'),
+            ),
+          ],
+        );
+      },
+    );
+    
+    return result ?? false;
   }
 
   Widget _buildQuoteCard(Map<String, dynamic> quote, int index) {
