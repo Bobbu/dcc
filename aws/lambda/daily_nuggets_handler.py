@@ -373,7 +373,10 @@ def send_daily_email(recipient_email, quote_data):
                 </div>
                 <div class="footer">
                     <p>You're receiving this because you subscribed to Daily Nuggets.</p>
-                    <p><a href="https://quote-me.anystupididea.com/profile" class="unsubscribe">Manage your subscription</a> in the Quote Me app.</p>
+                    <p><a href="quoteme:///profile" class="unsubscribe">Manage your subscription</a> in the Quote Me app.</p>
+                    <p style="font-size: 12px; margin-top: 10px;">
+                        <a href="https://quote-me.anystupididea.com/profile" style="color: #718096;">Or manage in your browser</a>
+                    </p>
                 </div>
             </div>
         </body>

@@ -115,6 +115,36 @@ class _QuoteMeAppState extends State<QuoteMeApp> {
 final GoRouter _router = GoRouter(
   initialLocation: '/',
   debugLogDiagnostics: true,
+  redirect: (BuildContext context, GoRouterState state) {
+    // Handle custom scheme deep links
+    final uri = state.uri;
+    LoggerService.debug('🔗 Incoming URI: ${uri.toString()}');
+    LoggerService.debug('   - scheme: ${uri.scheme}');
+    LoggerService.debug('   - host: ${uri.host}');
+    LoggerService.debug('   - path: ${uri.path}');
+    
+    // Check if it's a custom scheme deep link
+    if (uri.scheme == 'quoteme') {
+      String newPath;
+      
+      if (uri.path.isNotEmpty && uri.path != '/') {
+        // quoteme:///profile -> path = "/profile"
+        newPath = uri.path;
+      } else if (uri.host.isNotEmpty) {
+        // quoteme://profile -> host = "profile", path = ""
+        newPath = '/${uri.host}';
+      } else {
+        // fallback to home
+        newPath = '/';
+      }
+      
+      LoggerService.debug('🔄 Redirecting from ${uri.toString()} to $newPath');
+      return newPath;
+    }
+    
+    // No redirect needed for regular navigation
+    return null;
+  },
   routes: <RouteBase>[
     GoRoute(
       path: '/',
