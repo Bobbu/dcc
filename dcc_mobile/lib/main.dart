@@ -134,8 +134,8 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/profile',
       builder: (BuildContext context, GoRouterState state) {
-        LoggerService.debug('👤 Navigating to user profile screen');
-        return const UserProfileScreen();
+        LoggerService.debug('👤 Navigating to user profile screen via deep link');
+        return const UserProfileScreen(fromDeepLink: true);
       },
     ),
   ],

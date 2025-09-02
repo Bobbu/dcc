@@ -55,9 +55,10 @@ class _LoginScreenState extends State<LoginScreen> {
           
           if (widget.redirectToProfileAfterLogin) {
             // User came from profile deep link - redirect back to profile
-            Navigator.of(context).pushReplacement(
+            // Use push instead of pushReplacement to allow proper navigation back
+            Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) => const UserProfileScreen(),
+                builder: (context) => const UserProfileScreen(fromDeepLink: true),
               ),
             );
           } else if (isAdmin) {

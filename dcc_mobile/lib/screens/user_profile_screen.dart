@@ -4,9 +4,15 @@ import '../services/auth_service.dart';
 import '../services/logger_service.dart';
 import '../services/daily_nuggets_service.dart';
 import 'login_screen.dart';
+import 'quote_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
-  const UserProfileScreen({super.key});
+  final bool fromDeepLink;
+  
+  const UserProfileScreen({
+    super.key,
+    this.fromDeepLink = false,
+  });
 
   @override
   State<UserProfileScreen> createState() => _UserProfileScreenState();
@@ -18,6 +24,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isSendingTestEmail = false;
   String? _userEmail;
   String? _userName;
   
@@ -240,8 +247,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
         );
         
-        // Return true to indicate the profile was updated
-        Navigator.pop(context, true);
+        // Handle navigation based on how the user arrived at this screen
+        if (widget.fromDeepLink) {
+          // User came from deep link - navigate to main app
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const QuoteScreen()),
+            (route) => false,
+          );
+        } else {
+          // Normal navigation - just pop back
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
       LoggerService.error('❌ Error saving profile: $e', error: e);
@@ -260,6 +276,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Future<void> _sendTestEmail() async {
+    setState(() {
+      _isSendingTestEmail = true;
+    });
+    
     try {
       await DailyNuggetsService.sendTestEmail();
       
@@ -297,6 +317,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             duration: const Duration(seconds: 4),
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingTestEmail = false;
+        });
       }
     }
   }
@@ -566,9 +592,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               if (_subscribeToDailyNuggets && _deliveryMethod == 'email') ...[
                                 Center(
                                   child: OutlinedButton.icon(
-                                    onPressed: _sendTestEmail,
-                                    icon: const Icon(Icons.email_outlined),
-                                    label: const Text('Send Test Email'),
+                                    onPressed: _isSendingTestEmail ? null : _sendTestEmail,
+                                    icon: _isSendingTestEmail 
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.email_outlined),
+                                    label: Text(_isSendingTestEmail ? 'Sending...' : 'Send Test Email'),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Theme.of(context).colorScheme.primary,
                                     ),
