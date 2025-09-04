@@ -17,6 +17,7 @@ import 'tags_editor_screen.dart';
 import 'candidate_quotes_screen.dart';
 import 'review_proposed_quotes_screen.dart';
 import 'daily_nuggets_admin_screen.dart';
+import 'users_screen.dart';
 import '../themes.dart';
 import '../models/quote.dart';
 import '../widgets/admin/import_quotes_dialog.dart';
@@ -1755,6 +1756,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     builder: (context) => const DailyNuggetsAdminScreen(),
                   ),
                 );
+              } else if (value == 'users') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const UsersScreen(),
+                  ),
+                );
               } else if (value == 'cleanup_tags') {
                 _showCleanupTagsDialog();
               } else if (value == 'cleanup_duplicates') {
@@ -1834,6 +1841,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 8),
                     Text('Daily Nuggets Subscribers'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'users',
+                child: Row(
+                  children: [
+                    Icon(Icons.people, color: Theme.of(context).colorScheme.primary),
+                    SizedBox(width: 8),
+                    Text('Users'),
                   ],
                 ),
               ),

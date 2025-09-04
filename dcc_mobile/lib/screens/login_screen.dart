@@ -7,10 +7,12 @@ import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool redirectToProfileAfterLogin;
+  final String? initialMode;
   
   const LoginScreen({
     super.key,
     this.redirectToProfileAfterLogin = false,
+    this.initialMode,
   });
 
   @override
@@ -24,12 +26,35 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   String? _errorMessage;
+  
+  @override
+  void initState() {
+    super.initState();
+    // If initialMode is signup, navigate to registration immediately
+    if (widget.initialMode == 'signup') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigateToRegistration();
+      });
+    }
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _navigateToRegistration() async {
+    final result = await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => const RegistrationScreen(),
+      ),
+    );
+    
+    if (result == true && mounted) {
+      Navigator.of(context).pop(true);
+    }
   }
 
   Future<void> _signIn() async {

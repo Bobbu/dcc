@@ -20,6 +20,7 @@ import 'user_profile_screen.dart';
 import 'propose_quote_screen.dart';
 import 'favorites_screen.dart';
 import '../widgets/favorite_heart_button.dart';
+import '../services/daily_nuggets_service.dart';
 
 
 class QuoteScreen extends StatefulWidget {
@@ -51,6 +52,8 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   bool _isSignedIn = false;
   bool _isAdmin = false;
   String? _userName;
+  bool _isSubscribedToDailyNuggets = false;
+  bool _authCheckComplete = false;
 
   static final String apiEndpoint = dotenv.env['API_ENDPOINT'] ?? '';
   static final String apiKey = dotenv.env['API_KEY'] ?? '';
@@ -88,6 +91,10 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
     super.didChangeDependencies();
     // Check if we're coming back to this screen
     if (ModalRoute.of(context)?.isCurrent ?? false) {
+      // Reset auth check flag so buttons stay hidden until status is confirmed
+      setState(() {
+        _authCheckComplete = false;
+      });
       _checkAuthStatus();
     }
   }
@@ -117,13 +124,26 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
       // This ensures we use server as single source of truth
       await CleanupLocalProfile.cleanupLocalProfileData();
       
+      // Check Daily Nuggets subscription status
+      bool isSubscribed = false;
+      try {
+        final subscription = await DailyNuggetsService.getSubscription();
+        isSubscribed = subscription?.isSubscribed ?? false;
+        LoggerService.debug('  Daily Nuggets subscribed: $isSubscribed');
+      } catch (e) {
+        LoggerService.debug('  Error checking Daily Nuggets subscription: $e');
+        // Continue without subscription status
+      }
+      
       if (mounted) {
         setState(() {
           _isSignedIn = true;
           _isAdmin = isAdmin;
           _userName = userName;
+          _isSubscribedToDailyNuggets = isSubscribed;
+          _authCheckComplete = true;
         });
-        LoggerService.debug('✅ Auth state updated: signedIn=$_isSignedIn, admin=$_isAdmin');
+        LoggerService.debug('✅ Auth state updated: signedIn=$_isSignedIn, admin=$_isAdmin, dailyNuggets=$_isSubscribedToDailyNuggets');
       }
     } else {
       // Clear state when not signed in
@@ -133,6 +153,8 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
           _isSignedIn = false;
           _isAdmin = false;
           _userName = null;
+          _isSubscribedToDailyNuggets = false;
+          _authCheckComplete = true;
         });
       }
     }
@@ -145,6 +167,8 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
         _isSignedIn = false;
         _isAdmin = false;
         _userName = null;
+        _isSubscribedToDailyNuggets = false;
+        _authCheckComplete = true;
         _quote = null;
         _author = null;
         _currentQuoteId = null;
@@ -221,7 +245,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                       const SizedBox(height: 16),
                       Text(
                         'Quote Me is your daily source of inspiration and motivation. '
-                        'Discover wisdom from great thinkers, leaders, and authors throughout history.',
+                        'Discover wisdom from great thinkers, leaders, and authors throughout history, and some comedians, too.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontSize: isLargeScreen ? 14 : 13,
@@ -245,6 +269,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                           '• Filter by categories using tags\n'
                           '• Text-to-speech (pretty goofy) with customizable voices\n'
                           '• Share quotes with friends\n'
+                          '• Subscribe to receive daily nuggets\n'
                           '• Favorite quotes that you love\n'
                           '• Propose new quotes\n'
                           '• Dark and light theme support',
@@ -1096,19 +1121,139 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 const SizedBox(height: 40),
-                ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _getQuote,
-                  icon: const Icon(Icons.refresh, size: 20),
-                  label: Text(
-                    _isLoading ? 'Loading...' : 'Get Quote',
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    shadowColor: Theme.of(context).colorScheme.secondary,
-                    elevation: 4,
+                SizedBox(
+                  width: 280,
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _getQuote,
+                    icon: const Icon(Icons.refresh, size: 20),
+                    label: Text(
+                      _isLoading ? 'Loading...' : 'Get Quote',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      shadowColor: Theme.of(context).colorScheme.secondary,
+                      elevation: 4,
+                    ),
                   ),
                 ),
+                // Authentication buttons for non-logged-in users
+                if (_authCheckComplete && !_isSignedIn) ...[
+                  const SizedBox(height: 24),
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: 280,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            setState(() {
+                              _authCheckComplete = false;
+                            });
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
+                              ),
+                            );
+                            if (result == true) {
+                              await _checkAuthStatus();
+                            } else {
+                              // Re-enable buttons if login was cancelled
+                              setState(() {
+                                _authCheckComplete = true;
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.login, size: 20),
+                          label: Text(
+                            'Sign In',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: 280,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            setState(() {
+                              _authCheckComplete = false;
+                            });
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(initialMode: 'signup'),
+                              ),
+                            );
+                            if (result == true) {
+                              await _checkAuthStatus();
+                            } else {
+                              // Re-enable buttons if signup was cancelled
+                              setState(() {
+                                _authCheckComplete = true;
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.person_add, size: 20),
+                          label: Text(
+                            'Sign Up',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                // Daily Nuggets subscription button for logged-in users who aren't subscribed
+                if (_authCheckComplete && _isSignedIn && !_isSubscribedToDailyNuggets) ...[
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: 280,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        setState(() {
+                          _authCheckComplete = false;
+                        });
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const UserProfileScreen(),
+                          ),
+                        );
+                        // Refresh auth status to check if they subscribed
+                        if (result == true) {
+                          await _checkAuthStatus();
+                        } else {
+                          // Re-enable buttons if profile was cancelled
+                          setState(() {
+                            _authCheckComplete = true;
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.email, size: 20),
+                      label: Text(
+                        'Subscribe to get daily nuggets delivered to you',
+                        style: Theme.of(context).textTheme.labelLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        backgroundColor: Theme.of(context).colorScheme.secondary,
+                        foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                      ),
+                    ),
+                  ),
+                ],
                         ],
                       ),
                     ),

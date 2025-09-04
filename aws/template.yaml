@@ -486,6 +486,47 @@ Resources:
               Authorizer: CognitoAuthorizer
               ApiKeyRequired: false
 
+  # Users Lambda function for listing Cognito users
+  UsersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-users-handler
+      CodeUri: lambda/
+      Handler: users_handler.handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          SUBSCRIPTION_TABLE: dcc-daily-nuggets-subscriptions
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - cognito-idp:ListUsers
+              - cognito-idp:AdminListGroupsForUser
+            Resource: !GetAtt UserPool.Arn
+        - DynamoDBReadPolicy:
+            TableName: dcc-daily-nuggets-subscriptions
+      Events:
+        GetUsers:
+          Type: Api
+          Properties:
+            Path: /admin/users
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UsersOptions:
+          Type: Api
+          Properties:
+            Path: /admin/users
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+
   # Explicit API Gateway for better control
   ApiGatewayApi:
     Type: AWS::Serverless::Api
@@ -1031,6 +1072,14 @@ Resources:
           Type: Api
           Properties:
             Path: /subscriptions
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        TestEmailOptions:
+          Type: Api
+          Properties:
+            Path: /subscriptions/test
             Method: OPTIONS
             RestApiId: !Ref ApiGatewayApi
             Auth:

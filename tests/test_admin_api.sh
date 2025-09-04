@@ -228,12 +228,15 @@ except:
     # Test 6: Verify tags metadata was updated
     test_endpoint "GET" "/admin/tags" 200 "Verify tags metadata includes new tags"
     
+    # Test 7: List all users (new users endpoint)
+    test_endpoint "GET" "/admin/users" 200 "List all users with attributes"
+    
     echo
     echo -e "${BLUE}Step 4: Security Tests${NC}"
     echo "====================="
     
     # Test unauthorized access (without token)
-    echo -e "${YELLOW}🔒 Testing unauthorized access...${NC}"
+    echo -e "${YELLOW}🔒 Testing unauthorized access to quotes endpoint...${NC}"
     unauth_response=$(curl -s -w "\n%{http_code}" -X GET \
         "$BASE_URL/admin/quotes" \
         -H "Content-Type: application/json")
@@ -243,6 +246,19 @@ except:
         echo -e "${GREEN}✅ Unauthorized access properly blocked (401)${NC}"
     else
         echo -e "${RED}❌ Security issue: Unauthorized access returned $unauth_status${NC}"
+    fi
+    
+    # Test unauthorized access to users endpoint
+    echo -e "${YELLOW}🔒 Testing unauthorized access to users endpoint...${NC}"
+    unauth_users_response=$(curl -s -w "\n%{http_code}" -X GET \
+        "$BASE_URL/admin/users" \
+        -H "Content-Type: application/json")
+    
+    unauth_users_status=$(echo "$unauth_users_response" | tail -n 1)
+    if [ "$unauth_users_status" -eq 401 ]; then
+        echo -e "${GREEN}✅ Unauthorized access to users properly blocked (401)${NC}"
+    else
+        echo -e "${RED}❌ Security issue: Unauthorized users access returned $unauth_users_status${NC}"
     fi
     
     echo
