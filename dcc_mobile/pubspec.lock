@@ -5,82 +5,82 @@ packages:
     dependency: transitive
     description:
       name: amplify_analytics_pinpoint
-      sha256: d6fadc3859c6c783990d4f9ddfb5e6cfeca63eb8f10b093c36e70dba4a957f70
+      sha256: c239bf9436dc6b281a3b374519b7c212f8bfff8c6c43ff33ad1cc674bfc6fd46
       url: "https://pub.dev"
     source: hosted
-    version: "2.6.3"
+    version: "2.6.0"
   amplify_analytics_pinpoint_dart:
     dependency: transitive
     description:
       name: amplify_analytics_pinpoint_dart
-      sha256: cbe280841cfe23f9b1de490c443053ec687f451fd19063a83c9448cb396ac6c3
+      sha256: e3de8dfb4e05325e8b8843ea025e4e7d91ca7c15511703a1ecdc404d69719151
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.10"
+    version: "0.4.7"
   amplify_auth_cognito:
     dependency: "direct main"
     description:
       name: amplify_auth_cognito
-      sha256: "0e703ce2b401b7c92634dc1b621a7db3140db5560235da47454a5af57db02a49"
+      sha256: "47e09df01fca9b6ae10b630583815d80f0daa4fab35d462afad1bb18e503baa6"
       url: "https://pub.dev"
     source: hosted
-    version: "2.6.3"
+    version: "2.6.0"
   amplify_auth_cognito_dart:
     dependency: transitive
     description:
       name: amplify_auth_cognito_dart
-      sha256: ca83f71c8e73b77fd35b9181b0273cba6ee2a15823bf0675eab9a0e4524aefd4
+      sha256: "665c9e725e3a54b7513c01262848f6d2f7f5374f6dd53342934fa16393ebd55c"
       url: "https://pub.dev"
     source: hosted
-    version: "0.11.11"
+    version: "0.11.8"
   amplify_core:
     dependency: transitive
     description:
       name: amplify_core
-      sha256: "3fc5f0c3d005006e933406e397cb671b935ec63631b9af003ab8f79463266faf"
+      sha256: "752b23770909b7c1c5f1113db7444b64b03e710da62df343e913935eb6c75d4e"
       url: "https://pub.dev"
     source: hosted
-    version: "2.6.3"
+    version: "2.6.1"
   amplify_db_common:
     dependency: transitive
     description:
       name: amplify_db_common
-      sha256: "50a0a0f07fec2da5c4be086f68f9570e1ef760c7e931e61673b802bfaa1c5690"
+      sha256: f63717b772e1a553476d9ef3c116af8b608353da7b39c3d89943e59dfe97699b
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.11"
+    version: "0.4.8"
   amplify_db_common_dart:
     dependency: transitive
     description:
       name: amplify_db_common_dart
-      sha256: f46b3ac6ca4b9622b7483883fc3f487eb46e542ff14ea1f4b5be431aa8d544a5
+      sha256: e0d92251c5a51633c97d19f9e681e4cf45e542ed1b4d6b5b2a183f3451b586cc
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.11"
+    version: "0.4.8"
   amplify_flutter:
     dependency: "direct main"
     description:
       name: amplify_flutter
-      sha256: "8c8a7b442afd00d4d7934dbfd5bc71076141594927250630eebbfbcf002d86d3"
+      sha256: "679e6a607ba81ab2b4436f889324ef632413e798ab164ce3ada0ced9c9911227"
       url: "https://pub.dev"
     source: hosted
-    version: "2.6.3"
+    version: "2.6.1"
   amplify_secure_storage:
     dependency: transitive
     description:
       name: amplify_secure_storage
-      sha256: "41698b09be7ad1d73ab83e9c16ef398e9c27533f6940b305c7a021f71c181b2f"
+      sha256: "159707848d331427b303157b8e90ba2e33f3340debbeda9267fa639d55a19dab"
       url: "https://pub.dev"
     source: hosted
-    version: "0.5.10"
+    version: "0.5.8"
   amplify_secure_storage_dart:
     dependency: transitive
     description:
       name: amplify_secure_storage_dart
-      sha256: "6e3eb705870b54ad760640d4b5216d131435108b76fc48c85c13c03fb3b8bf65"
+      sha256: "6b803d51e6529932021c9f8a9fdb4dd199ed48af884ae1ccb12e52f102bc0b0b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.5.6"
+    version: "0.5.4"
   app_links:
     dependency: "direct main"
     description:
@@ -125,18 +125,18 @@ packages:
     dependency: transitive
     description:
       name: aws_common
-      sha256: eebeefcb82603e0fd50adec3f916817c373e8347a3e195d8d7ee51aa94599eec
+      sha256: "95295d77c28d66a146d5357f02c71fb9236d4889158e26480e53aedc60e9e29b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.8"
+    version: "0.7.6"
   aws_signature_v4:
     dependency: transitive
     description:
       name: aws_signature_v4
-      sha256: "857b37ca4d963548bf92917cfe5a30e59b56a35de0e2d482626b74f9df393d4c"
+      sha256: d9ff6cbc794871a91c83423771906a48f2bd4e2e1c727feb944b5f1bc621c858
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.6"
+    version: "0.6.4"
   boolean_selector:
     dependency: transitive
     description:
@@ -229,10 +229,10 @@ packages:
     dependency: transitive
     description:
       name: device_info_plus
-      sha256: "98f28b42168cc509abc92f88518882fd58061ea372d7999aecc424345c7bff6a"
+      sha256: a7fd703482b391a87d60b6061d04dfdeab07826b96f9abd8f5ed98068acc0074
       url: "https://pub.dev"
     source: hosted
-    version: "11.5.0"
+    version: "10.1.2"
   device_info_plus_platform_interface:
     dependency: transitive
     description:
@@ -245,10 +245,10 @@ packages:
     dependency: transitive
     description:
       name: drift
-      sha256: "6aaea757f53bb035e8a3baedf3d1d53a79d6549a6c13d84f7546509da9372c7c"
+      sha256: "6acedc562ffeed308049f78fb1906abad3d65714580b6745441ee6d50ec564cd"
       url: "https://pub.dev"
     source: hosted
-    version: "2.28.1"
+    version: "2.18.0"
   fake_async:
     dependency: transitive
     description:
@@ -346,6 +346,54 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "14.8.1"
+  google_identity_services_web:
+    dependency: transitive
+    description:
+      name: google_identity_services_web
+      sha256: "5d187c46dc59e02646e10fe82665fc3884a9b71bc1c90c2b8b749316d33ee454"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.3+1"
+  google_sign_in:
+    dependency: "direct main"
+    description:
+      name: google_sign_in
+      sha256: d0a2c3bcb06e607bb11e4daca48bd4b6120f0bbc4015ccebbe757d24ea60ed2a
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.3.0"
+  google_sign_in_android:
+    dependency: transitive
+    description:
+      name: google_sign_in_android
+      sha256: d5e23c56a4b84b6427552f1cf3f98f716db3b1d1a647f16b96dbb5b93afa2805
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.2.1"
+  google_sign_in_ios:
+    dependency: transitive
+    description:
+      name: google_sign_in_ios
+      sha256: "102005f498ce18442e7158f6791033bbc15ad2dcc0afa4cf4752e2722a516c96"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.9.0"
+  google_sign_in_platform_interface:
+    dependency: transitive
+    description:
+      name: google_sign_in_platform_interface
+      sha256: "5f6f79cf139c197261adb6ac024577518ae48fdff8e53205c5373b5f6430a8aa"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.5.0"
+  google_sign_in_web:
+    dependency: transitive
+    description:
+      name: google_sign_in_web
+      sha256: "460547beb4962b7623ac0fb8122d6b8268c951cf0b646dd150d60498430e4ded"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.12.4+4"
   graphs:
     dependency: transitive
     description:
@@ -507,10 +555,10 @@ packages:
     dependency: transitive
     description:
       name: os_detect
-      sha256: "7d87c0dd98c6faf110d5aa498e9a6df02ffce4bb78cc9cfc8ad02929be9bb71f"
+      sha256: e704fb99aa30b2b9a284d87a28eef9ba262f68c25c963d5eb932f54cad07784f
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.3"
+    version: "2.0.2"
   package_info_plus:
     dependency: transitive
     description:
@@ -712,18 +760,18 @@ packages:
     dependency: transitive
     description:
       name: smithy
-      sha256: "9faeaf7fbb8f94aaec29b7a87c49f30e2d20a660d22873cd8c456003cb419fad"
+      sha256: d26e2359cc6ef0e0af814d9b945e9505cc80965815fce468270377adcb0c1d10
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.6"
+    version: "0.7.4"
   smithy_aws:
     dependency: transitive
     description:
       name: smithy_aws
-      sha256: "750d08011aec2aaffdbd168971cb3986661b1d11a011d478b7cbea468f50a010"
+      sha256: "3e63cf77726c8681ee236694eff433d90688a49785de1fdcf839d57fdc235c66"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.6"
+    version: "0.7.4"
   source_span:
     dependency: transitive
     description:
@@ -744,10 +792,10 @@ packages:
     dependency: transitive
     description:
       name: sqlite3
-      sha256: a72c68360757d25a528652f9679dac6e5f23bc52af76b74d4687a148d74e06db
+      sha256: fde692580bee3379374af1f624eb3e113ab2865ecb161dbe2d8ac2de9735dbdb
       url: "https://pub.dev"
     source: hosted
-    version: "2.6.1"
+    version: "2.4.5"
   stack_trace:
     dependency: transitive
     description:
@@ -920,10 +968,10 @@ packages:
     dependency: "direct main"
     description:
       name: web
-      sha256: "868d88a33d8a87b18ffc05f9f030ba328ffefba92d6c127917a2ba740f9cfe4a"
+      sha256: "97da13628db363c635202ad97068d47c5b8aa555808e7a9411963c533b449b27"
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.1"
+    version: "0.5.1"
   webdriver:
     dependency: transitive
     description:
@@ -944,18 +992,18 @@ packages:
     dependency: transitive
     description:
       name: win32_registry
-      sha256: "6f1b564492d0147b330dd794fee8f512cec4977957f310f9951b5f9d83618dae"
+      sha256: "21ec76dfc731550fd3e2ce7a33a9ea90b828fdf19a5c3bcf556fa992cfa99852"
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.0"
+    version: "1.1.5"
   worker_bee:
     dependency: transitive
     description:
       name: worker_bee
-      sha256: bfb779cc0db49bf4462fe606914090849ada7c9bb0bcb4eb7315be92172c19e5
+      sha256: "069548492154fae753ff97bdfe56d25fafc5db5586b5fd5cf4e2824d28970780"
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.6"
+    version: "0.3.4"
   xdg_directories:
     dependency: transitive
     description:

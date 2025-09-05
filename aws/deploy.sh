@@ -13,17 +13,29 @@ echo -e "${GREEN}Starting DCC API Deployment...${NC}"
 # Check if .env.deployment exists
 if [ ! -f .env.deployment ]; then
     echo -e "${RED}Error: .env.deployment file not found!${NC}"
-    echo "Please create .env.deployment with your OpenAI API key:"
-    echo "  OPENAI_API_KEY=your-key-here"
+    echo "Please create .env.deployment with your API keys:"
+    echo "  OPENAI_API_KEY=your-openai-key-here"
+    echo "  GOOGLE_CLIENT_ID=your-google-client-id"
+    echo "  GOOGLE_CLIENT_SECRET=your-google-client-secret"
     exit 1
 fi
 
 # Load environment variables
 source .env.deployment
 
-# Verify OpenAI API key is set
+# Verify required API keys are set
 if [ -z "$OPENAI_API_KEY" ]; then
     echo -e "${RED}Error: OPENAI_API_KEY not set in .env.deployment${NC}"
+    exit 1
+fi
+
+if [ -z "$GOOGLE_CLIENT_ID" ]; then
+    echo -e "${RED}Error: GOOGLE_CLIENT_ID not set in .env.deployment${NC}"
+    exit 1
+fi
+
+if [ -z "$GOOGLE_CLIENT_SECRET" ]; then
+    echo -e "${RED}Error: GOOGLE_CLIENT_SECRET not set in .env.deployment${NC}"
     exit 1
 fi
 
@@ -42,7 +54,7 @@ echo -e "${YELLOW}Deploying to AWS...${NC}"
 echo "This may take a few minutes..."
 
 # Capture deployment output
-DEPLOY_OUTPUT=$(sam deploy --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY" 2>&1)
+DEPLOY_OUTPUT=$(sam deploy --capabilities CAPABILITY_NAMED_IAM --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY" GoogleClientId="$GOOGLE_CLIENT_ID" GoogleClientSecret="$GOOGLE_CLIENT_SECRET" 2>&1)
 DEPLOY_STATUS=$?
 
 # Check if it's just "no changes"

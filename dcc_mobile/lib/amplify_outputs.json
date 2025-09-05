@@ -1,0 +1,36 @@
+{
+  "version": "1",
+  "auth": {
+    "aws_region": "us-east-1",
+    "user_pool_id": "us-east-1_ecyuILBAu",
+    "user_pool_client_id": "2idvhvlhgbheglr0hptel5j55",
+    "identity_pool_id": "us-east-1:08e2b0fd-c70f-4104-b99a-28bdf03d9878",
+    "oauth": {
+      "identity_providers": ["GOOGLE"],
+      "domain": "dcc-demo-sam-app-auth.auth.us-east-1.amazoncognito.com",
+      "scopes": [
+        "email",
+        "openid", 
+        "profile"
+      ],
+      "redirect_sign_in_uri": [
+        "https://quote-me.anystupididea.com/auth/callback",
+        "quoteme://auth-success"
+      ],
+      "redirect_sign_out_uri": [
+        "https://quote-me.anystupididea.com/",
+        "quoteme://auth-signout"
+      ],
+      "response_type": "code"
+    },
+    "username_attributes": ["email"],
+    "user_verification_types": ["email"],
+    "password_policy": {
+      "min_length": 8,
+      "require_numbers": true,
+      "require_lowercase": true,
+      "require_uppercase": true,
+      "require_symbols": true
+    }
+  }
+}

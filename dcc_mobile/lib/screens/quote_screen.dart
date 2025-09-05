@@ -22,8 +22,11 @@ import 'favorites_screen.dart';
 import '../widgets/favorite_heart_button.dart';
 import '../services/daily_nuggets_service.dart';
 
+// Conditional imports for web-specific functionality
+import '../helpers/storage_helper_web.dart' if (dart.library.io) '../helpers/storage_helper_stub.dart' as storage_helper;
 
-class QuoteScreen extends StatefulWidget {
+
+class QuoteScreen extends StatefulWidget {  
   const QuoteScreen({super.key});
 
   @override
@@ -54,6 +57,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   String? _userName;
   bool _isSubscribedToDailyNuggets = false;
   bool _authCheckComplete = false;
+  bool _initialAuthCheckDone = false;
 
   static final String apiEndpoint = dotenv.env['API_ENDPOINT'] ?? '';
   static final String apiKey = dotenv.env['API_KEY'] ?? '';
@@ -64,7 +68,85 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _initTts();
     _loadSettings();
-    _checkAuthStatus();
+    _checkAuthStatus().then((_) {
+      // Mark initial auth check as complete
+      _initialAuthCheckDone = true;
+    });
+    _handleAuthSuccessParameter();
+  }
+  
+  void _handleAuthSuccessParameter() {
+    if (kIsWeb) {
+      // Check if we came from OAuth success redirect or force reload
+      final uri = Uri.base;
+      
+      // Check for force reload parameter (after OAuth success)
+      if (uri.queryParameters.containsKey('force_reload')) {
+        LoggerService.info('🔄 Force reload detected - checking OAuth success...');
+        _handleOAuthSuccessReload();
+        return;
+      }
+      
+      // Legacy check for auth success parameter
+      if (uri.queryParameters.containsKey('auth') && 
+          uri.queryParameters['auth'] == 'success') {
+        LoggerService.info('🔄 OAuth success detected - refreshing auth status...');
+        // Give a moment for localStorage to be processed, then refresh auth
+        Future.delayed(Duration(milliseconds: 500), () {
+          _checkAuthStatus();
+        });
+      }
+    }
+  }
+  
+  void _handleOAuthSuccessReload() {
+    if (kIsWeb) {
+      try {
+        final oauthSuccess = storage_helper.getLocalStorageItem('oauth_success');
+        final timestamp = storage_helper.getLocalStorageItem('oauth_timestamp');
+        
+        if (oauthSuccess == 'true' && timestamp != null) {
+          final timestampMs = int.tryParse(timestamp) ?? 0;
+          final now = DateTime.now().millisecondsSinceEpoch;
+          
+          // Check if OAuth success was recent (within 5 minutes)
+          if ((now - timestampMs) < 5 * 60 * 1000) {
+            LoggerService.info('✅ Recent OAuth success detected - BYPASSING AMPLIFY');
+            
+            // Clear the OAuth success flag
+            storage_helper.removeLocalStorageItem('oauth_success');
+            storage_helper.removeLocalStorageItem('oauth_timestamp');
+            
+            // Set a simple flag that this is an OAuth user (bypass Amplify)
+            storage_helper.setLocalStorageItem('oauth_user_active', 'true');
+            storage_helper.setLocalStorageItem('oauth_user_session', DateTime.now().millisecondsSinceEpoch.toString());
+            
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('🎉 Successfully signed in with Google!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 3),
+              ),
+            );
+            
+            // Force UI refresh to show signed-in state
+            Future.delayed(Duration(milliseconds: 1000), () {
+              setState(() {
+                _isSignedIn = true; // Force signed-in state
+              });
+            });
+            
+          } else {
+            LoggerService.info('⚠️ OAuth success flag is too old - ignoring');
+            storage_helper.removeLocalStorageItem('oauth_success');
+            storage_helper.removeLocalStorageItem('oauth_timestamp');
+          }
+        }
+      } catch (e) {
+        LoggerService.error('❌ Error checking OAuth success flag: $e');
+      }
+    }
   }
 
   @override
@@ -81,7 +163,9 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // App came back into focus, refresh auth status
+      // App came back into focus - this is especially important for OAuth
+      // as users may have signed in via browser and returned to the app
+      LoggerService.info('📱 App resumed - checking auth status for OAuth callback...');
       _checkAuthStatus();
     }
   }
@@ -89,8 +173,8 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Check if we're coming back to this screen
-    if (ModalRoute.of(context)?.isCurrent ?? false) {
+    // Only check auth when returning to this screen, not on initial load
+    if ((ModalRoute.of(context)?.isCurrent ?? false) && _initialAuthCheckDone) {
       // Reset auth check flag so buttons stay hidden until status is confirmed
       setState(() {
         _authCheckComplete = false;
@@ -110,9 +194,43 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   
   Future<void> _checkAuthStatus() async {
     LoggerService.debug('🔄 Checking auth status in QuoteScreen...');
-    // Use the new method that also initializes favorites cache for existing sessions
-    final isSignedIn = await AuthService.initializeAndCheckSignIn();
-    LoggerService.debug('  Is signed in: $isSignedIn');
+    
+    // First check for OAuth user session (bypass Amplify)
+    bool isOAuthUser = false;
+    if (kIsWeb) {
+      try {
+        final oauthActive = storage_helper.getLocalStorageItem('oauth_user_active');
+        final sessionTime = storage_helper.getLocalStorageItem('oauth_user_session');
+        
+        if (oauthActive == 'true' && sessionTime != null) {
+          final sessionTimestamp = int.tryParse(sessionTime) ?? 0;
+          final now = DateTime.now().millisecondsSinceEpoch;
+          final sessionAge = now - sessionTimestamp;
+          final maxAge = 24 * 60 * 60 * 1000; // 24 hours
+          
+          isOAuthUser = sessionAge < maxAge;
+          LoggerService.debug('  OAuth user check: $isOAuthUser (age: ${sessionAge}ms)');
+        }
+      } catch (e) {
+        LoggerService.error('Error checking OAuth session: $e');
+      }
+    }
+    
+    bool isSignedIn = isOAuthUser;
+    
+    // If not OAuth user, check Amplify sessions
+    if (!isSignedIn) {
+      try {
+        isSignedIn = await AuthService.initializeAndCheckSignIn();
+        LoggerService.debug('  Initial Amplify auth check - is signed in: $isSignedIn');
+      } catch (e) {
+        // Handle any Amplify configuration errors gracefully
+        LoggerService.debug('  Amplify auth check failed (normal for unauthenticated): $e');
+        isSignedIn = false;
+      }
+    }
+    
+    LoggerService.debug('  Final auth status: $isSignedIn');
     
     if (isSignedIn) {
       final isAdmin = await AuthService.isUserInAdminGroup();
@@ -161,6 +279,17 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _handleLogout() async {
+    // Clear OAuth session data if present
+    if (kIsWeb) {
+      try {
+        storage_helper.removeLocalStorageItem('oauth_user_active');
+        storage_helper.removeLocalStorageItem('oauth_user_session');
+        LoggerService.info('🔄 Cleared OAuth session data');
+      } catch (e) {
+        LoggerService.error('Error clearing OAuth session: $e');
+      }
+    }
+    
     await AuthService.signOut();
     if (mounted) {
       setState(() {

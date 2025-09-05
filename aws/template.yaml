@@ -17,6 +17,15 @@ Parameters:
     Type: String
     NoEcho: true
     Description: OpenAI API key for tag generation (stored securely in Lambda environment)
+  
+  GoogleClientId:
+    Type: String
+    Description: Google OAuth 2.0 Client ID for social login
+  
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Google OAuth 2.0 Client Secret for social login
 
 Conditions:
   HasCustomDomain: !Not [!Equals [!Ref CertificateArn, ""]]
@@ -591,9 +600,37 @@ Resources:
       KeyType: API_KEY
       UsagePlanId: !Ref UsagePlan
 
+  # Lambda function for PreSignUp trigger (must be defined before UserPool)
+  PreSignUpTriggerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-presignup-trigger"
+      CodeUri: lambda/
+      Handler: presignup_trigger.lambda_handler
+      Runtime: python3.10
+      Timeout: 10
+
+  # Lambda function for PostConfirmation trigger
+  PostConfirmationTriggerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-postconfirmation-trigger"
+      CodeUri: lambda/
+      Handler: postconfirmation_trigger.lambda_handler
+      Runtime: python3.10
+      Timeout: 10
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminAddUserToGroup
+              Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+
   # Cognito User Pool for user authentication
   UserPool:
     Type: AWS::Cognito::UserPool
+    DependsOn: PreSignUpTriggerFunction
     Properties:
       UserPoolName: dcc-user-pool
       AdminCreateUserConfig:
@@ -609,10 +646,14 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
+      LambdaConfig:
+        PreSignUp: !GetAtt PreSignUpTriggerFunction.Arn
+        PostConfirmation: !GetAtt PostConfirmationTriggerFunction.Arn
 
   # Cognito User Pool Client
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
+    DependsOn: GoogleIdentityProvider
     Properties:
       UserPoolId: !Ref UserPool
       ClientName: dcc-app-client
@@ -632,6 +673,24 @@ Resources:
       PreventUserExistenceErrors: ENABLED
       SupportedIdentityProviders:
         - COGNITO
+        - Google
+      CallbackURLs:
+        - https://quote-me.anystupididea.com/
+        - https://quote-me.anystupididea.com/auth/callback
+        - http://localhost:3000/
+        - quoteme://auth-success
+      LogoutURLs:
+        - https://quote-me.anystupididea.com/
+        - http://localhost:3000/
+        - quoteme://auth-signout
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
 
   # Admin Group
   AdminGroup:
@@ -650,6 +709,99 @@ Resources:
       UserPoolId: !Ref UserPool
       Description: Regular authenticated users
       Precedence: 10
+
+  # Cognito Identity Pool
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: dcc-identity-pool
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+          ServerSideTokenCheck: true
+      SupportedLoginProviders:
+        accounts.google.com: !Ref GoogleClientId
+
+  # Identity Pool Role Attachment
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedRole.Arn
+
+  # IAM Role for authenticated users
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-AuthenticatedRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "cognito-identity.amazonaws.com:aud": !Ref IdentityPool
+              "ForAnyValue:StringLike":
+                "cognito-identity.amazonaws.com:amr": authenticated
+      Policies:
+        - PolicyName: AuthenticatedUserPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - mobileanalytics:PutEvents
+                  - cognito-sync:*
+                  - cognito-identity:*
+                Resource: "*"
+
+  # User Pool Domain for Hosted UI
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "${AWS::StackName}-auth"
+      UserPoolId: !Ref UserPool
+
+  # Google Identity Provider
+  GoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: "email profile openid"
+      AttributeMapping:
+        email: email
+        name: name
+        picture: picture
+        username: sub
+
+  # Lambda permission for Cognito to invoke PreSignUp trigger
+  PreSignUpTriggerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PreSignUpTriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  # Lambda permission for Cognito to invoke PostConfirmation trigger
+  PostConfirmationTriggerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PostConfirmationTriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
 
   # DynamoDB table for quotes
   QuotesTable:
@@ -1085,6 +1237,64 @@ Resources:
             Auth:
               ApiKeyRequired: false
 
+  # OAuth Callback Handler function
+  OAuthCallbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-oauth-callback-handler
+      CodeUri: lambda/
+      Handler: oauth_callback_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          ENVIRONMENT: dev
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Sid: LogsAccess
+              Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotesTable
+      Events:
+        OAuthCallbackApi:
+          Type: Api
+          Properties:
+            Path: /auth/callback
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OAuthCallbackOptions:
+          Type: Api
+          Properties:
+            Path: /auth/callback
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OAuthTokensApi:
+          Type: Api
+          Properties:
+            Path: /auth/tokens
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OAuthTokensOptions:
+          Type: Api
+          Properties:
+            Path: /auth/tokens
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+
   # DynamoDB table for subscription preferences
   SubscriptionsTable:
     Type: AWS::DynamoDB::Table
@@ -1299,6 +1509,12 @@ Outputs:
     Value: !Ref UserPool
     Export:
       Name: DccUserPoolId
+
+  IdentityPoolId:
+    Description: "Cognito Identity Pool ID"
+    Value: !Ref IdentityPool
+    Export:
+      Name: DccIdentityPoolId
   
   ExportsBucketName:
     Description: "S3 Bucket for database exports"
@@ -1311,6 +1527,16 @@ Outputs:
     Value: !Ref UserPoolClient
     Export:
       Name: DccUserPoolClientId
+
+  UserPoolDomain:
+    Description: "Cognito User Pool Domain for Hosted UI"
+    Value: !Sub "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+    Export:
+      Name: DccUserPoolDomain
+
+  CognitoHostedUIUrl:
+    Description: "Cognito Hosted UI URL for Google OAuth"
+    Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&scope=email+openid+profile&redirect_uri=https://quote-me.anystupididea.com/auth/callback"
 
   QuotesTableName:
     Description: "DynamoDB Quotes Table Name"

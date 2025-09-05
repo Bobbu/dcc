@@ -25,6 +25,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isSendingTestEmail = false;
+  bool _isFederatedUser = false;
   String? _userEmail;
   String? _userName;
   
@@ -138,6 +139,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       setState(() => _isLoading = true);
       
+      // Check if user is federated first
+      final groups = await AuthService.getUserGroups();
+      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Facebook') || group.contains('SAML'));
+      
       // Load user data from Cognito
       final email = await AuthService.getUserEmail();
       final name = await AuthService.getUserName();
@@ -175,6 +180,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _userEmail = email;
         _userName = name;
         _nameController.text = name ?? '';
+        _isFederatedUser = isFederatedUser;
         _subscribeToDailyNuggets = subscribeToDailyNuggets;
         _deliveryMethod = deliveryMethod;
         _selectedTimezone = timezone;
@@ -203,9 +209,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       setState(() => _isSaving = true);
       
-      // Update the user's name in Cognito
+      // Update the user's name in Cognito (only for non-federated users)
       final newName = _nameController.text.trim();
-      if (newName != _userName) {
+      if (newName != _userName && !_isFederatedUser) {
         await AuthService.updateUserName(newName);
       }
       
@@ -235,13 +241,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       });
       
       if (mounted) {
+        final message = _subscribeToDailyNuggets 
+          ? 'Profile saved! You\'ll receive daily quotes at 8:00 AM ${_selectedTimezone.split('/').last.replaceAll('_', ' ')} time.'
+          : 'Profile saved successfully!';
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              _subscribeToDailyNuggets 
-                ? 'Profile saved! You\'ll receive daily quotes at 8:00 AM ${_selectedTimezone.split('/').last.replaceAll('_', ' ')} time.'
-                : 'Profile saved successfully!',
-            ),
+            content: Text(message),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
@@ -386,21 +392,85 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             ),
                             const SizedBox(height: 16),
                             
-                            // Name field (editable)
+                            // Name field (editable for non-federated users)
                             TextFormField(
                               controller: _nameController,
-                              decoration: const InputDecoration(
+                              enabled: !_isFederatedUser,
+                              decoration: InputDecoration(
                                 labelText: 'Display Name',
                                 prefixIcon: Icon(Icons.badge),
-                                hintText: 'Enter your preferred name',
+                                hintText: _isFederatedUser 
+                                  ? 'Managed by your Google account'
+                                  : 'Enter your preferred name',
+                                suffixIcon: _isFederatedUser
+                                  ? Tooltip(
+                                      message: 'Display name is managed by your Google account and cannot be changed here',
+                                      child: Icon(
+                                        Icons.info_outline,
+                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                                      ),
+                                    )
+                                  : null,
                               ),
+                              style: _isFederatedUser
+                                ? Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                  )
+                                : null,
                               validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
+                                if (!_isFederatedUser && (value == null || value.trim().isEmpty)) {
                                   return 'Please enter your display name';
                                 }
                                 return null;
                               },
                             ),
+                            
+                            // Show info message for federated users
+                            if (_isFederatedUser) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Google Account User',
+                                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                              color: Theme.of(context).colorScheme.primary,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Your display name is managed by your Google account. To change it, update your name in your Google account settings, then sign out and sign back in.',
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                              color: Theme.of(context).colorScheme.primary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -467,85 +537,84 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               const SizedBox(height: 8),
                               
                               // Delivery Method Selection
-                              RadioGroup<String>(
-                                groupValue: _deliveryMethod,
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _deliveryMethod = value;
-                                    });
-                                  }
-                                },
-                                child: Column(
-                                  children: [
-                                    // Email option
-                                    RadioListTile<String>(
-                                      title: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.email,
-                                            color: Theme.of(context).colorScheme.primary,
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Email',
-                                            style: Theme.of(context).textTheme.bodyLarge,
-                                          ),
-                                        ],
-                                      ),
-                                      subtitle: Text(
-                                        'Receive quotes in your inbox daily',
-                                        style: Theme.of(context).textTheme.bodyMedium,
-                                      ),
-                                      value: 'email',
-                                      contentPadding: const EdgeInsets.only(left: 8),
-                                    ),
-                                    
-                                    // Notifications option (disabled for now)
-                                    RadioListTile<String>(
-                                      title: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.notifications,
-                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Push Notifications',
-                                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: Text(
-                                              'Coming Soon',
-                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                                color: Theme.of(context).colorScheme.secondary,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      subtitle: Text(
-                                        'Get notified directly on your device',
-                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                              Column(
+                                children: [
+                                  // Email option
+                                  RadioListTile<String>(
+                                    title: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.email,
+                                          color: Theme.of(context).colorScheme.primary,
+                                          size: 20,
                                         ),
-                                      ),
-                                      value: 'notifications',
-                                      // Note: onChanged is null (disabled) - RadioGroup will handle this
-                                      contentPadding: const EdgeInsets.only(left: 8),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Email',
+                                          style: Theme.of(context).textTheme.bodyLarge,
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                    subtitle: Text(
+                                      'Receive quotes in your inbox daily',
+                                      style: Theme.of(context).textTheme.bodyMedium,
+                                    ),
+                                    value: 'email',
+                                    groupValue: _deliveryMethod,
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() {
+                                          _deliveryMethod = value;
+                                        });
+                                      }
+                                    },
+                                    contentPadding: const EdgeInsets.only(left: 8),
+                                  ),
+                                  
+                                  // Notifications option (disabled for now)
+                                  RadioListTile<String>(
+                                    title: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.notifications,
+                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Push Notifications',
+                                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            'Coming Soon',
+                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                              color: Theme.of(context).colorScheme.secondary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    subtitle: Text(
+                                      'Get notified directly on your device',
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    value: 'notifications',
+                                    groupValue: _deliveryMethod,
+                                    onChanged: null, // Disabled - cannot be selected
+                                    contentPadding: const EdgeInsets.only(left: 8),
+                                  ),
+                                ],
                               ),
                               
                               const SizedBox(height: 16),

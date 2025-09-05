@@ -57,6 +57,37 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await AuthService.signInWithGoogle();
+      
+      if (result) {
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Google sign-in was cancelled or failed';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Google sign-in failed: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -67,11 +98,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final result = await AuthService.signIn(
-        username: _emailController.text.trim(),
-        password: _passwordController.text,
+        _emailController.text.trim(),
+        _passwordController.text,
       );
 
-      if (result.isSignedIn) {
+      if (result) {
         if (mounted) {
           // Check if user is admin
           final isAdmin = await AuthService.isUserInAdminGroup();
@@ -359,6 +390,54 @@ class _LoginScreenState extends State<LoginScreen> {
                                   'Sign In',
                                   style: Theme.of(context).textTheme.labelLarge,
                                 ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Google Sign In Button
+                          OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _signInWithGoogle,
+                            icon: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.blue.shade600,
+                                    Colors.red.shade500,
+                                    Colors.yellow.shade600,
+                                    Colors.green.shade600,
+                                  ],
+                                ),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'G',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            label: Text(
+                              'Sign in with Google',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              side: BorderSide(
+                                color: theme.colorScheme.outline,
+                                width: 1,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
                           ),
 
                           const SizedBox(height: 16),

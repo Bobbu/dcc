@@ -4,12 +4,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import '../themes.dart';
 import '../services/auth_service.dart';
 import 'dart:io' show Platform;
 
 class UsersScreen extends StatefulWidget {
-  const UsersScreen({Key? key}) : super(key: key);
+  const UsersScreen({super.key});
 
   @override
   State<UsersScreen> createState() => _UsersScreenState();
@@ -164,8 +163,8 @@ class _UsersScreenState extends State<UsersScreen> {
       child: ExpansionTile(
         leading: CircleAvatar(
           backgroundColor: isAdmin 
-              ? Colors.orange.withOpacity(0.2)
-              : Theme.of(context).primaryColor.withOpacity(0.2),
+              ? Colors.orange.withValues(alpha: 0.2)
+              : Theme.of(context).primaryColor.withValues(alpha: 0.2),
           child: Icon(
             isApple ? CupertinoIcons.person_fill : Icons.person,
             color: isAdmin 
@@ -316,7 +315,7 @@ class _UsersScreenState extends State<UsersScreen> {
       body: Column(
         children: [
           Container(
-            color: Theme.of(context).primaryColor.withOpacity(0.1),
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
@@ -343,7 +342,7 @@ class _UsersScreenState extends State<UsersScreen> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _filterGroup,
+                        initialValue: _filterGroup,
                         decoration: InputDecoration(
                           labelText: 'Filter',
                           border: OutlineInputBorder(
@@ -369,7 +368,7 @@ class _UsersScreenState extends State<UsersScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _sortBy,
+                        initialValue: _sortBy,
                         decoration: InputDecoration(
                           labelText: 'Sort By',
                           border: OutlineInputBorder(

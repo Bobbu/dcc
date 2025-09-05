@@ -35,11 +35,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
     try {
       final result = await AuthService.signIn(
-        username: _usernameController.text.trim(),
-        password: _passwordController.text,
+        _usernameController.text.trim(),
+        _passwordController.text,
       );
 
-      if (result.isSignedIn) {
+      if (result) {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(

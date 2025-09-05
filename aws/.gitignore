@@ -1,10 +1,14 @@
 # AWS SAM build artifacts
 .aws-sam/
 
+# Google Quote-me-oauth client secrets
+client_secret_445066027204-f4qcm9jdlborgg9koks4lce2uju7u1lt.apps.googleusercontent.com.json
+
 # Environment variables for deployment - NEVER COMMIT
 .env.deployment
 .env.local
 .env.prod
+
 !.env.deployment.sample
 
 

@@ -1,0 +1,11 @@
+
+
+
+API URL
+https://iasj16a8jl.execute-api.us-east-1.amazonaws.com/prod
+
+Your Cognito Domain Info
+
+  - Domain: dcc-demo-sam-app-auth.auth.us-east-1.amazoncognito.com
+  - Hosted UI URL:
+  https://dcc-demo-sam-app-auth.auth.us-east-1.amazoncognito.com/login?client_id=2idvhvlhgbheglr0hptel5j55&response_type=code&scope=email+openid+profile&redirect_uri=https://dcc.anystupididea.com/auth/callback
