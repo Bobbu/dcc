@@ -262,6 +262,22 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Auth:
               ApiKeyRequired: false
+        OptionsAdminCandidateQuotes:
+          Type: Api
+          Properties:
+            Path: /admin/candidate-quotes
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminCandidateQuotesByTopic:
+          Type: Api
+          Properties:
+            Path: /admin/candidate-quotes-by-topic
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
 
   # Auth Lambda function for registration and confirmation
   AuthFunction:
@@ -489,6 +505,29 @@ Resources:
           Type: Api
           Properties:
             Path: /admin/candidate-quotes
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # Candidate quotes by topic function for fetching potential quotes from OpenAI by topic
+  CandidateQuotesByTopicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-candidate-quotes-by-topic-handler
+      CodeUri: lambda/
+      Handler: candidate_quotes_by_topic_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Events:
+        GetCandidateQuotesByTopic:
+          Type: Api
+          Properties:
+            Path: /admin/candidate-quotes-by-topic
             Method: GET
             RestApiId: !Ref ApiGatewayApi
             Auth:

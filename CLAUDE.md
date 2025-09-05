@@ -68,6 +68,8 @@ flutter build web --release  # Web
   - `auth_handler.py`: User registration/verification
   - `options_handler.py`: CORS support
   - `openai_handler.py`: Secure GPT-4o-mini proxy for tag generation
+  - `candidate_quotes_handler.py`: Admin-only AI quote finding by author (configurable 1-20 limit)
+  - `candidate_quotes_by_topic_handler.py`: Admin-only AI quote finding by topic (configurable 1-20 limit)
   - `favorites_handler.py`: User favorites management with JWT authentication
   - `daily_nuggets_handler.py`: Subscription management and scheduled email delivery
 - **Performance**: Tags metadata caching, GSI indexes, zero-scan operations
@@ -80,7 +82,7 @@ flutter build web --release  # Web
 - **Key Screens**:
   - `quote_screen.dart`: Main app with About dialog, unified auth menu, heart favorites
   - `settings_screen.dart`: Theme selector, voice controls, tag preferences
-  - `admin_dashboard_screen.dart`: Full CRUD, search, import/export, AI tag recommendations
+  - `admin_dashboard_screen.dart`: Full CRUD, search, import/export, AI tag recommendations, AI quote finding
   - `tags_editor_screen.dart`: Individual tag management
   - `user_profile_screen.dart`: Profile management, Daily Nuggets subscription
   - `favorites_screen.dart`: Personal favorites collection with native share icons
@@ -140,6 +142,8 @@ flutter build web --release  # Web
 - **Tags**: GET/POST/PUT/DELETE `/admin/tags[/{tag}]`
 - `DELETE /admin/tags/unused` - Remove orphaned tags
 - `POST /admin/generate-tags` - GPT-4o-mini tag generation
+- `GET /admin/candidate-quotes` - AI quote finding by author (1-20 configurable limit)
+- `GET /admin/candidate-quotes-by-topic` - AI quote finding by topic (1-20 configurable limit)  
 - `GET /admin/subscriptions` - View all Daily Nuggets subscribers
 
 ### User Features (JWT Authentication)
@@ -168,7 +172,7 @@ flutter build web --release  # Web
 - **About Dialog**: App info accessible to all users
 - **Quote Retrieval Limit**: Configurable 50-1000 quotes per fetch (Settings screen)
 - **Audio**: TTS with 50+ voices, rate/pitch controls (default: OFF)
-- **Admin**: Full CRUD, search, sort, import/export with AI tag recommendations
+- **Admin**: Full CRUD, search, sort, import/export with AI tag recommendations and AI quote finding
 - **Daily Nuggets**: Email subscriptions with admin management and timezone-aware delivery
 - **AI Tags**: GPT-4o-mini via secure Lambda proxy
 - **Favorites**: Personal quote collections with heart icons and native sharing
@@ -176,6 +180,11 @@ flutter build web --release  # Web
 - **Standards**: Clean architecture, automated testing
 
 ## Recent Improvements (September 2025)
+- **✅ AI Quote Finding Features**: Admin-only quote discovery tools
+  - **Find New Quotes by Author**: GPT-4o-mini powered author-specific quote finding
+  - **Find New Quotes by Topic**: Topic-based quote discovery across multiple authors
+  - **Configurable Limits**: Admin settings for 1-20 quotes per search (default: 5)
+  - **Same OpenAI Integration**: Uses existing environment variables and CORS patterns
 - **✅ Duplicate Detection Restored**: Server-side fuzzy matching prevents duplicates at quote creation
 - **✅ Daily Nuggets Deep Links**: "Manage subscription" emails link directly to Profile screen
 - **✅ Profile Data Sync**: Removed local storage, server is single source of truth across devices

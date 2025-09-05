@@ -15,6 +15,7 @@ import '../services/export_service.dart';
 import '../widgets/export_destination_dialog.dart';
 import 'tags_editor_screen.dart';
 import 'candidate_quotes_screen.dart';
+import 'candidate_quotes_by_topic_screen.dart';
 import 'review_proposed_quotes_screen.dart';
 import 'daily_nuggets_admin_screen.dart';
 import 'users_screen.dart';
@@ -66,6 +67,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
   int _quoteRetrievalLimit = 50;
+  int _maxReturnedQuotes = 5;
   
   // Scroll control
   final ScrollController _scrollController = ScrollController();
@@ -99,6 +101,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _initializeSettings() async {
     // Load quote retrieval limit first
     await _loadQuoteRetrievalLimit();
+    // Load max returned quotes limit
+    await _loadMaxReturnedQuotes();
     // Then load sort preferences (which calls _loadQuotes at the end)
     await _loadSortPreferences();
   }
@@ -106,9 +110,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Reload quote retrieval limit in case it was changed in settings
-    _loadQuoteRetrievalLimit().then((_) {
-      // After loading the limit, refresh the data respecting search/sort state
+    // Reload quote retrieval limit and max returned quotes in case they were changed in settings
+    _loadQuoteRetrievalLimit().then((_) => _loadMaxReturnedQuotes()).then((_) {
+      // After loading the limits, refresh the data respecting search/sort state
       if (_quotes.isNotEmpty || _searchResults.isNotEmpty) {
         // Only refresh if we already have data (not the initial load)
         _refreshData();
@@ -256,6 +260,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       LoggerService.error('Failed to load quote retrieval limit: $e');
       setState(() {
         _quoteRetrievalLimit = 50;
+      });
+    }
+  }
+  
+  Future<void> _loadMaxReturnedQuotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final limit = prefs.getInt('max_returned_quotes') ?? 5;
+      LoggerService.debug('📊 Admin Dashboard loaded max returned quotes limit: $limit');
+      setState(() {
+        _maxReturnedQuotes = limit;
+      });
+    } catch (e) {
+      LoggerService.error('Failed to load max returned quotes limit: $e');
+      setState(() {
+        _maxReturnedQuotes = 5;
       });
     }
   }
@@ -1098,15 +1118,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             speechRate: speechRate,
             pitch: pitch,
             quoteRetrievalLimit: _quoteRetrievalLimit,
+            maxReturnedQuotes: _maxReturnedQuotes,
             isAdmin: true,
-            onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit) {
-              // Update the quote retrieval limit when settings change
+            onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit, maxReturnedQuotes) {
+              // Update the settings when they change
               setState(() {
                 _quoteRetrievalLimit = quoteRetrievalLimit;
+                _maxReturnedQuotes = maxReturnedQuotes;
               });
               
               // Save settings to SharedPreferences
-              _saveSettingsToPrefs(audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit);
+              _saveSettingsToPrefs(audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit, maxReturnedQuotes);
             },
           ),
         ),
@@ -1116,12 +1138,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  Future<void> _saveSettingsToPrefs(bool audioEnabled, Set<String> categories, Map<String, String>? voice, double speechRate, double pitch, int quoteRetrievalLimit) async {
+  Future<void> _saveSettingsToPrefs(bool audioEnabled, Set<String> categories, Map<String, String>? voice, double speechRate, double pitch, int quoteRetrievalLimit, int maxReturnedQuotes) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('audio_enabled', audioEnabled);
       await prefs.setStringList('selected_categories', categories.toList());
       await prefs.setInt('quote_retrieval_limit', quoteRetrievalLimit);
+      await prefs.setInt('max_returned_quotes', maxReturnedQuotes);
       await prefs.setDouble('speech_rate', speechRate);
       await prefs.setDouble('pitch', pitch);
       
@@ -1781,6 +1804,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // Refresh quotes when returning in case new quotes were added
                   _refreshData();
                 });
+              } else if (value == 'find_quotes_by_topic') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const CandidateQuotesByTopicScreen(),
+                  ),
+                ).then((_) {
+                  // Refresh quotes when returning in case new quotes were added
+                  _refreshData();
+                });
               } else if (value == 'review_proposed') {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -1910,7 +1942,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     Icon(Icons.auto_awesome, color: Colors.blue),
                     SizedBox(width: 8),
-                    Text('Find New Quotes'),
+                    Text('Find New Quotes by Author'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'find_quotes_by_topic',
+                child: Row(
+                  children: [
+                    Icon(Icons.topic, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text('Find New Quotes by Topic'),
                   ],
                 ),
               ),

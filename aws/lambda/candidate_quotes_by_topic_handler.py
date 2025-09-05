@@ -9,7 +9,7 @@ logger.setLevel(logging.INFO)
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    Lambda handler for fetching candidate quotes from OpenAI for a specific author.
+    Lambda handler for fetching candidate quotes from OpenAI for a specific topic.
     Admin authentication required.
     """
     logger.info(f"Received event: {json.dumps(event)}")
@@ -31,16 +31,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'error': 'Unauthorized'})
             }
         
-        # Get author and optional limit from query parameters
+        # Get topic and optional limit from query parameters
         query_params = event.get('queryStringParameters', {}) or {}
-        author = query_params.get('author', '').strip()
+        topic = query_params.get('topic', '').strip()
         limit = int(query_params.get('limit', '5'))  # Default to 5 if not specified
         
-        if not author:
+        if not topic:
             return {
                 'statusCode': 400,
                 'headers': headers,
-                'body': json.dumps({'error': 'Author parameter is required'})
+                'body': json.dumps({'error': 'Topic parameter is required'})
             }
             
         # Validate limit parameter
@@ -51,7 +51,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'error': 'Limit must be between 1 and 20'})
             }
         
-        logger.info(f"Fetching candidate quotes for author: {author}")
+        logger.info(f"Fetching candidate quotes for topic: {topic}")
         
         # Get OpenAI API key from environment
         openai_api_key = os.environ.get('OPENAI_API_KEY')
@@ -64,16 +64,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         
         # Build the prompt for OpenAI
-        system_prompt = f"""You are a knowledgeable assistant that finds authentic, verified quotes from famous authors.
+        system_prompt = f"""You are a knowledgeable assistant that finds authentic, verified quotes related to specific topics.
 When providing quotes, you must:
-1. Only provide quotes that are actually attributable to the specified author
-2. Include the source/reference where the quote can be found (book, speech, interview, etc.)
-3. Provide context about when and where the quote was said/written
-4. Format your response as a JSON array with exactly {limit} quotes"""
+1. Only provide quotes that are actually authentic and well-documented
+2. Include the author who said/wrote the quote
+3. Include the source/reference where the quote can be found (book, speech, interview, etc.)
+4. Provide context about when and where the quote was said/written
+5. Format your response as a JSON array with exactly {limit} quotes"""
 
-        user_prompt = f"""Find me {limit} authentic quotes by {author}.
+        user_prompt = f"""Find me {limit} authentic quotes related to the topic: {topic}.
 For each quote, provide:
 - The exact quote text
+- The author who said/wrote the quote
 - The source (book title, speech name, interview, etc.)
 - The year (if known)
 - Brief context about when/where it was said
@@ -83,6 +85,7 @@ Return the response as a JSON array with this structure:
 [
   {{
     "quote": "The actual quote text",
+    "author": "Name of the author",
     "source": "Where the quote is from",
     "year": "Year if known, or null",
     "context": "Brief context about the quote",
@@ -90,7 +93,7 @@ Return the response as a JSON array with this structure:
   }}
 ]"""
 
-        # Call OpenAI API using requests (similar to candidate_tags_handler.py)
+        # Call OpenAI API using requests (similar to candidate_quotes_handler.py)
         response = requests.post(
             'https://api.openai.com/v1/chat/completions',
             headers={
@@ -123,17 +126,13 @@ Return the response as a JSON array with this structure:
             # Parse the response
             candidate_quotes = parse_quotes_from_response(content, limit)
             
-            # Add author to each quote for convenience
-            for quote in candidate_quotes:
-                quote['author'] = author
-            
-            logger.info(f"Successfully retrieved {len(candidate_quotes)} candidate quotes")
+            logger.info(f"Successfully retrieved {len(candidate_quotes)} candidate quotes for topic: {topic}")
             
             return {
                 'statusCode': 200,
                 'headers': headers,
                 'body': json.dumps({
-                    'author': author,
+                    'topic': topic,
                     'quotes': candidate_quotes,
                     'count': len(candidate_quotes)
                 })

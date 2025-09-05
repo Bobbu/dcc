@@ -4,20 +4,20 @@ import '../services/admin_api_service.dart';
 import '../services/logger_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class CandidateQuotesScreen extends StatefulWidget {
-  const CandidateQuotesScreen({super.key});
+class CandidateQuotesByTopicScreen extends StatefulWidget {
+  const CandidateQuotesByTopicScreen({super.key});
 
   @override
-  State<CandidateQuotesScreen> createState() => _CandidateQuotesScreenState();
+  State<CandidateQuotesByTopicScreen> createState() => _CandidateQuotesByTopicScreenState();
 }
 
-class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
-  final TextEditingController _authorController = TextEditingController();
+class _CandidateQuotesByTopicScreenState extends State<CandidateQuotesByTopicScreen> {
+  final TextEditingController _topicController = TextEditingController();
   bool _isLoading = false;
   bool _isAdding = false;
   List<Map<String, dynamic>> _candidateQuotes = [];
   List<bool> _selectedQuotes = [];
-  String _searchedAuthor = '';
+  String _searchedTopic = '';
   int _maxReturnedQuotes = 5;
   
   @override
@@ -39,10 +39,10 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
   }
 
   Future<void> _fetchCandidateQuotes() async {
-    final author = _authorController.text.trim();
-    if (author.isEmpty) {
+    final topic = _topicController.text.trim();
+    if (topic.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter an author name')),
+        const SnackBar(content: Text('Please enter a topic')),
       );
       return;
     }
@@ -54,11 +54,11 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
       _isLoading = true;
       _candidateQuotes = [];
       _selectedQuotes = [];
-      _searchedAuthor = author;
+      _searchedTopic = topic;
     });
 
     try {
-      final result = await OpenAIQuoteFinderService.fetchCandidateQuotes(author, limit: _maxReturnedQuotes);
+      final result = await OpenAIQuoteFinderService.fetchCandidateQuotesByTopic(topic, limit: _maxReturnedQuotes);
       
       if (!mounted) return;
       
@@ -70,11 +70,11 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
 
       if (_candidateQuotes.isEmpty) {
         scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('No quotes found for $author')),
+          SnackBar(content: Text('No quotes found for topic: $topic')),
         );
       }
     } catch (e) {
-      LoggerService.error('Error fetching candidate quotes: $e', error: e);
+      LoggerService.error('Error fetching candidate quotes by topic: $e', error: e);
       
       if (!mounted) return;
       
@@ -272,7 +272,7 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Find New Quotes by Author'),
+        title: const Text('Find New Quotes by Topic'),
       ),
       floatingActionButton: (_candidateQuotes.isNotEmpty && selectedCount > 0)
           ? FloatingActionButton.extended(
@@ -290,14 +290,14 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _authorController,
+                    controller: _topicController,
                     decoration: InputDecoration(
-                      labelText: 'Author Name',
-                      hintText: 'e.g., Albert Einstein',
+                      labelText: 'Topic',
+                      hintText: 'e.g., leadership, success, happiness',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      prefixIcon: Icon(Icons.person, color: theme.colorScheme.primary),
+                      prefixIcon: Icon(Icons.topic, color: theme.colorScheme.primary),
                     ),
                     onSubmitted: (_) => _fetchCandidateQuotes(),
                   ),
@@ -337,7 +337,7 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
               child: Row(
                 children: [
                   Text(
-                    'Found ${_candidateQuotes.length} quote${_candidateQuotes.length > 1 ? 's' : ''} by $_searchedAuthor',
+                    'Found ${_candidateQuotes.length} quote${_candidateQuotes.length > 1 ? 's' : ''} about $_searchedTopic',
                     style: theme.textTheme.headlineSmall,
                   ),
                   const Spacer(),
@@ -360,7 +360,7 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
                 },
               ),
             ),
-          ] else if (_searchedAuthor.isNotEmpty)
+          ] else if (_searchedTopic.isNotEmpty)
             Expanded(
               child: Center(
                 child: Column(
@@ -373,12 +373,12 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'No quotes found for "$_searchedAuthor"',
+                      'No quotes found for topic "$_searchedTopic"',
                       style: theme.textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Try searching for a different author',
+                      'Try searching for a different topic',
                       style: theme.textTheme.bodyMedium,
                     ),
                   ],
@@ -398,12 +398,12 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Discover New Quotes',
+                      'Discover Quotes by Topic',
                       style: theme.textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Enter an author name to find authentic quotes',
+                      'Enter a topic to find relevant quotes',
                       style: theme.textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 32),
@@ -425,8 +425,8 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              '1. Enter an author\'s name\n'
-                              '2. AI searches for authentic quotes\n'
+                              '1. Enter a topic or theme\n'
+                              '2. AI searches for relevant quotes from various authors\n'
                               '3. Review quotes with sources and context\n'
                               '4. Select the ones you want to add\n'
                               '5. Quotes are added to your collection',
@@ -447,7 +447,7 @@ class _CandidateQuotesScreenState extends State<CandidateQuotesScreen> {
 
   @override
   void dispose() {
-    _authorController.dispose();
+    _topicController.dispose();
     super.dispose();
   }
 }

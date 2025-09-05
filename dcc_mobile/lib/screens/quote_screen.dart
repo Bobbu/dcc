@@ -664,8 +664,9 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
           speechRate: _speechRate,
           pitch: _pitch,
           quoteRetrievalLimit: _quoteRetrievalLimit,
+          maxReturnedQuotes: 5, // Default value for non-admin users (this setting won't be shown)
           isAdmin: _isAdmin,
-          onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit) {
+          onSettingsChanged: (audioEnabled, categories, voice, speechRate, pitch, quoteRetrievalLimit, maxReturnedQuotes) {
             setState(() {
               _audioEnabled = audioEnabled;
               _selectedCategories = categories;
@@ -673,6 +674,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
               _speechRate = speechRate;
               _pitch = pitch;
               _quoteRetrievalLimit = quoteRetrievalLimit;
+              // Note: maxReturnedQuotes is not used in quote_screen as it's admin-only
             });
             _saveSettings();
             // Apply all TTS settings immediately

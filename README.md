@@ -45,6 +45,7 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Persistent Sorting**: Sort preferences saved across sessions
   - **Four Sort Fields**: Quote, Author, Created Date, Updated Date
   - **AI Tag Recommendations**: "Recommend Tags" feature using GPT-4o-mini for intelligent tag suggestions
+  - **AI Quote Finding**: Discover new quotes by author or topic with configurable limits (1-20)
   - **Daily Nuggets Management**: View and manage all subscriber data with filtering and statistics
 - **Tag Management**: Dedicated editor for individual tag operations with persistent sort preferences
 - **Import System**: Bulk import from Google Sheets via TSV with progress tracking
@@ -235,6 +236,13 @@ curl -X POST -H "Authorization: Bearer YOUR_ID_TOKEN" \
 # View Daily Nuggets subscribers
 curl -H "Authorization: Bearer YOUR_ID_TOKEN" \
   https://dcc.anystupididea.com/admin/subscriptions
+
+# AI Quote Finding
+curl -H "Authorization: Bearer YOUR_ID_TOKEN" \
+  "https://dcc.anystupididea.com/admin/candidate-quotes?author=Einstein&limit=5"
+
+curl -H "Authorization: Bearer YOUR_ID_TOKEN" \
+  "https://dcc.anystupididea.com/admin/candidate-quotes-by-topic?topic=Leadership&limit=10"
 ```
 
 ## 📋 Admin Features
@@ -245,6 +253,11 @@ curl -H "Authorization: Bearer YOUR_ID_TOKEN" \
 - **Persistent Preferences**: Sort settings saved to SharedPreferences and restored on load
 - **Quote Retrieval**: Respects user's Quote Retrieval Limit setting (50-1000 quotes)
 - **Quote Management Menu**: Preview detail, Edit, and Delete options for each quote
+- **AI Quote Finding**: GPT-4o-mini powered quote discovery
+  - **Find New Quotes by Author**: Search for quotes by specific authors
+  - **Find New Quotes by Topic**: Discover quotes across various authors on specific topics
+  - **Configurable Limits**: Admin settings for 1-20 quotes per search (default: 5)
+  - **Same Integration**: Uses existing OpenAI environment variables and patterns
 - **Duplicate Cleanup**: Intelligent detection and removal
 - **Batch Import**: Google Sheets TSV import with progress tracking
 - **Export System**: Comprehensive export with multiple destinations (Download, Clipboard, Cloud Storage)
@@ -301,6 +314,8 @@ quote-me/
 │   │   ├── auth_handler.py     # Registration/verification
 │   │   ├── options_handler.py  # CORS handler
 │   │   ├── openai_handler.py   # AI tag generation proxy
+│   │   ├── candidate_quotes_handler.py # AI quote finding by author
+│   │   ├── candidate_quotes_by_topic_handler.py # AI quote finding by topic
 │   │   ├── favorites_handler.py # User favorites management
 │   │   └── daily_nuggets_handler.py # Daily Nuggets subscriptions and email delivery
 │   └── samconfig.toml
@@ -466,6 +481,14 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 5. Open a Pull Request
 
 ## 🆕 Recent Updates (September 2025)
+
+### ✅ AI Quote Finding Features
+- **Find New Quotes by Author**: GPT-4o-mini powered quote discovery for specific authors
+- **Find New Quotes by Topic**: Topic-based quote finding across multiple authors  
+- **Admin-Only Access**: Both features restricted to admin users via popup menu
+- **Configurable Limits**: Admin settings for 1-20 quotes per search (default: 5, max: 20)
+- **Same Integration Pattern**: Uses existing OpenAI environment variables and CORS handling
+- **Real-time Discovery**: Instant quote suggestions with source attribution and confidence levels
 
 ### ✅ Enhanced Duplicate Detection
 - **Server-Side Prevention**: Moved from client-side cleanup to server-side prevention

@@ -12,8 +12,9 @@ class SettingsScreen extends StatefulWidget {
   final double speechRate;
   final double pitch;
   final int quoteRetrievalLimit;
+  final int maxReturnedQuotes;
   final bool isAdmin;
-  final Function(bool, Set<String>, Map<String, String>?, double, double, int) onSettingsChanged;
+  final Function(bool, Set<String>, Map<String, String>?, double, double, int, int) onSettingsChanged;
 
   const SettingsScreen({
     super.key,
@@ -23,6 +24,7 @@ class SettingsScreen extends StatefulWidget {
     this.speechRate = 0.5,
     this.pitch = 1.0,
     this.quoteRetrievalLimit = 50,
+    this.maxReturnedQuotes = 5,
     this.isAdmin = false,
     required this.onSettingsChanged,
   });
@@ -52,6 +54,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Quote retrieval limit
   late int _quoteRetrievalLimit;
   
+  // Maximum returned quotes (admin-only setting for OpenAI API)
+  late int _maxReturnedQuotes;
+  
   static const List<String> _fallbackCategories = [
     'All', 'Sports', 'Education', 'Science', 'Motivation', 'Funny', 'Persistence', 'Business'
   ];
@@ -65,6 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _speechRate = widget.speechRate;
     _pitch = widget.pitch;
     _quoteRetrievalLimit = widget.quoteRetrievalLimit;
+    _maxReturnedQuotes = widget.maxReturnedQuotes;
     
     // Initialize test TTS
     _testTts = FlutterTts();
@@ -124,7 +130,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'locale': danielVoice['locale']?.toString() ?? '',
             };
             // Trigger settings update to save the default voice
-            widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch, _quoteRetrievalLimit);
+            widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch, _quoteRetrievalLimit, _maxReturnedQuotes);
           }
         }
       });
@@ -198,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _updateSettings() {
-    widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch, _quoteRetrievalLimit);
+    widget.onSettingsChanged(_audioEnabled, _selectedCategories, _selectedVoice, _speechRate, _pitch, _quoteRetrievalLimit, _maxReturnedQuotes);
   }
   
   // Helper methods for TTS options
@@ -403,6 +409,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (value != null) {
                               setState(() {
                                 _quoteRetrievalLimit = value;
+                              });
+                              _updateSettings();
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        title: Text(
+                          'AI Quote Search Limit',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Maximum quotes returned by AI when finding new quotes by author or topic',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: DropdownButton<int>(
+                          value: _maxReturnedQuotes,
+                          items: const [
+                            DropdownMenuItem(value: 3, child: Text('3')),
+                            DropdownMenuItem(value: 5, child: Text('5')),
+                            DropdownMenuItem(value: 7, child: Text('7')),
+                            DropdownMenuItem(value: 10, child: Text('10')),
+                            DropdownMenuItem(value: 15, child: Text('15')),
+                            DropdownMenuItem(value: 20, child: Text('20')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _maxReturnedQuotes = value;
                               });
                               _updateSettings();
                             }
