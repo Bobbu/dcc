@@ -183,6 +183,9 @@ flutter build web --release  # Web
 - **✅ Authentication Security**: Profile routes protected, unauthenticated users redirected to login
 - **✅ Desktop UX Enhancement**: Enter key submits login form for better web experience
 - **✅ Test Organization**: All test files moved to `tests/` directory for better project structure
+- **✅ Enhanced Federated User Support**: Complete Google OAuth user experience improvements
+- **✅ Platform Compatibility**: Resolved iOS/Android build issues with conditional web imports
+- **✅ UI/UX Polish**: Fixed disabled controls and removed debug artifacts
 
 ## Development Guidelines
 - Keep file sizes manageable with proper separation of concerns

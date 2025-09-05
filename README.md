@@ -489,6 +489,14 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 - **Desktop UX**: Enter key submits login form for better web experience
 - **Test Organization**: All test files organized in dedicated tests directory
 
+### ✅ Enhanced Federated User Support
+- **Google OAuth Integration**: Complete user experience for federated Google sign-ins
+- **JWT Token Extraction**: Email and display name shown for federated users via JWT payload decoding
+- **Platform Compatibility**: Resolved iOS/Android build issues with conditional web imports
+- **UI/UX Polish**: Proper disabled field handling with informative tooltips for federated users
+- **Menu Greeting**: Federated users now greeted by name in app navigation menu
+- **Graceful Limitations**: Clear communication about editing restrictions for federated accounts
+
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
