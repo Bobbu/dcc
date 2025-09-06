@@ -134,7 +134,7 @@ class _FavoriteHeartButtonState extends State<FavoriteHeartButton>
             SnackBar(
               content: const Row(
                 children: [
-                  Icon(Icons.favorite_border, color: Colors.grey),
+                  Icon(Icons.favorite_border, color: Colors.red),
                   SizedBox(width: 8),
                   Text('Removed from favorites'),
                 ],
@@ -211,7 +211,7 @@ class _FavoriteHeartButtonState extends State<FavoriteHeartButton>
           child: Icon(
             _isFavorite ? Icons.favorite : Icons.favorite_border,
             size: widget.size,
-            color: _isFavorite ? Colors.red : unfavoritedColor,
+            color: Colors.red,
           ),
         );
       },

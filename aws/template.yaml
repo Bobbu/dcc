@@ -553,8 +553,11 @@ Resources:
             Action:
               - cognito-idp:ListUsers
               - cognito-idp:AdminListGroupsForUser
+              - cognito-idp:AdminAddUserToGroup
+              - cognito-idp:AdminRemoveUserFromGroup
+              - cognito-idp:AdminDeleteUser
             Resource: !GetAtt UserPool.Arn
-        - DynamoDBReadPolicy:
+        - DynamoDBCrudPolicy:
             TableName: dcc-daily-nuggets-subscriptions
       Events:
         GetUsers:
@@ -573,6 +576,32 @@ Resources:
             Method: OPTIONS
             RestApiId: !Ref ApiGatewayApi
             Auth:
+              ApiKeyRequired: false
+        UpdateUserAdmin:
+          Type: Api
+          Properties:
+            Path: /admin/users/{userId}
+            Method: PUT
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UpdateUserAdminOptions:
+          Type: Api
+          Properties:
+            Path: /admin/users/{userId}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+        DeleteUser:
+          Type: Api
+          Properties:
+            Path: /admin/users/{userId}
+            Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
               ApiKeyRequired: false
 
   # Explicit API Gateway for better control

@@ -241,7 +241,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             Icon(
               Icons.favorite_border,
               size: 80,
-              color: Colors.grey[400],
+              // color: Colors.grey[400],
+              color: Colors.red,
             ),
             const SizedBox(height: 24),
             Text(
@@ -291,7 +292,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             Icon(
               Icons.favorite_border,
               size: 80,
-              color: Colors.grey[400],
+              // color: Colors.grey[400],
+              color: Colors.red,
             ),
             const SizedBox(height: 24),
             Text(

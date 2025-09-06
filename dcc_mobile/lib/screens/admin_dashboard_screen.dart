@@ -1870,7 +1870,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 value: 'daily_nuggets',
                 child: Row(
                   children: [
-                    Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
+                    Icon(Icons.people, color: Theme.of(context).colorScheme.primary),
                     SizedBox(width: 8),
                     Text('Daily Nuggets Subscribers'),
                   ],
@@ -1950,7 +1950,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 value: 'find_quotes_by_topic',
                 child: Row(
                   children: [
-                    Icon(Icons.topic, color: Colors.blue),
+                    Icon(Icons.auto_awesome, color: Colors.green),
                     SizedBox(width: 8),
                     Text('Find New Quotes by Topic'),
                   ],

@@ -1015,7 +1015,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                   value: 'favorites',
                   child: Row(
                     children: [
-                      Icon(Icons.favorite, color: Theme.of(context).colorScheme.primary),
+                      Icon(Icons.favorite, color: Colors.red),
                       SizedBox(width: 8),
                       Text('My Favorites'),
                     ],

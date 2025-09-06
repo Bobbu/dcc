@@ -346,7 +346,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                   children: [
                                     Icon(
                                       Icons.favorite,
-                                      color: Theme.of(context).colorScheme.primary,
+                                      color: Colors.red,
                                       size: 24,
                                     ),
                                     const SizedBox(height: 8),
