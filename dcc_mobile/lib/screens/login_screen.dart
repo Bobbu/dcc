@@ -426,79 +426,53 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           const SizedBox(height: 16),
 
-                          // Google Sign In Button
-                          OutlinedButton.icon(
-                            onPressed: _isLoading ? null : _signInWithGoogle,
-                            icon: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.blue.shade600,
-                                    Colors.red.shade500,
-                                    Colors.yellow.shade600,
-                                    Colors.green.shade600,
-                                  ],
+                          // Divider with text
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Divider(
+                                  color: theme.colorScheme.outline,
                                 ),
                               ),
-                              child: const Center(
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
                                 child: Text(
-                                  'G',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
+                                  'or',
+                                  style: theme.textTheme.bodyMedium,
                                 ),
                               ),
-                            ),
-                            label: Text(
-                              'Sign in with Google',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: theme.colorScheme.onSurface,
+                              Expanded(
+                                child: Divider(
+                                  color: theme.colorScheme.outline,
+                                ),
                               ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                              side: BorderSide(
-                                color: theme.colorScheme.outline,
-                                width: 1,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 16),
+                          // Google Sign In Button
+                          GestureDetector(
+                            onTap: _isLoading ? null : _signInWithGoogle,
+                            child: Image.asset(
+                              theme.brightness == Brightness.dark
+                                  ? 'assets/icons/google/wht_google_button@3x.png'
+                                  : 'assets/icons/google/blk_google_button@3x.png',
+                              width: double.infinity,
+                              fit: BoxFit.fitWidth,
                             ),
                           ),
 
                           const SizedBox(height: 12),
 
                           // Apple Sign In Button - Available on all platforms
-                          OutlinedButton.icon(
-                            onPressed: _isLoading ? null : _signInWithApple,
-                            icon: Icon(
-                              CupertinoIcons.app_badge,
-                              size: 20,
-                              color: theme.brightness == Brightness.dark
-                                  ? Colors.white
-                                  : Colors.black,
-                            ),
-                            label: Text(
-                              'Sign in with Apple',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                              side: BorderSide(
-                                color: theme.colorScheme.outline,
-                                width: 1,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                          GestureDetector(
+                            onTap: _isLoading ? null : _signInWithApple,
+                            child: Image.asset(
+                              theme.brightness == Brightness.dark
+                                  ? 'assets/icons/apple/wht_apple_button@3x.png'
+                                  : 'assets/icons/apple/blk_apple_button@3x.png',
+                              width: double.infinity,
+                              fit: BoxFit.fitWidth,
                             ),
                           ),
 
