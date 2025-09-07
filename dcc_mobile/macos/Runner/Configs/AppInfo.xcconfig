@@ -8,7 +8,7 @@
 PRODUCT_NAME = dcc_mobile
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.dccMobile
+PRODUCT_BUNDLE_IDENTIFIER = com.anystupididea.quoteme
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2025 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2025 anystupididea. All rights reserved.

@@ -8,6 +8,10 @@ client_secret_445066027204-f4qcm9jdlborgg9koks4lce2uju7u1lt.apps.googleuserconte
 .env.deployment
 .env.local
 .env.prod
+more_secrets/
+# Apple Quote Me Private Key
+aws/more_secrets/AuthKey_44UP54637D.p8
+aws/more_secrets/AuthKey_GH4WBJ6MFU.p8
 
 !.env.deployment.sample
 

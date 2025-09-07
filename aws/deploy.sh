@@ -17,6 +17,10 @@ if [ ! -f .env.deployment ]; then
     echo "  OPENAI_API_KEY=your-openai-key-here"
     echo "  GOOGLE_CLIENT_ID=your-google-client-id"
     echo "  GOOGLE_CLIENT_SECRET=your-google-client-secret"
+    echo "  APPLE_SERVICES_ID=com.anystupididea.quoteme.signin"
+    echo "  APPLE_TEAM_ID=your-apple-team-id"
+    echo "  APPLE_KEY_ID=your-apple-key-id"
+    echo "  APPLE_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----...'"
     exit 1
 fi
 
@@ -39,6 +43,30 @@ if [ -z "$GOOGLE_CLIENT_SECRET" ]; then
     exit 1
 fi
 
+# Apple Sign In parameters (optional - will use defaults if not provided)
+if [ -z "$APPLE_SERVICES_ID" ]; then
+    APPLE_SERVICES_ID="com.anystupididea.quoteme.signin"
+    echo -e "${YELLOW}Using default APPLE_SERVICES_ID: $APPLE_SERVICES_ID${NC}"
+fi
+
+if [ -z "$APPLE_TEAM_ID" ]; then
+    echo -e "${RED}Error: APPLE_TEAM_ID not set in .env.deployment${NC}"
+    echo "Get your Team ID from Apple Developer → Account → Membership"
+    exit 1
+fi
+
+if [ -z "$APPLE_KEY_ID" ]; then
+    echo -e "${RED}Error: APPLE_KEY_ID not set in .env.deployment${NC}"
+    echo "Create a Sign in with Apple key in Apple Developer → Certificates, Identifiers & Profiles → Keys"
+    exit 1
+fi
+
+if [ -z "$APPLE_PRIVATE_KEY" ]; then
+    echo -e "${RED}Error: APPLE_PRIVATE_KEY not set in .env.deployment${NC}"
+    echo "Set APPLE_PRIVATE_KEY to the contents of your .p8 file (including BEGIN/END lines)"
+    exit 1
+fi
+
 echo -e "${YELLOW}Building SAM application...${NC}"
 sam build --cached 2>&1 | grep -v "File with same data already exists" | grep -v "skipping upload"
 
@@ -53,8 +81,8 @@ sam validate --lint
 echo -e "${YELLOW}Deploying to AWS...${NC}"
 echo "This may take a few minutes..."
 
-# Capture deployment output
-DEPLOY_OUTPUT=$(sam deploy --capabilities CAPABILITY_NAMED_IAM --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY" GoogleClientId="$GOOGLE_CLIENT_ID" GoogleClientSecret="$GOOGLE_CLIENT_SECRET" 2>&1)
+# Capture deployment output (Apple provider creation may take several minutes)
+DEPLOY_OUTPUT=$(sam deploy --capabilities CAPABILITY_NAMED_IAM --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY" GoogleClientId="$GOOGLE_CLIENT_ID" GoogleClientSecret="$GOOGLE_CLIENT_SECRET" AppleServicesId="$APPLE_SERVICES_ID" AppleTeamId="$APPLE_TEAM_ID" AppleKeyId="$APPLE_KEY_ID" ApplePrivateKey="$APPLE_PRIVATE_KEY" 2>&1)
 DEPLOY_STATUS=$?
 
 # Check if it's just "no changes"

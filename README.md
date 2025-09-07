@@ -21,7 +21,7 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Persistent Settings**: Theme choice saved across app sessions
   - **Optimized Contrast**: Proper surface colors and contrast ratios in all modes
   - **Consistent Styling**: All UI elements use theme-defined colors throughout
-- **User Authentication**: Self-registration with email verification and unified login
+- **User Authentication**: Self-registration with email verification and unified login + Federated (Google, Apple Sign In)
 - **User Profile Management**: 
   - **Display Name**: Edit and update user's display name (syncs with Cognito)
   - **Daily Nuggets**: Subscribe to receive daily inspirational quotes via email at 8 AM in your timezone
@@ -72,7 +72,7 @@ A comprehensive quote management system with enterprise-grade features, includin
 
 ### Frontend
 - **Flutter 3.0+**: Cross-platform framework for mobile and web with GoRouter for deep linking
-- **AWS Amplify**: Cognito authentication integration with JWT management
+- **AWS Amplify**: Cognito authentication integration with JWT management + Federated Sign In (Google, Apple)
 - **Material Design 3**: Modern UI components with comprehensive theming system
 - **Server-First Architecture**: Profile data stored on server for cross-device consistency
 - **Flutter TTS**: Professional text-to-speech engine
@@ -117,6 +117,19 @@ cd ..
 - Handles OpenAI API key injection securely
 - Manages all CloudFormation stack components
 - Ensures consistent deployments across environments
+- Supports Google and Apple Sign In (Apple configured manually in AWS Console)
+
+#### Standalone Apple Sign In Deployment
+For new projects that only need Apple Sign In:
+```bash
+cd aws
+cp .env.apple.sample .env.apple
+# Edit .env.apple with your Apple credentials
+./deploy_apple_signin.sh
+```
+- **Minimal Infrastructure**: Only Cognito + Apple Identity Provider
+- **One-Click Setup**: Automated deployment with parameter validation
+- **Ready Configuration**: Outputs Amplify-compatible JSON configuration
 
 ### 3. Run Mobile App
 ```bash

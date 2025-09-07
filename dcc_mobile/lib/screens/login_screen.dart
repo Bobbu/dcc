@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import '../services/auth_service.dart';
 import 'admin_dashboard_screen.dart';
 import 'user_profile_screen.dart';
@@ -82,6 +83,37 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() {
           _errorMessage = 'Google sign-in failed: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await AuthService.signInWithApple();
+      
+      if (result) {
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Apple sign-in was cancelled or failed';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Apple sign-in failed: ${e.toString()}';
           _isLoading = false;
         });
       }
@@ -424,6 +456,36 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             label: Text(
                               'Sign in with Google',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              side: BorderSide(
+                                color: theme.colorScheme.outline,
+                                width: 1,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Apple Sign In Button - Available on all platforms
+                          OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _signInWithApple,
+                            icon: Icon(
+                              CupertinoIcons.app_badge,
+                              size: 20,
+                              color: theme.brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black,
+                            ),
+                            label: Text(
+                              'Sign in with Apple',
                               style: theme.textTheme.labelLarge?.copyWith(
                                 color: theme.colorScheme.onSurface,
                               ),

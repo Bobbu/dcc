@@ -19,6 +19,16 @@ cd aws
 ```
 ✅ Uses `aws/template.yaml` as single source of truth
 ✅ Handles OpenAI API key injection securely
+✅ Supports Google and Apple Sign In (Apple configured manually in AWS Console)
+
+#### Standalone Apple Sign In Deployment
+```bash
+# For new apps - deploy only Apple Sign In infrastructure
+./deploy_apple_signin.sh
+```
+✅ Minimal template (`template_sign_in_with_apple.yaml`)  
+✅ One-click deployment with `.env.apple` configuration  
+✅ Outputs ready-to-use Amplify configuration
 
 **✅ DEPLOYMENT STATUS**
 - Database: `dcc-quotes-optimized` with 3,798 items, 4 GSI indexes
@@ -61,7 +71,7 @@ flutter build web --release  # Web
 
 ### Backend (`aws/`)
 - **Infrastructure**: SAM template with API Gateway, Lambda, DynamoDB, Cognito
-- **Authentication**: Dual-layer (API Key for public, JWT for admin)
+- **Authentication**: Dual-layer (API Key for public, JWT for admin) + Federated (Google, Apple Sign In)
 - **Lambda Functions**:
   - `quote_handler.py`: Public API with tag filtering, O(1) tag retrieval, limit up to 1000
   - `admin_handler.py`: CRUD with tag management and data integrity, limit up to 1000
@@ -87,7 +97,7 @@ flutter build web --release  # Web
   - `user_profile_screen.dart`: Profile management, Daily Nuggets subscription
   - `favorites_screen.dart`: Personal favorites collection with native share icons
   - `daily_nuggets_admin_screen.dart`: Admin view for managing subscribers
-- **Authentication**: AWS Amplify Cognito with JWT management
+- **Authentication**: AWS Amplify Cognito with JWT management + Federated (Google, Apple Sign In)
 - **Theme System**: Light/Dark/System modes with persistent preferences
 - **Audio**: TTS with 20-50+ voices, rate/pitch controls (default: OFF)
 ### Key Features
@@ -180,6 +190,12 @@ flutter build web --release  # Web
 - **Standards**: Clean architecture, automated testing
 
 ## Recent Improvements (September 2025)
+- **✅ Apple Sign In Implementation**: Complete federated authentication integration
+  - **Cross-Platform Support**: Works on iOS, Android, and web browsers  
+  - **AWS Cognito Integration**: Apple Identity Provider with proper attribute mapping
+  - **Profile Screen Support**: Graceful handling of Apple's privacy-focused data sharing
+  - **Standalone Template**: Reusable `template_sign_in_with_apple.yaml` for new projects
+  - **One-Click Deployment**: `./deploy_apple_signin.sh` script for rapid setup
 - **✅ AI Quote Finding Features**: Admin-only quote discovery tools
   - **Find New Quotes by Author**: GPT-4o-mini powered author-specific quote finding
   - **Find New Quotes by Topic**: Topic-based quote discovery across multiple authors

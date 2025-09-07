@@ -26,6 +26,24 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Google OAuth 2.0 Client Secret for social login
+  
+  AppleServicesId:
+    Type: String
+    Description: Apple Services ID for Sign in with Apple
+    Default: com.anystupididea.quoteme.signin
+  
+  AppleTeamId:
+    Type: String
+    Description: Apple Developer Team ID
+  
+  AppleKeyId:
+    Type: String
+    Description: Apple Sign in with Apple Key ID
+  
+  ApplePrivateKey:
+    Type: String
+    NoEcho: true
+    Description: Apple Sign in with Apple Private Key (p8 file content)
 
 Conditions:
   HasCustomDomain: !Not [!Equals [!Ref CertificateArn, ""]]
@@ -721,7 +739,9 @@ Resources:
   # Cognito User Pool Client
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
-    DependsOn: GoogleIdentityProvider
+    DependsOn: 
+      - GoogleIdentityProvider
+      # - AppleIdentityProvider  # MANUALLY CONFIGURED
     Properties:
       UserPoolId: !Ref UserPool
       ClientName: dcc-app-client
@@ -742,6 +762,7 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
         - Google
+        - SignInWithApple
       CallbackURLs:
         - https://quote-me.anystupididea.com/
         - https://quote-me.anystupididea.com/auth/callback
@@ -851,6 +872,24 @@ Resources:
         name: name
         picture: picture
         username: sub
+
+  # Apple Identity Provider - MANUALLY CONFIGURED IN AWS CONSOLE
+  # AppleIdentityProvider:
+  #   Type: AWS::Cognito::UserPoolIdentityProvider
+  #   Properties:
+  #     UserPoolId: !Ref UserPool
+  #     ProviderName: SignInWithApple
+  #     ProviderType: SignInWithApple
+  #     ProviderDetails:
+  #       client_id: !Ref AppleServicesId
+  #       team_id: !Ref AppleTeamId
+  #       key_id: !Ref AppleKeyId
+  #       private_key: !Ref ApplePrivateKey
+  #       authorize_scopes: "email name"
+  #     AttributeMapping:
+  #       email: email
+  #       name: name
+  #       username: sub
 
   # Lambda permission for Cognito to invoke PreSignUp trigger
   PreSignUpTriggerPermission:

@@ -13,15 +13,13 @@ class AuthService {
   static bool _isConfigured = false;
   
   static Future<void> configure() async {
-    if (_isConfigured) return;
-    
     try {
       LoggerService.info('🔧 Configuring Amplify with proper OAuth settings');
       
-      // Check if Amplify is already configured (on hot reload)
+      // Check if Amplify is already configured
       if (Amplify.isConfigured) {
-        _isConfigured = true;
         LoggerService.info('✅ Amplify already configured');
+        _isConfigured = true;
         return;
       }
       
@@ -43,7 +41,18 @@ class AuthService {
 
   static Future<bool> isSignedIn() async {
     try {
+      await configure(); // Ensure Amplify is configured
+      
+      // Wait a bit to ensure Amplify is fully initialized
+      await Future.delayed(const Duration(milliseconds: 100));
+      
       final session = await Amplify.Auth.fetchAuthSession();
+      
+      // Handle different session states properly
+      if (session is CognitoAuthSession) {
+        return session.isSignedIn;
+      }
+      
       return session.isSignedIn;
     } catch (e) {
       // Expected error when not authenticated - log as debug instead of error
@@ -88,7 +97,7 @@ class AuthService {
 
       // Check if user is federated to avoid unnecessary API calls that will fail
       final groups = await getUserGroups();
-      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Facebook') || group.contains('SAML'));
+      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Apple') || group.contains('Facebook') || group.contains('SAML'));
       if (isFederatedUser) {
         LoggerService.debug('Skipping email fetch for federated user (insufficient OAuth scopes)');
         return null;
@@ -118,7 +127,7 @@ class AuthService {
 
       // Check if user is federated to avoid unnecessary API calls that will fail
       final groups = await getUserGroups();
-      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Facebook') || group.contains('SAML'));
+      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Apple') || group.contains('Facebook') || group.contains('SAML'));
       if (isFederatedUser) {
         LoggerService.debug('Skipping name fetch for federated user (insufficient OAuth scopes)');
         return null;
@@ -142,7 +151,7 @@ class AuthService {
     try {
       // Check if user is federated to avoid API calls that will fail
       final groups = await getUserGroups();
-      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Facebook') || group.contains('SAML'));
+      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Apple') || group.contains('Facebook') || group.contains('SAML'));
       
       if (isFederatedUser) {
         LoggerService.info('⚠️ Cannot update name for federated user (insufficient OAuth scopes)');
@@ -274,6 +283,36 @@ class AuthService {
       }
     } catch (e) {
       LoggerService.error('Google OAuth sign-in error: $e', error: e);
+      return false;
+    }
+  }
+
+  static Future<bool> signInWithApple() async {
+    try {
+      LoggerService.info('🍎 Starting Apple OAuth sign-in via Cognito hosted UI...');
+      LoggerService.info('🔍 Platform check - kIsWeb: $kIsWeb');
+      
+      // Ensure Amplify is properly configured and initialized
+      await configure();
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      // Use Amplify's signInWithWebUI with Apple provider
+      final result = await Amplify.Auth.signInWithWebUI(
+        provider: AuthProvider.apple,
+      );
+      
+      if (result.isSignedIn) {
+        LoggerService.info('✅ Apple sign-in successful via Amplify');
+        FavoritesService.preloadFavorites().catchError((e) {
+          LoggerService.error('Failed to preload favorites after Apple sign-in', error: e);
+        });
+        return true;
+      } else {
+        LoggerService.warning('Apple OAuth completed but user not signed in');
+        return false;
+      }
+    } catch (e) {
+      LoggerService.error('Apple OAuth sign-in error: $e', error: e);
       return false;
     }
   }
@@ -412,6 +451,7 @@ class AuthService {
   // Get user info from tokens (works for federated users too)
   static Future<String?> getUserEmailFromToken() async {
     try {
+      LoggerService.info('🔍 Attempting to get email from token for federated user');
       final session = await Amplify.Auth.fetchAuthSession();
       if (session is CognitoAuthSession && session.isSignedIn) {
         final idToken = session.userPoolTokensResult.value.idToken;
@@ -420,20 +460,33 @@ class AuthService {
         if (tokenString is String) {
           final payload = _decodeJwtPayload(tokenString);
           if (payload != null) {
+            LoggerService.info('🔍 Token payload keys: ${payload.keys.toList()}');
             final email = payload['email'];
-            return email is String ? email : null;
+            if (email is String && email.isNotEmpty) {
+              LoggerService.info('✅ Found email in token: $email');
+              return email;
+            } else {
+              LoggerService.warning('⚠️ Email field in token is empty or not a string: $email');
+            }
+          } else {
+            LoggerService.warning('⚠️ Could not decode token payload');
           }
+        } else {
+          LoggerService.warning('⚠️ Token string is not a string: ${tokenString.runtimeType}');
         }
+      } else {
+        LoggerService.warning('⚠️ Session is not CognitoAuthSession or not signed in');
       }
       return null;
     } catch (e) {
-      LoggerService.debug('Could not get email from token: $e');
+      LoggerService.error('❌ Could not get email from token: $e', error: e);
       return null;
     }
   }
 
   static Future<String?> getUserNameFromToken() async {
     try {
+      LoggerService.info('🔍 Attempting to get name from token for federated user');
       final session = await Amplify.Auth.fetchAuthSession();
       if (session is CognitoAuthSession && session.isSignedIn) {
         final idToken = session.userPoolTokensResult.value.idToken;
@@ -442,21 +495,39 @@ class AuthService {
         if (tokenString is String) {
           final payload = _decodeJwtPayload(tokenString);
           if (payload != null) {
+            LoggerService.info('🔍 Token payload keys for name: ${payload.keys.toList()}');
             // Try different name fields that might be present
             final name = payload['name'];
-            if (name is String && name.isNotEmpty) return name;
+            if (name is String && name.isNotEmpty) {
+              LoggerService.info('✅ Found name in token: $name');
+              return name;
+            }
             
             final givenName = payload['given_name'];
-            if (givenName is String && givenName.isNotEmpty) return givenName;
+            if (givenName is String && givenName.isNotEmpty) {
+              LoggerService.info('✅ Found given_name in token: $givenName');
+              return givenName;
+            }
             
             final nickname = payload['nickname'];
-            if (nickname is String && nickname.isNotEmpty) return nickname;
+            if (nickname is String && nickname.isNotEmpty) {
+              LoggerService.info('✅ Found nickname in token: $nickname');
+              return nickname;
+            }
+            
+            LoggerService.warning('⚠️ No name fields found in token payload');
+          } else {
+            LoggerService.warning('⚠️ Could not decode token payload for name');
           }
+        } else {
+          LoggerService.warning('⚠️ Token string is not a string for name: ${tokenString.runtimeType}');
         }
+      } else {
+        LoggerService.warning('⚠️ Session is not CognitoAuthSession or not signed in for name');
       }
       return null;
     } catch (e) {
-      LoggerService.debug('Could not get name from token: $e');
+      LoggerService.error('❌ Could not get name from token: $e', error: e);
       return null;
     }
   }

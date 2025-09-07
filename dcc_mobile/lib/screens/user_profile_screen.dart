@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import '../services/auth_service.dart';
@@ -29,6 +30,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   String? _userEmail;
   String? _userName;
   
+  // Auto-save debounce timer for display name
+  Timer? _nameDebounceTimer;
+  bool _hasUnsavedChanges = false;
+  String? _federatedProvider; // Track which provider (Google, Apple, etc.)
+  
   // Subscription settings
   bool _subscribeToDailyNuggets = false;
   String _deliveryMethod = 'email'; // 'email' or 'notifications'
@@ -39,6 +45,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void initState() {
     super.initState();
     _checkAuthenticationAndLoad();
+    
+    // Add listener for name changes with debouncing
+    _nameController.addListener(_onNameChanged);
   }
 
   Future<void> _checkAuthenticationAndLoad() async {
@@ -131,6 +140,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   @override
   void dispose() {
+    _nameDebounceTimer?.cancel();
+    _nameController.removeListener(_onNameChanged);
     _nameController.dispose();
     super.dispose();
   }
@@ -139,9 +150,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       setState(() => _isLoading = true);
       
-      // Check if user is federated first
+      // Check if user is federated first and determine provider
       final groups = await AuthService.getUserGroups();
-      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Facebook') || group.contains('SAML'));
+      final isFederatedUser = groups.any((group) => group.contains('Google') || group.contains('Apple') || group.contains('Facebook') || group.contains('SAML'));
+      
+      // Determine the specific federated provider
+      String? federatedProvider;
+      if (groups.any((group) => group.contains('Google'))) {
+        federatedProvider = 'Google';
+      } else if (groups.any((group) => group.contains('Apple'))) {
+        federatedProvider = 'Apple';
+      } else if (groups.any((group) => group.contains('Facebook'))) {
+        federatedProvider = 'Facebook';
+      } else if (groups.any((group) => group.contains('SAML'))) {
+        federatedProvider = 'SAML';
+      }
       
       // Load user data from Cognito
       final email = await AuthService.getUserEmail();
@@ -179,8 +202,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       setState(() {
         _userEmail = email;
         _userName = name;
-        _nameController.text = name ?? '';
+        // Set display name based on provider and available data
+        if (!isFederatedUser && name != null) {
+          _nameController.text = name; // Regular user with name
+        } else if (federatedProvider == 'Apple' && (name == null || name.isEmpty)) {
+          _nameController.text = 'Apple User'; // Apple user without name
+        } else if (isFederatedUser && name != null) {
+          _nameController.text = name; // Federated user with name
+        } else {
+          _nameController.text = ''; // Fallback
+        }
         _isFederatedUser = isFederatedUser;
+        _federatedProvider = federatedProvider;
         _subscribeToDailyNuggets = subscribeToDailyNuggets;
         _deliveryMethod = deliveryMethod;
         _selectedTimezone = timezone;
@@ -188,6 +221,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       });
       
       LoggerService.info('✅ User profile loaded successfully for $email');
+      
+      // Reset unsaved changes flag after loading
+      _hasUnsavedChanges = false;
     } catch (e) {
       LoggerService.error('❌ Error loading user profile: $e', error: e);
       setState(() => _isLoading = false);
@@ -203,81 +239,88 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
+  void _onNameChanged() {
+    // Only debounce if user is not federated and the name has actually changed
+    if (!_isFederatedUser && _nameController.text.trim() != _userName) {
+      _hasUnsavedChanges = true;
+      
+      // Cancel existing timer
+      _nameDebounceTimer?.cancel();
+      
+      // Start new timer
+      _nameDebounceTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted && _hasUnsavedChanges) {
+          _autoSaveProfile(showSnackbar: false);
+        }
+      });
+    }
+  }
+  
+  Future<void> _autoSaveProfile({bool showSnackbar = true}) async {
+    // Skip if currently saving or loading
+    if (_isSaving || _isLoading) return;
     
+    // For auto-save, we'll silently save without full validation
     try {
       setState(() => _isSaving = true);
       
       // Update the user's name in Cognito (only for non-federated users)
       final newName = _nameController.text.trim();
-      if (newName != _userName && !_isFederatedUser) {
+      if (newName.isNotEmpty && newName != _userName && !_isFederatedUser) {
         await AuthService.updateUserName(newName);
+        setState(() {
+          _userName = newName;
+        });
       }
       
-      // Save subscription preferences to backend only (single source of truth)
-      try {
-        await DailyNuggetsService.updateSubscription(
-          isSubscribed: _subscribeToDailyNuggets,
-          deliveryMethod: _deliveryMethod,
-          timezone: _selectedTimezone,
-        );
-        LoggerService.info('📧 Subscription saved to backend successfully');
-      } catch (e) {
-        LoggerService.error('📧 Error saving subscription to backend: $e');
-        // Re-throw error to show user that save failed
-        throw Exception('Failed to save subscription preferences: $e');
-      }
+      // Save subscription preferences to backend
+      await DailyNuggetsService.updateSubscription(
+        isSubscribed: _subscribeToDailyNuggets,
+        deliveryMethod: _deliveryMethod,
+        timezone: _selectedTimezone,
+      );
       
-      LoggerService.info('✅ Profile saved successfully');
-      LoggerService.info('   Name: ${_nameController.text.trim()}');
-      LoggerService.info('   Subscribe to Daily Nuggets: $_subscribeToDailyNuggets');
-      LoggerService.info('   Delivery Method: $_deliveryMethod');
-      LoggerService.info('   Timezone: $_selectedTimezone');
+      _hasUnsavedChanges = false;
       
-      // Update local state
-      setState(() {
-        _userName = newName;
-      });
+      LoggerService.info('✅ Profile auto-saved successfully');
       
-      if (mounted) {
+      if (showSnackbar && mounted) {
         final message = _subscribeToDailyNuggets 
-          ? 'Profile saved! You\'ll receive daily quotes at 8:00 AM ${_selectedTimezone.split('/').last.replaceAll('_', ' ')} time.'
-          : 'Profile saved successfully!';
-        
+          ? 'Changes saved! Daily quotes at 8 AM ${_selectedTimezone.split('/').last.replaceAll('_', ' ')} time.'
+          : 'Changes saved!';
+          
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 4),
+            duration: Duration(seconds: 2),
           ),
         );
         
-        // Handle navigation based on how the user arrived at this screen
-        if (widget.fromDeepLink) {
-          // User came from deep link - navigate to main app
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const QuoteScreen()),
-            (route) => false,
-          );
-        } else {
-          // Normal navigation - just pop back
-          Navigator.pop(context, true);
-        }
+        // Handle deep link navigation after successful save
+        _navigateAfterSave();
       }
     } catch (e) {
-      LoggerService.error('❌ Error saving profile: $e', error: e);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving profile: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      LoggerService.error('❌ Error auto-saving profile: $e', error: e);
+      // For auto-save, we don't show error messages to avoid annoying the user
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+  
+  // Navigation helper for deep link scenarios
+  void _navigateAfterSave() {
+    if (!mounted) return;
+    
+    // Handle navigation based on how the user arrived at this screen
+    if (widget.fromDeepLink) {
+      // User came from deep link - navigate to main app
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const QuoteScreen()),
+        (route) => false,
+      );
     }
   }
 
@@ -337,7 +380,31 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Profile'),
+            if (_hasUnsavedChanges && !_isSaving) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Text(
+                  'Unsaved',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Colors.orange,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
         centerTitle: true,
         actions: [],
       ),
@@ -400,11 +467,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 labelText: 'Display Name',
                                 prefixIcon: Icon(Icons.badge),
                                 hintText: _isFederatedUser 
-                                  ? 'Managed by your Google account'
+                                  ? 'Managed by your $_federatedProvider account'
                                   : 'Enter your preferred name',
                                 suffixIcon: _isFederatedUser
                                   ? Tooltip(
-                                      message: 'Display name is managed by your Google account and cannot be changed here',
+                                      message: 'Display name is managed by your $_federatedProvider account and cannot be changed here',
                                       child: Icon(
                                         Icons.info_outline,
                                         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
@@ -451,7 +518,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            'Google Account User',
+                                            '$_federatedProvider Account User',
                                             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                               color: Theme.of(context).colorScheme.primary,
                                               fontWeight: FontWeight.bold,
@@ -459,7 +526,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            'Your display name is managed by your Google account. To change it, update your name in your Google account settings, then sign out and sign back in.',
+                                            'Your display name is managed by your $_federatedProvider account. To change it, update your name in your $_federatedProvider account settings, then sign out and sign back in.',
                                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                               color: Theme.of(context).colorScheme.primary,
                                             ),
@@ -522,6 +589,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 setState(() {
                                   _subscribeToDailyNuggets = value;
                                 });
+                                // Auto-save subscription changes immediately
+                                _autoSaveProfile(showSnackbar: true);
                               },
                               activeThumbColor: Theme.of(context).colorScheme.primary,
                               contentPadding: EdgeInsets.zero,
@@ -566,6 +635,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         setState(() {
                                           _deliveryMethod = value;
                                         });
+                                        // Auto-save delivery method changes immediately
+                                        _autoSaveProfile(showSnackbar: true);
                                       }
                                     },
                                     contentPadding: const EdgeInsets.only(left: 8),
@@ -651,6 +722,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     setState(() {
                                       _selectedTimezone = newValue;
                                     });
+                                    // Auto-save timezone changes immediately
+                                    _autoSaveProfile(showSnackbar: true);
                                   }
                                 },
                               ),
@@ -717,32 +790,42 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     
                     const SizedBox(height: 24),
                     
-                    // Save button (alternative to app bar save)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isSaving ? null : _saveProfile,
-                        icon: _isSaving 
-                          ? SizedBox(
+                    // Auto-save indicator
+                    if (_isSaving)
+                      Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Theme.of(context).colorScheme.onPrimary,
+                                  Theme.of(context).colorScheme.primary,
                                 ),
                               ),
-                            )
-                          : const Icon(Icons.save),
-                        label: Text(
-                          _isSaving ? 'Saving...' : 'Save Profile',
-                          style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Saving changes...',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
                         ),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                      )
+                    else
+                      Center(
+                        child: Text(
+                          'Changes save automatically',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
