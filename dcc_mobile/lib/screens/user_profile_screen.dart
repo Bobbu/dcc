@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import '../services/auth_service.dart';
 import '../services/logger_service.dart';
 import '../services/daily_nuggets_service.dart';
+import '../services/fcm_service.dart';
 import 'login_screen.dart';
 import 'quote_screen.dart';
 
@@ -26,6 +28,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isSendingTestEmail = false;
+  bool _isSendingTestNotification = false;
+  bool _isRequestingPushPermissions = false;
   bool _isFederatedUser = false;
   String? _userEmail;
   String? _userName;
@@ -41,13 +45,43 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   String _selectedTimezone = 'America/New_York'; // Default timezone
   List<String> _timezones = []; // List of available timezones
   
+  // Push notification settings
+  bool _enablePushNotifications = false;
+  bool _enableEmailNotifications = true;
+  bool _pushPermissionsGranted = false;
+  String _preferredTime = '08:00'; // HH:MM format
+
+  // Helper function to convert 24-hour time to 12-hour format
+  String _format12Hour(String time24) {
+    final parts = time24.split(':');
+    final hour24 = int.parse(parts[0]);
+    final minute = parts[1];
+    
+    if (hour24 == 0) {
+      return '12:$minute AM';
+    } else if (hour24 < 12) {
+      return '$hour24:$minute AM';
+    } else if (hour24 == 12) {
+      return '12:$minute PM';
+    } else {
+      return '${hour24 - 12}:$minute PM';
+    }
+  }
+  List<String> _availableHours = [];
+  
   @override
   void initState() {
     super.initState();
+    _initializeAvailableHours();
     _checkAuthenticationAndLoad();
     
     // Add listener for name changes with debouncing
     _nameController.addListener(_onNameChanged);
+    
+    // Check push notification permissions on mobile
+    if (!kIsWeb) {
+      _checkPushPermissions();
+    }
   }
 
   Future<void> _checkAuthenticationAndLoad() async {
@@ -146,6 +180,83 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     super.dispose();
   }
 
+  void _initializeAvailableHours() {
+    _availableHours = List.generate(24, (index) {
+      final hour = index.toString().padLeft(2, '0');
+      return '$hour:00';
+    });
+  }
+
+  Future<void> _checkPushPermissions() async {
+    try {
+      final fcmService = FCMService();
+      if (fcmService.isInitialized) {
+        final enabled = await fcmService.areNotificationsEnabled();
+        setState(() {
+          _pushPermissionsGranted = enabled;
+        });
+      }
+    } catch (e) {
+      LoggerService.error('Failed to check push permissions: $e');
+    }
+  }
+
+  Future<void> _requestPushPermissions() async {
+    setState(() {
+      _isRequestingPushPermissions = true;
+    });
+    
+    try {
+      final fcmService = FCMService();
+      
+      LoggerService.info('🔔 User requesting push permissions...');
+      LoggerService.info('🔔 FCM service instance created, calling requestPermissions...');
+      LoggerService.info('🔔 FCM service initialized: ${fcmService.isInitialized}');
+      
+      // FCM should already be initialized in main.dart, just request permissions
+      LoggerService.info('🔔 About to call fcmService.requestPermissions()...');
+      await fcmService.requestPermissions();
+      LoggerService.info('🔔 FCM requestPermissions call returned, checking permissions...');
+      await _checkPushPermissions();
+      
+      if (_pushPermissionsGranted && mounted) {
+        // Enable the push notification toggle
+        setState(() {
+          _enablePushNotifications = true;
+        });
+        _autoSaveProfile(showSnackbar: true);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Push notifications enabled!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.error('Failed to request push permissions: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to enable push notifications. Please check settings.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isRequestingPushPermissions = false;
+      });
+    }
+  }
+
+  String _getFormattedTime() {
+    final hour24 = int.parse(_preferredTime.split(':')[0]);
+    final hour12 = hour24 == 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+    final period = hour24 < 12 ? 'AM' : 'PM';
+    return '$hour12:00 $period';
+  }
+
   Future<void> _loadUserProfile() async {
     try {
       setState(() => _isLoading = true);
@@ -174,22 +285,36 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       bool subscribeToDailyNuggets = false;
       String deliveryMethod = 'email';
       String timezone = _selectedTimezone;
+      bool enableEmail = true;
+      bool enablePush = false;
+      String preferredTime = '08:00';
       
       try {
         // Get subscription from backend - single source of truth
         final subscription = await DailyNuggetsService.getSubscription();
         if (subscription != null) {
           subscribeToDailyNuggets = subscription.isSubscribed;
-          // Force email delivery method until push notifications are implemented
-          deliveryMethod = subscription.deliveryMethod == 'notifications' ? 'email' : subscription.deliveryMethod;
+          deliveryMethod = subscription.deliveryMethod;
           timezone = subscription.timezone;
-          LoggerService.info('📧 Loaded subscription from backend: subscribed=$subscribeToDailyNuggets');
+          
+          // Load notification preferences if available
+          final prefs = subscription.notificationPreferences;
+          if (prefs != null) {
+            enableEmail = prefs['enableEmail'] ?? true;
+            enablePush = prefs['enablePush'] ?? false;
+            preferredTime = prefs['preferredTime'] ?? '08:00';
+          }
+          
+          LoggerService.info('📧 Loaded subscription from backend: subscribed=$subscribeToDailyNuggets, email=$enableEmail, push=$enablePush');
         } else {
           LoggerService.info('📧 No backend subscription found - user not subscribed');
           // User has no subscription - use defaults
           subscribeToDailyNuggets = false;
           deliveryMethod = 'email';
           timezone = _selectedTimezone;
+          enableEmail = true;
+          enablePush = false;
+          preferredTime = '08:00';
         }
       } catch (e) {
         LoggerService.error('📧 Error loading backend subscription: $e');
@@ -197,6 +322,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         subscribeToDailyNuggets = false;
         deliveryMethod = 'email';
         timezone = _selectedTimezone;
+        enableEmail = true;
+        enablePush = false;
+        preferredTime = '08:00';
       }
       
       setState(() {
@@ -217,6 +345,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _subscribeToDailyNuggets = subscribeToDailyNuggets;
         _deliveryMethod = deliveryMethod;
         _selectedTimezone = timezone;
+        _enableEmailNotifications = enableEmail;
+        _enablePushNotifications = enablePush;
+        _preferredTime = preferredTime;
         _isLoading = false;
       });
       
@@ -273,11 +404,31 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         });
       }
       
-      // Save subscription preferences to backend
+      // Get current subscription to preserve FCM tokens
+      final currentSub = await DailyNuggetsService.getSubscription();
+      final existingPrefs = currentSub?.notificationPreferences ?? {};
+      
+      LoggerService.info('🔍 Current subscription before save: ${currentSub?.toJson()}');
+      LoggerService.info('🔍 Existing notification preferences: $existingPrefs');
+      LoggerService.info('🔍 FCM tokens in preferences: ${existingPrefs['fcmTokens']}');
+      
+      // Save subscription preferences to backend, preserving FCM tokens
+      final newPreferences = {
+        'enableEmail': _enableEmailNotifications,
+        'enablePush': _enablePushNotifications,
+        'preferredTime': _preferredTime,
+        'timezone': _selectedTimezone,
+        // Preserve any existing FCM tokens
+        if (existingPrefs['fcmTokens'] != null) 'fcmTokens': existingPrefs['fcmTokens'],
+      };
+      
+      LoggerService.info('🔍 New preferences being sent: $newPreferences');
+      
       await DailyNuggetsService.updateSubscription(
         isSubscribed: _subscribeToDailyNuggets,
         deliveryMethod: _deliveryMethod,
         timezone: _selectedTimezone,
+        notificationPreferences: newPreferences,
       );
       
       _hasUnsavedChanges = false;
@@ -286,7 +437,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       
       if (showSnackbar && mounted) {
         final message = _subscribeToDailyNuggets 
-          ? 'Changes saved! Daily quotes at 8 AM ${_selectedTimezone.split('/').last.replaceAll('_', ' ')} time.'
+          ? 'Changes saved! Daily quotes at ${_format12Hour(_preferredTime)} ${_selectedTimezone.split('/').last.replaceAll('_', ' ')} time.'
           : 'Changes saved!';
           
         ScaffoldMessenger.of(context).showSnackBar(
@@ -371,6 +522,43 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (mounted) {
         setState(() {
           _isSendingTestEmail = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _sendTestNotification() async {
+    setState(() {
+      _isSendingTestNotification = true;
+    });
+    
+    try {
+      await DailyNuggetsService.sendTestNotification();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Test notification sent! Check your device in a few moments.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error sending test notification: $e', error: e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send test notification: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingTestNotification = false;
         });
       }
     }
@@ -596,112 +784,185 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               contentPadding: EdgeInsets.zero,
                             ),
                             
-                            // Delivery method selection (only show if subscribed)
+                            // Notification preferences (only show if subscribed)
                             if (_subscribeToDailyNuggets) ...[
                               const SizedBox(height: 16),
                               Text(
-                                'Delivery Method',
+                                'Notification Preferences',
                                 style: Theme.of(context).textTheme.headlineSmall,
                               ),
                               const SizedBox(height: 8),
                               
-                              // Delivery Method Selection
-                              Column(
-                                children: [
-                                  // Email option
-                                  RadioListTile<String>(
-                                    title: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.email,
-                                          color: Theme.of(context).colorScheme.primary,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Email',
-                                          style: Theme.of(context).textTheme.bodyLarge,
-                                        ),
-                                      ],
+                              // Email notifications
+                              SwitchListTile(
+                                title: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.email,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 20,
                                     ),
-                                    subtitle: Text(
-                                      'Receive quotes in your inbox daily',
-                                      style: Theme.of(context).textTheme.bodyMedium,
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Email Notifications',
+                                      style: Theme.of(context).textTheme.bodyLarge,
                                     ),
-                                    value: 'email',
-                                    groupValue: _deliveryMethod,
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        setState(() {
-                                          _deliveryMethod = value;
-                                        });
-                                        // Auto-save delivery method changes immediately
-                                        _autoSaveProfile(showSnackbar: true);
-                                      }
-                                    },
-                                    contentPadding: const EdgeInsets.only(left: 8),
-                                  ),
-                                  
-                                  // Notifications option (disabled for now)
-                                  RadioListTile<String>(
-                                    title: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.notifications,
-                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Push Notifications',
-                                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            'Coming Soon',
-                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                              color: Theme.of(context).colorScheme.secondary,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    subtitle: Text(
-                                      'Get notified directly on your device',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                                  ],
+                                ),
+                                subtitle: Text(
+                                  'Receive quotes in your inbox daily',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                value: _enableEmailNotifications,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _enableEmailNotifications = value;
+                                  });
+                                  _autoSaveProfile(showSnackbar: true);
+                                },
+                                activeThumbColor: Theme.of(context).colorScheme.primary,
+                                contentPadding: const EdgeInsets.only(left: 8),
+                              ),
+                              
+                              // Push notifications (mobile only)
+                              if (!kIsWeb) ...[
+                                SwitchListTile(
+                                  title: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.notifications,
+                                        color: _pushPermissionsGranted 
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                                        size: 20,
                                       ),
-                                    ),
-                                    value: 'notifications',
-                                    groupValue: _deliveryMethod,
-                                    onChanged: null, // Disabled - cannot be selected
-                                    contentPadding: const EdgeInsets.only(left: 8),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Push Notifications',
+                                        style: Theme.of(context).textTheme.bodyLarge,
+                                      ),
+                                      if (!_pushPermissionsGranted) ...[
+                                        const SizedBox(width: 8),
+                                        GestureDetector(
+                                          onTap: _isRequestingPushPermissions ? null : _requestPushPermissions,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                                              ),
+                                            ),
+                                            child: _isRequestingPushPermissions
+                                              ? Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    SizedBox(
+                                                      width: 12,
+                                                      height: 12,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                                          Theme.of(context).colorScheme.primary,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      'Enabling...',
+                                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                        color: Theme.of(context).colorScheme.primary,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                )
+                                              : Text(
+                                                  'Tap to Enable',
+                                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                    color: Theme.of(context).colorScheme.primary,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                ],
+                                  subtitle: Text(
+                                    _pushPermissionsGranted 
+                                      ? 'Get notified directly on your device'
+                                      : 'Tap "Tap to Enable" to grant notification permissions',
+                                    style: Theme.of(context).textTheme.bodyMedium,
+                                  ),
+                                  value: _enablePushNotifications && _pushPermissionsGranted,
+                                  onChanged: (value) async {
+                                    if (value && !_pushPermissionsGranted) {
+                                      // If trying to enable but permissions not granted, request them
+                                      await _requestPushPermissions();
+                                    } else {
+                                      // Normal toggle behavior
+                                      setState(() {
+                                        _enablePushNotifications = value;
+                                      });
+                                      _autoSaveProfile(showSnackbar: true);
+                                    }
+                                  },
+                                  activeThumbColor: Theme.of(context).colorScheme.primary,
+                                  contentPadding: const EdgeInsets.only(left: 8),
+                                ),
+                              ],
+                              
+                              const SizedBox(height: 16),
+                              
+                              // Timezone and time selection
+                              Text(
+                                'Delivery Schedule',
+                                style: Theme.of(context).textTheme.headlineSmall,
+                              ),
+                              const SizedBox(height: 8),
+                              
+                              // Preferred time selection
+                              DropdownButtonFormField<String>(
+                                initialValue: _preferredTime,
+                                decoration: InputDecoration(
+                                  labelText: 'Preferred Time',
+                                  prefixIcon: Icon(Icons.schedule),
+                                  helperText: 'Choose your preferred delivery time',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                items: _availableHours.map((String time) {
+                                  final hour24 = int.parse(time.split(':')[0]);
+                                  final hour12 = hour24 == 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+                                  final period = hour24 < 12 ? 'AM' : 'PM';
+                                  
+                                  return DropdownMenuItem<String>(
+                                    value: time,
+                                    child: Text('$hour12:00 $period'),
+                                  );
+                                }).toList(),
+                                onChanged: (String? newValue) {
+                                  if (newValue != null) {
+                                    setState(() {
+                                      _preferredTime = newValue;
+                                    });
+                                    _autoSaveProfile(showSnackbar: true);
+                                  }
+                                },
                               ),
                               
                               const SizedBox(height: 16),
                               
                               // Timezone selection
-                              Text(
-                                'Delivery Time',
-                                style: Theme.of(context).textTheme.headlineSmall,
-                              ),
-                              const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
                                 initialValue: _selectedTimezone,
                                 decoration: InputDecoration(
                                   labelText: 'Your Timezone',
-                                  prefixIcon: Icon(Icons.access_time),
-                                  helperText: 'Quotes will be delivered at 8:00 AM in your selected timezone',
+                                  prefixIcon: Icon(Icons.public),
+                                  helperText: 'Quotes will be delivered at ${_getFormattedTime()} in your local time',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -722,7 +983,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     setState(() {
                                       _selectedTimezone = newValue;
                                     });
-                                    // Auto-save timezone changes immediately
                                     _autoSaveProfile(showSnackbar: true);
                                   }
                                 },
@@ -731,7 +991,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               const SizedBox(height: 16),
                               
                               // Test Email Button
-                              if (_subscribeToDailyNuggets && _deliveryMethod == 'email') ...[
+                              if (_subscribeToDailyNuggets && _enableEmailNotifications) ...[
                                 Center(
                                   child: OutlinedButton.icon(
                                     onPressed: _isSendingTestEmail ? null : _sendTestEmail,
@@ -745,6 +1005,29 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         )
                                       : const Icon(Icons.email_outlined),
                                     label: Text(_isSendingTestEmail ? 'Sending...' : 'Send Test Email'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                              
+                              // Test Push Notification Button  
+                              if (_subscribeToDailyNuggets && _enablePushNotifications && _pushPermissionsGranted) ...[
+                                Center(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _isSendingTestNotification ? null : _sendTestNotification,
+                                    icon: _isSendingTestNotification 
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.notifications_outlined),
+                                    label: Text(_isSendingTestNotification ? 'Sending...' : 'Send Test Notification'),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Theme.of(context).colorScheme.primary,
                                     ),
@@ -773,7 +1056,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        'Daily nuggets will be delivered every morning at 8:00 AM in your local timezone.',
+                                        'Daily nuggets will be delivered every day at ${_format12Hour(_preferredTime)} in your local timezone.',
                                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                           color: Theme.of(context).colorScheme.secondary,
                                         ),

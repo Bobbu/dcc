@@ -12,6 +12,7 @@ class DailyNuggetsSubscription {
   final String timezone;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Map<String, dynamic>? notificationPreferences;
 
   DailyNuggetsSubscription({
     required this.email,
@@ -20,6 +21,7 @@ class DailyNuggetsSubscription {
     required this.timezone,
     required this.createdAt,
     required this.updatedAt,
+    this.notificationPreferences,
   });
 
   factory DailyNuggetsSubscription.fromJson(Map<String, dynamic> json) {
@@ -30,6 +32,7 @@ class DailyNuggetsSubscription {
       timezone: json['timezone'] ?? 'America/New_York',
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
+      notificationPreferences: json['notificationPreferences'],
     );
   }
 
@@ -39,6 +42,7 @@ class DailyNuggetsSubscription {
       'is_subscribed': isSubscribed,
       'delivery_method': deliveryMethod,
       'timezone': timezone,
+      'notification_preferences': notificationPreferences,
     };
   }
 }
@@ -94,12 +98,14 @@ class DailyNuggetsService {
     required bool isSubscribed,
     required String deliveryMethod,
     required String timezone,
+    Map<String, dynamic>? notificationPreferences,
   }) async {
     try {
       LoggerService.info('📧 Updating Daily Nuggets subscription...');
       LoggerService.info('   Subscribed: $isSubscribed');
       LoggerService.info('   Method: $deliveryMethod');
       LoggerService.info('   Timezone: $timezone');
+      LoggerService.info('   Preferences: $notificationPreferences');
       
       final headers = await _getHeaders();
       final url = '$_baseUrl/subscriptions';
@@ -108,6 +114,7 @@ class DailyNuggetsService {
         'is_subscribed': isSubscribed,
         'delivery_method': deliveryMethod,
         'timezone': timezone,
+        'notification_preferences': notificationPreferences,
       });
 
       final response = await http.put(
@@ -188,6 +195,35 @@ class DailyNuggetsService {
       }
     } catch (e) {
       LoggerService.error('❌ Error sending test email: $e', error: e);
+      rethrow;
+    }
+  }
+
+  static Future<void> sendTestNotification() async {
+    try {
+      LoggerService.info('🔔 Sending test push notification...');
+      final headers = await _getHeaders();
+      final url = '$_baseUrl/notifications/test';
+      
+      final response = await http.post(
+        Uri.parse(url),
+        headers: headers,
+      );
+
+      LoggerService.info('🔔 Test notification response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        LoggerService.info('✅ Test notification sent successfully');
+      } else if (response.statusCode == 401) {
+        throw Exception('Authentication failed. Please sign out and sign in again.');
+      } else if (response.statusCode == 404) {
+        throw Exception('No FCM token found. Please enable push notifications first.');
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error'] ?? 'Failed to send test notification');
+      }
+    } catch (e) {
+      LoggerService.error('❌ Error sending test notification: $e', error: e);
       rethrow;
     }
   }

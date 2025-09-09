@@ -4,11 +4,15 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
 import 'screens/quote_screen.dart';
 import 'screens/user_profile_screen.dart';
 import 'screens/quote_detail_screen.dart';
 import 'services/auth_service.dart';
 import 'services/logger_service.dart';
+import 'services/fcm_service.dart';
 import 'themes.dart';
 
 Future<void> main() async {
@@ -30,7 +34,43 @@ Future<void> main() async {
     LoggerService.error('Failed to configure auth service', error: e);
   }
   
+  // Initialize Firebase and FCM for mobile platforms only
+  if (!kIsWeb) {
+    try {
+      // Initialize Firebase first
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      LoggerService.info('Firebase initialized successfully');
+      
+      // Then initialize FCM service
+      await FCMService().initialize(
+        onMessageOpened: (RemoteMessage message) {
+          LoggerService.info('FCM message opened: ${message.messageId}');
+          _handleNotificationNavigation(message);
+        },
+      );
+      LoggerService.info('FCM service initialized successfully');
+    } catch (e) {
+      LoggerService.error('Failed to initialize Firebase/FCM service', error: e);
+    }
+  }
+  
   runApp(const QuoteMeApp());
+}
+
+// Handle notification navigation
+void _handleNotificationNavigation(RemoteMessage message) {
+  final deepLink = message.data['deepLink'];
+  final quoteId = message.data['quoteId'];
+  
+  if (deepLink != null) {
+    _router.go(deepLink);
+  } else if (quoteId != null) {
+    _router.go('/quote/$quoteId');
+  } else {
+    _router.go('/');
+  }
 }
 
 class QuoteMeApp extends StatefulWidget {

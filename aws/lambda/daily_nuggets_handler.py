@@ -7,6 +7,9 @@ from botocore.exceptions import ClientError
 import random
 from decimal import Decimal
 from boto3.dynamodb.conditions import Key, Attr
+import requests
+import jwt
+import time
 
 # Set up logging
 logger = logging.getLogger()
@@ -23,6 +26,8 @@ SUBSCRIPTIONS_TABLE_NAME = os.environ.get('SUBSCRIPTIONS_TABLE_NAME', 'dcc-subsc
 USER_POOL_ID = os.environ.get('USER_POOL_ID')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@anystupididea.com')
 CORS_ORIGIN = os.environ.get('CORS_ORIGIN', '*')
+FCM_SERVICE_ACCOUNT_JSON = os.environ.get('FCM_SERVICE_ACCOUNT_JSON')
+FCM_API_URL = 'https://fcm.googleapis.com/v1/projects/{project_id}/messages:send'
 
 # Initialize tables
 quotes_table = dynamodb.Table(QUOTES_TABLE_NAME)
@@ -90,6 +95,9 @@ def handler(event, context):
         elif path == '/subscriptions/test' and http_method == 'POST':
             # Test endpoint to send a sample email immediately
             return send_test_email(user_email)
+        elif path == '/notifications/test' and http_method == 'POST':
+            # Test endpoint to send a sample push notification immediately
+            return send_test_notification(user_email)
         else:
             return {
                 'statusCode': 404,
@@ -189,6 +197,7 @@ def update_subscription(email, body):
         is_subscribed = body.get('is_subscribed', False)
         delivery_method = body.get('delivery_method', 'email')
         timezone_str = body.get('timezone', 'America/New_York')
+        notification_preferences = body.get('notification_preferences', {})
         
         # Prepare item for DynamoDB
         item = {
@@ -199,6 +208,13 @@ def update_subscription(email, body):
             'created_at': datetime.now(timezone.utc).isoformat(),
             'updated_at': datetime.now(timezone.utc).isoformat()
         }
+        
+        # Add notification preferences if provided
+        if notification_preferences:
+            item['notificationPreferences'] = notification_preferences
+            logger.info(f"📱 Storing notification preferences: {json.dumps(notification_preferences, cls=DecimalEncoder)}")
+        else:
+            logger.info("📱 No notification preferences provided - FCM token will not be stored")
         
         # Check if subscription exists to preserve created_at
         existing = subscriptions_table.get_item(Key={'email': email})
@@ -327,6 +343,7 @@ def get_daily_quote():
         random_quote = random.choice(items)
         
         return {
+            'id': random_quote.get('id', ''),
             'quote': random_quote.get('quote', ''),
             'author': random_quote.get('author', ''),
             'tags': random_quote.get('tags', [])
@@ -460,4 +477,177 @@ def send_test_email(email):
             'statusCode': 500,
             'headers': CORS_HEADERS,
             'body': json.dumps({'error': f'Failed to send test email: {str(e)}'})
+        }
+
+def get_fcm_access_token():
+    """Get OAuth2 access token for FCM v1 API using service account."""
+    
+    if not FCM_SERVICE_ACCOUNT_JSON:
+        raise ValueError("FCM_SERVICE_ACCOUNT_JSON not configured")
+    
+    try:
+        # Parse service account JSON
+        service_account = json.loads(FCM_SERVICE_ACCOUNT_JSON)
+        
+        # Create JWT
+        now = int(time.time())
+        payload = {
+            'iss': service_account['client_email'],
+            'sub': service_account['client_email'],
+            'aud': 'https://oauth2.googleapis.com/token',
+            'iat': now,
+            'exp': now + 3600,  # 1 hour
+            'scope': 'https://www.googleapis.com/auth/firebase.messaging'
+        }
+        
+        # Sign with private key
+        token = jwt.encode(payload, service_account['private_key'], algorithm='RS256')
+        
+        # Exchange JWT for access token
+        response = requests.post('https://oauth2.googleapis.com/token', data={
+            'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            'assertion': token
+        })
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to get access token: {response.text}")
+            
+        return response.json()['access_token']
+        
+    except Exception as e:
+        logger.error(f"Error getting FCM access token: {str(e)}")
+        raise
+
+def send_test_notification(email):
+    """Send a test push notification immediately (for testing purposes)"""
+    try:
+        # Get user's subscription to find FCM token
+        response = subscriptions_table.get_item(Key={'email': email})
+        
+        if 'Item' not in response:
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'No subscription found'})
+            }
+        
+        subscription = response['Item']
+        logger.info(f"🔍 Full subscription data: {json.dumps(subscription, cls=DecimalEncoder)}")
+        
+        notification_prefs = subscription.get('notificationPreferences', {})
+        logger.info(f"🔍 Notification preferences: {json.dumps(notification_prefs, cls=DecimalEncoder)}")
+        
+        fcm_tokens = notification_prefs.get('fcmTokens', {})
+        logger.info(f"🔍 FCM tokens found: {json.dumps(fcm_tokens, cls=DecimalEncoder)}")
+        
+        if not fcm_tokens:
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'No FCM token found. Please enable push notifications first.'})
+            }
+        
+        # Get a random quote
+        quote_data = get_daily_quote()
+        if not quote_data:
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'No quotes available'})
+            }
+        
+        # Get FCM access token
+        access_token = get_fcm_access_token()
+        
+        # Send to all platform tokens
+        notifications_sent = 0
+        errors = []
+        
+        for platform, token in fcm_tokens.items():
+            if not token:
+                continue
+                
+            try:
+                # Prepare FCM message
+                service_account = json.loads(FCM_SERVICE_ACCOUNT_JSON)
+                project_id = service_account['project_id']
+                
+                fcm_message = {
+                    'message': {
+                        'token': token,
+                        'notification': {
+                            'title': 'Test Daily Nugget',
+                            'body': quote_data['quote'][:100] + '...' if len(quote_data['quote']) > 100 else quote_data['quote']
+                        },
+                        'data': {
+                            'quoteId': str(quote_data.get('id', '')),
+                            'author': quote_data.get('author', ''),
+                            'fullQuote': quote_data['quote'],
+                            'type': 'test_notification'
+                        },
+                        'android': {
+                            'notification': {
+                                'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+                                'channel_id': 'daily_nuggets'
+                            }
+                        },
+                        'apns': {
+                            'payload': {
+                                'aps': {
+                                    'category': 'DAILY_NUGGET'
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                # Send notification
+                response = requests.post(
+                    FCM_API_URL.format(project_id=project_id),
+                    headers={
+                        'Authorization': f'Bearer {access_token}',
+                        'Content-Type': 'application/json'
+                    },
+                    json=fcm_message
+                )
+                
+                if response.status_code == 200:
+                    notifications_sent += 1
+                    logger.info(f"Test notification sent successfully to {platform}")
+                else:
+                    error_msg = f"FCM error for {platform}: {response.text}"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+                    
+            except Exception as e:
+                error_msg = f"Error sending to {platform}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(error_msg)
+        
+        if notifications_sent > 0:
+            return {
+                'statusCode': 200,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'message': f'Test notification sent to {notifications_sent} device(s)',
+                    'quote': quote_data,
+                    'errors': errors if errors else None
+                }, cls=DecimalEncoder)
+            }
+        else:
+            return {
+                'statusCode': 500,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({
+                    'error': 'Failed to send test notification',
+                    'details': errors
+                })
+            }
+        
+    except Exception as e:
+        logger.error(f"Error sending test notification: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': f'Failed to send test notification: {str(e)}'})
         }

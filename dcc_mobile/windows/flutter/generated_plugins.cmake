@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   amplify_db_common
   app_links
+  firebase_core
   flutter_timezone
   flutter_tts
   share_plus

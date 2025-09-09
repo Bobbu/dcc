@@ -27,6 +27,23 @@ fi
 # Load environment variables
 source .env.deployment
 
+# Check for FCM service account JSON (optional)
+FCM_SERVICE_ACCOUNT_FILE="./more_secrets/fcm-service-account.json"
+FCM_SERVICE_ACCOUNT_JSON=""
+
+if [ -f "$FCM_SERVICE_ACCOUNT_FILE" ]; then
+    echo -e "${GREEN}📋 FCM service account JSON found, enabling push notifications...${NC}"
+    FCM_SERVICE_ACCOUNT_JSON=$(cat "$FCM_SERVICE_ACCOUNT_FILE" | jq -c .)
+    if [ -z "$FCM_SERVICE_ACCOUNT_JSON" ]; then
+        echo -e "${YELLOW}Warning: Failed to read FCM service account JSON, push notifications will be disabled${NC}"
+        FCM_SERVICE_ACCOUNT_JSON=""
+    fi
+else
+    echo -e "${YELLOW}📋 No FCM service account JSON found, push notifications will be disabled${NC}"
+    echo -e "${YELLOW}    To enable push notifications, place your Firebase service account JSON at:${NC}"
+    echo -e "${YELLOW}    ${FCM_SERVICE_ACCOUNT_FILE}${NC}"
+fi
+
 # Verify required API keys are set
 if [ -z "$OPENAI_API_KEY" ]; then
     echo -e "${RED}Error: OPENAI_API_KEY not set in .env.deployment${NC}"
@@ -82,7 +99,26 @@ echo -e "${YELLOW}Deploying to AWS...${NC}"
 echo "This may take a few minutes..."
 
 # Capture deployment output (Apple provider creation may take several minutes)
-DEPLOY_OUTPUT=$(sam deploy --capabilities CAPABILITY_NAMED_IAM --parameter-overrides OpenAIApiKey="$OPENAI_API_KEY" GoogleClientId="$GOOGLE_CLIENT_ID" GoogleClientSecret="$GOOGLE_CLIENT_SECRET" AppleServicesId="$APPLE_SERVICES_ID" AppleTeamId="$APPLE_TEAM_ID" AppleKeyId="$APPLE_KEY_ID" ApplePrivateKey="$APPLE_PRIVATE_KEY" 2>&1)
+if [ -n "$FCM_SERVICE_ACCOUNT_JSON" ]; then
+    DEPLOY_OUTPUT=$(sam deploy --capabilities CAPABILITY_NAMED_IAM --parameter-overrides \
+        OpenAIApiKey="$OPENAI_API_KEY" \
+        GoogleClientId="$GOOGLE_CLIENT_ID" \
+        GoogleClientSecret="$GOOGLE_CLIENT_SECRET" \
+        AppleServicesId="$APPLE_SERVICES_ID" \
+        AppleTeamId="$APPLE_TEAM_ID" \
+        AppleKeyId="$APPLE_KEY_ID" \
+        ApplePrivateKey="$APPLE_PRIVATE_KEY" \
+        FCMServiceAccountJSON="$FCM_SERVICE_ACCOUNT_JSON" 2>&1)
+else
+    DEPLOY_OUTPUT=$(sam deploy --capabilities CAPABILITY_NAMED_IAM --parameter-overrides \
+        OpenAIApiKey="$OPENAI_API_KEY" \
+        GoogleClientId="$GOOGLE_CLIENT_ID" \
+        GoogleClientSecret="$GOOGLE_CLIENT_SECRET" \
+        AppleServicesId="$APPLE_SERVICES_ID" \
+        AppleTeamId="$APPLE_TEAM_ID" \
+        AppleKeyId="$APPLE_KEY_ID" \
+        ApplePrivateKey="$APPLE_PRIVATE_KEY" 2>&1)
+fi
 DEPLOY_STATUS=$?
 
 # Check if it's just "no changes"
@@ -94,11 +130,23 @@ if echo "$DEPLOY_OUTPUT" | grep -q "No changes to deploy"; then
     echo "  • DynamoDB tables are configured"
     echo "  • Lambda functions are deployed"
     echo "  • Daily Nuggets feature is operational"
+    if [ -n "$FCM_SERVICE_ACCOUNT_JSON" ]; then
+        echo "  • Push notifications are enabled"
+    fi
 elif [ $DEPLOY_STATUS -eq 0 ]; then
     echo -e "${GREEN}✓ Deployment successful!${NC}"
     echo ""
     echo "Your OpenAI API key is securely stored in AWS Lambda."
     echo "The Flutter app will use the proxy endpoint for tag generation."
+    
+    if [ -n "$FCM_SERVICE_ACCOUNT_JSON" ]; then
+        echo ""
+        echo -e "${GREEN}🔥 Push Notifications are now enabled!${NC}"
+        echo ""
+        echo "📋 Push notification endpoints available:"
+        echo "   • POST /subscriptions/test - Test user push notification"
+        echo "   • POST /notifications/test - Test push notification API"
+    fi
     
     # Show key outputs
     echo ""

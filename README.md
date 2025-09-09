@@ -27,8 +27,9 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Daily Nuggets**: Subscribe to receive daily inspirational quotes via email at 8 AM in your timezone
   - **Deep Link Support**: "Manage subscription" links in emails open Profile screen directly
   - **Cross-Device Sync**: Profile data stored on server for consistency across all devices
-  - **Delivery Options**: Email delivery (Push Notifications coming soon)
+  - **Delivery Options**: Email delivery with push notifications for mobile apps
   - **Multi-User Support**: User-scoped preferences prevent cross-user data sharing
+  - **Push Notifications**: Firebase Cloud Messaging (FCM) v1 API with user permission management and test notifications
 - **Role-Based Access**: Different features for regular users vs administrators
 - **Dynamic Tag System**: Real-time tag loading with O(1) performance
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High). Default: OFF
@@ -61,6 +62,7 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Admin APIs**: JWT token + "Admins" group membership (no rate limits) - CRUD operations
 - **User Management**: Self-service registration with Cognito and role-based groups
 - **Email Delivery**: AWS SES for Daily Nuggets with EventBridge scheduling
+- **Push Notifications**: Firebase Cloud Messaging (FCM) v1 API with JWT authentication and automatic FCM service account JSON deployment
 - **Custom Domain**: SSL-secured endpoints via Route53 and CloudFront
 - **High Performance**: Tags metadata caching for zero-scan operations
 - **CORS Support**: Full web application compatibility
@@ -85,6 +87,7 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **Cognito**: User authentication, self-registration, and role-based authorization
 - **SES**: Email delivery service for Daily Nuggets
 - **EventBridge**: Scheduled triggers for timezone-aware email delivery
+- **Firebase**: Cloud Messaging (FCM) v1 API for push notifications with JWT service account authentication
 - **CloudFront**: CDN for web distribution and API caching
 - **Route53**: DNS management with automatic SSL
 - **ACM**: SSL certificate management
@@ -115,9 +118,18 @@ cd ..
 **✅ ALWAYS USE `./deploy.sh` FOR AWS DEPLOYMENTS**
 - Uses `aws/template.yaml` as single source of truth
 - Handles OpenAI API key injection securely
+- Automatically detects and deploys FCM service account JSON for push notifications
 - Manages all CloudFormation stack components
 - Ensures consistent deployments across environments
 - Supports Google and Apple Sign In (Apple configured manually in AWS Console)
+
+#### Push Notifications Setup (Optional)
+To enable push notifications:
+
+1. **Firebase Configuration**: Place your Firebase service account JSON at `aws/more_secrets/fcm-service-account.json`
+2. **Automatic Detection**: The deployment script automatically detects and configures FCM when the file is present
+3. **User Permissions**: Users must grant notification permissions in the app for push notifications to work
+4. **Cross-Platform**: Works on iOS and Android devices
 
 #### Standalone Apple Sign In Deployment
 For new projects that only need Apple Sign In:
@@ -473,7 +485,7 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
   - [x] User subscription management in Profile screen
   - [x] Admin subscriber management dashboard
   - [x] Test email functionality
-  - [ ] Push notification system for mobile apps
+  - [x] Push notification system for mobile apps (Firebase Cloud Messaging)
   - [x] User preference storage in DynamoDB
   - [x] Smart quote rotation algorithm
 - [x] User favorites and personal collections
@@ -502,6 +514,14 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 - **Configurable Limits**: Admin settings for 1-20 quotes per search (default: 5, max: 20)
 - **Same Integration Pattern**: Uses existing OpenAI environment variables and CORS handling
 - **Real-time Discovery**: Instant quote suggestions with source attribution and confidence levels
+
+### ✅ Push Notifications Implementation
+- **Firebase Cloud Messaging (FCM)**: Complete FCM v1 API integration with JWT service account authentication
+- **Cross-Platform Support**: Works on iOS and Android devices with proper permission handling
+- **Automatic Deployment**: FCM service account JSON automatically detected and deployed by `./deploy.sh`
+- **User Control**: Users can enable/disable push notifications via app settings and permissions
+- **Test Functionality**: Admin test notifications to verify push notification setup and delivery
+- **Production Ready**: Full error handling, token management, and device registration flow
 
 ### ✅ Enhanced Duplicate Detection
 - **Server-Side Prevention**: Moved from client-side cleanup to server-side prevention

@@ -20,6 +20,8 @@ cd aws
 ✅ Uses `aws/template.yaml` as single source of truth
 ✅ Handles OpenAI API key injection securely
 ✅ Supports Google and Apple Sign In (Apple configured manually in AWS Console)
+✅ **Push Notifications**: Automatically detects and deploys FCM service account JSON
+✅ **One-Click Deployment**: Single script handles all scenarios (FCM optional)
 
 #### Standalone Apple Sign In Deployment
 ```bash
@@ -81,10 +83,11 @@ flutter build web --release  # Web
   - `candidate_quotes_handler.py`: Admin-only AI quote finding by author (configurable 1-20 limit)
   - `candidate_quotes_by_topic_handler.py`: Admin-only AI quote finding by topic (configurable 1-20 limit)
   - `favorites_handler.py`: User favorites management with JWT authentication
-  - `daily_nuggets_handler.py`: Subscription management and scheduled email delivery
+  - `daily_nuggets_handler.py`: Subscription management, scheduled email delivery, and push notifications
 - **Performance**: Tags metadata caching, GSI indexes, zero-scan operations
 - **Security**: Rate limiting (public only), email verification, role-based access
 - **Email Delivery**: AWS SES for Daily Nuggets, EventBridge for scheduling
+- **Push Notifications**: Firebase Cloud Messaging (FCM) v1 API with JWT authentication
 
 
 ### Flutter App (`dcc_mobile/`)
@@ -106,6 +109,7 @@ flutter build web --release  # Web
 - **AI Tag Generation**: GPT-4o-mini via secure Lambda proxy with "Recommend Tags" feature
 - **Favorites System**: Heart icons throughout app, personal favorites collection
 - **Daily Nuggets**: Email subscriptions with timezone-aware delivery at 8 AM daily + deep link management
+- **Push Notifications**: Cross-platform FCM integration with user permission management and test notifications
 - **Import/Export**: TSV import, multi-format export (JSON/CSV)
 - **Duplicate Detection**: Server-side prevention at quote creation with fuzzy matching
 - **Search**: Universal search across quotes, authors, tags
