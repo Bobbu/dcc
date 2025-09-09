@@ -5,6 +5,7 @@
 .env
 .env.*
 !.env.sample
+dcc_mobile/ios/Runner/GoogleService-Info.plist
 
 # IDE files
 .vscode/
