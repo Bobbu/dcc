@@ -26,6 +26,7 @@ import '../widgets/admin/import_results_dialog.dart';
 import '../widgets/admin/duplicate_cleanup_dialog.dart';
 import '../widgets/admin/tag_generation_dialogs.dart';
 import '../widgets/admin/edit_quote_dialog.dart';
+import '../widgets/admin/image_generation_dialog.dart';
 import '../widgets/favorite_heart_button.dart';
 import 'quote_detail_screen.dart';
 import 'user_profile_screen.dart';
@@ -33,7 +34,12 @@ import 'settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  final String? initialSearchQuery;
+  
+  const AdminDashboardScreen({
+    super.key,
+    this.initialSearchQuery,
+  });
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -79,9 +85,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAdminAccess();
-    _loadUserInfo();
-    _initializeSettings();
+    _initializeApp();
     
     // Set up scroll listener for Go to Top/Bottom buttons
     _scrollController.addListener(_onScroll);
@@ -99,12 +103,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _initializeSettings() async {
-    // Load quote retrieval limit first
-    await _loadQuoteRetrievalLimit();
-    // Load max returned quotes limit
-    await _loadMaxReturnedQuotes();
-    // Then load sort preferences (which calls _loadQuotes at the end)
-    await _loadSortPreferences();
+    try {
+      // Load quote retrieval limit first
+      await _loadQuoteRetrievalLimit();
+      // Load max returned quotes limit
+      await _loadMaxReturnedQuotes();
+      // Then load sort preferences
+      await _loadSortPreferences();
+      
+      // If we have an initial search query, perform the search
+      // Otherwise, _loadSortPreferences will have already loaded quotes
+      if (widget.initialSearchQuery != null && mounted) {
+        LoggerService.debug('🔍 Performing initial search for: ${widget.initialSearchQuery}');
+        await _performSearch(widget.initialSearchQuery!);
+      }
+    } catch (e) {
+      LoggerService.error('Error in _initializeSettings: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = 'Initialization error: $e';
+        });
+      }
+    }
   }
 
   @override
@@ -128,6 +149,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     } catch (e) {
       return dateString; // Return original if parsing fails
     }
+  }
+
+  Future<void> _initializeApp() async {
+    // First check admin access
+    final isAdmin = await AuthService.isUserInAdminGroup();
+    if (!isAdmin && mounted) {
+      // Redirect to login if not admin
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Admin access required'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      Navigator.of(context).pop();
+      return; // Stop initialization if not admin
+    }
+    
+    // Load user info
+    await _loadUserInfo();
+    
+    // If we have an initial search query, set it up
+    if (widget.initialSearchQuery != null && mounted) {
+      _searchController.text = widget.initialSearchQuery!;
+      _searchQuery = widget.initialSearchQuery!;
+    }
+    
+    // Initialize settings (which will trigger search if needed)
+    await _initializeSettings();
   }
 
   Future<void> _checkAdminAccess() async {
@@ -230,11 +279,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _sortAscending = prefs.getBool('admin_sort_ascending') ?? false;
       
       // Now load quotes with the saved sort preferences
-      _loadQuotes();
+      // But skip if we have an initial search query (it will be handled in _initializeSettings)
+      if (widget.initialSearchQuery == null) {
+        _loadQuotes();
+      }
     } catch (e) {
       LoggerService.error('Failed to load sort preferences: $e');
       // Fall back to default and load quotes anyway
-      _loadQuotes();
+      // But skip if we have an initial search query
+      if (widget.initialSearchQuery == null) {
+        _loadQuotes();
+      }
     }
   }
 
@@ -304,6 +359,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _performSearch(String query, {bool forceRefresh = false}) async {
     query = query.trim();
     
+    LoggerService.debug('🔍 _performSearch called with query: "$query", forceRefresh: $forceRefresh');
+    
+    if (!mounted) {
+      LoggerService.warning('⚠️ _performSearch called but widget not mounted');
+      return;
+    }
+    
     if (query.isEmpty) {
       // Clear search and reload all quotes
       setState(() {
@@ -320,6 +382,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     // Only skip if query is the same AND we already have search results AND not forcing refresh
     if (query == _searchQuery && _searchResults.isNotEmpty && !_isSearching && !forceRefresh) {
       // Same query with existing results, no need to search again
+      LoggerService.debug('🔍 Skipping search - same query with existing results');
       setState(() {
         _isPreparingSearch = false;
       });
@@ -358,6 +421,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       setState(() {
         _searchResults = searchQuotes;
         _isSearching = false;
+        _isLoading = false;  // Clear the initial loading state
         _isSorting = false;  // Clear the sorting flag
         _searchLastKey = response['last_key'];
         _hasMoreSearchResults = response['has_more'] ?? false;
@@ -365,11 +429,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       
       LoggerService.info('✅ Found ${searchQuotes.length} quotes matching "$query" (has_more: $_hasMoreSearchResults)');
     } catch (e) {
-      setState(() {
-        _isSearching = false;
-        _isSorting = false;  // Clear the sorting flag on error too
-        _error = 'Search error: $e';
-      });
+      LoggerService.error('❌ Search error: $e');
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+          _isLoading = false;  // Clear the initial loading state on error
+          _isSorting = false;  // Clear the sorting flag on error too
+          _isPreparingSearch = false;
+          _error = 'Search error: $e';
+        });
+      }
     }
   }
 
@@ -1627,6 +1696,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _showImageGenerationDialog({
+    String? quote,
+    String? author,
+    String? tags,
+    String? quoteId,
+    String? existingImageUrl,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => ImageGenerationDialog(
+        initialQuote: quote,
+        initialAuthor: author,
+        initialTags: tags,
+        quoteId: quoteId,
+        existingImageUrl: existingImageUrl,
+      ),
+    );
+  }
+
   Future<void> _generateTagsForTagless() async {
     // Find quotes without any tags
     final taglessQuotes = _filteredQuotes.where((quote) => quote.tags.isEmpty).toList();
@@ -1795,6 +1883,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 _exportQuotes();
               } else if (value == 'generate_tags') {
                 _showGenerateTagsDialog();
+              } else if (value == 'generate_image') {
+                _showImageGenerationDialog();
               } else if (value == 'find_quotes') {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -1933,6 +2023,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Icon(Icons.auto_awesome, color: Colors.purple),
                     SizedBox(width: 8),
                     Text('Generate Tags for Tagless'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'generate_image',
+                child: Row(
+                  children: [
+                    Icon(Icons.image, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Generate Quote Image'),
                   ],
                 ),
               ),
@@ -2393,13 +2493,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   vertical: 8,
                                 ),
                                 child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: Theme.of(context).colorScheme.primary,
-                                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                                    child: Text(
-                                      '${index + 1}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
-                                    ),
+                                  leading: Stack(
+                                    children: [
+                                      CircleAvatar(
+                                        backgroundColor: Theme.of(context).colorScheme.primary,
+                                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                        child: Text(
+                                          '${index + 1}',
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                      if (quote.imageUrl != null)
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: Container(
+                                            width: 16,
+                                            height: 16,
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Theme.of(context).scaffoldBackgroundColor,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            child: const Icon(
+                                              Icons.image,
+                                              size: 10,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16,
@@ -2495,6 +2621,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                         );
                                       } else if (value == 'edit') {
                                         _showQuoteDialog(quote: quote);
+                                      } else if (value == 'generate_image') {
+                                        _showImageGenerationDialog(
+                                          quote: quote.quote,
+                                          author: quote.author,
+                                          tags: quote.tags.join(', '),
+                                          quoteId: quote.id,
+                                          existingImageUrl: quote.imageUrl,
+                                        );
                                       } else if (value == 'delete') {
                                         showDialog(
                                           context: context,
@@ -2543,6 +2677,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                             Icon(Icons.edit),
                                             SizedBox(width: 8),
                                             Text('Edit'),
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'generate_image',
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              quote.imageUrl != null 
+                                                  ? Icons.image 
+                                                  : Icons.add_photo_alternate,
+                                              color: Colors.orange,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(quote.imageUrl != null 
+                                                ? 'View/Update Image' 
+                                                : 'Generate Image'),
                                           ],
                                         ),
                                       ),

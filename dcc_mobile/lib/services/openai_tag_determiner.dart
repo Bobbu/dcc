@@ -6,7 +6,7 @@ import 'logger_service.dart';
 
 /// Service for generating tags using our secure AWS proxy endpoint
 /// This keeps the OpenAI API key on the server side only
-class OpenAIProxyService {
+class OpenAITagDeterminer {
   static String get _baseUrl => dotenv.env['API_URL'] ?? 'https://dcc.anystupididea.com';
   
   /// Generate up to 5 relevant tags for a quote using our AWS proxy

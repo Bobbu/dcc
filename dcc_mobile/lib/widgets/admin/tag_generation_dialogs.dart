@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../../models/quote.dart';
 import '../../services/auth_service.dart';
-import '../../services/openai_proxy_service.dart';
+import '../../services/openai_tag_determiner.dart';
 import '../../services/logger_service.dart';
 import '../../themes.dart';
 
@@ -127,7 +127,7 @@ class _GenerateTagsProgressDialogState extends State<GenerateTagsProgressDialog>
 
         try {
           // Generate tags using our secure AWS proxy
-          final tags = await OpenAIProxyService.generateTagsForQuote(
+          final tags = await OpenAITagDeterminer.generateTagsForQuote(
             quote: quote.quote,
             author: quote.author,
             existingTags: widget.existingTags,

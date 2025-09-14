@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: S3 Bucket for Quote Images - Standalone Deployment
+
+Resources:
+  # S3 Bucket for Quote Images
+  QuoteImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-quote-images"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+  # S3 Bucket Policy for Public Read Access
+  QuoteImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: QuoteImagesBucket
+    Properties:
+      Bucket: !Ref QuoteImagesBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub "arn:aws:s3:::${QuoteImagesBucket}/*"
+
+Outputs:
+  BucketName:
+    Description: "S3 Bucket Name"
+    Value: !Ref QuoteImagesBucket
+  BucketArn:
+    Description: "S3 Bucket ARN"
+    Value: !GetAtt QuoteImagesBucket.Arn
+  BucketURL:
+    Description: "S3 Bucket URL for accessing images"
+    Value: !Sub "https://${QuoteImagesBucket}.s3.amazonaws.com/"

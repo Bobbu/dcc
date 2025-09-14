@@ -6,17 +6,130 @@ from datetime import datetime
 from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
-table_name = os.environ.get('TABLE_NAME', 'dcc-proposed-quotes')
+ses_client = boto3.client('ses', region_name='us-east-1')
+table_name = os.environ.get('TABLE_NAME', 'quote-me-proposed-quotes')
 table = dynamodb.Table(table_name)
 # Main quotes table for approved quotes
-quotes_table_name = 'dcc-quotes-optimized'
+quotes_table_name = os.environ.get('QUOTES_TABLE_NAME', 'quote-me-quotes')
 quotes_table = dynamodb.Table(quotes_table_name)
+# Sender email for notifications
+sender_email = os.environ.get('SENDER_EMAIL', 'noreply@anystupididea.com')
 
 def decimal_default(obj):
     """Helper to convert Decimal to float for JSON serialization"""
     if isinstance(obj, Decimal):
         return float(obj)
     raise TypeError
+
+def send_decision_email(proposer_email, proposer_name, quote_text, author, action, feedback=None):
+    """Send email notification about quote decision"""
+    try:
+        if action == 'approve':
+            subject = "🎉 Great News! Your Quote Has Been Approved!"
+            html_body = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+                    .quote-box {{ background: white; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 5px; }}
+                    .celebration {{ text-align: center; font-size: 48px; margin: 20px 0; }}
+                    .footer {{ text-align: center; margin-top: 30px; color: #666; font-size: 14px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🎉 Congratulations, {proposer_name or 'Quote Contributor'}!</h1>
+                    </div>
+                    <div class="content">
+                        <div class="celebration">🌟✨🎊</div>
+                        <p><strong>Fantastic news!</strong> Your proposed quote has been approved and is now part of our curated collection!</p>
+                        
+                        <div class="quote-box">
+                            <p style="font-style: italic; font-size: 18px; margin: 0;">"{quote_text}"</p>
+                            <p style="text-align: right; margin: 10px 0 0 0; color: #666;">— {author}</p>
+                        </div>
+                        
+                        <p>Your contribution will inspire and enlighten countless readers. Thank you for sharing this wonderful piece of wisdom with our community!</p>
+                        
+                        {f'<p><strong>Admin note:</strong> {feedback}</p>' if feedback else ''}
+                        
+                        <p>Keep those amazing quotes coming! We love hearing from passionate contributors like you.</p>
+                        
+                        <div class="footer">
+                            <p>With gratitude,<br>The Quote Me Team</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        else:  # reject
+            subject = "Thank You for Your Quote Submission"
+            html_body = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+                    .quote-box {{ background: white; padding: 20px; border-left: 4px solid #f093fb; margin: 20px 0; border-radius: 5px; }}
+                    .encouragement {{ background: #e8f4fd; padding: 20px; border-radius: 10px; margin: 20px 0; }}
+                    .footer {{ text-align: center; margin-top: 30px; color: #666; font-size: 14px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Thank You, {proposer_name or 'Valued Contributor'}!</h1>
+                    </div>
+                    <div class="content">
+                        <p>We truly appreciate you taking the time to submit a quote to our collection. Your engagement with our community means the world to us!</p>
+                        
+                        <div class="quote-box">
+                            <p style="font-style: italic; font-size: 18px; margin: 0;">"{quote_text}"</p>
+                            <p style="text-align: right; margin: 10px 0 0 0; color: #666;">— {author}</p>
+                        </div>
+                        
+                        <p>After careful review, we've decided not to add this particular quote to our collection at this time. This doesn't diminish the value of your contribution or your eye for meaningful quotes!</p>
+                        
+                        {f'<div class="encouragement"><p><strong>Reviewer feedback:</strong> {feedback}</p></div>' if feedback else ''}
+                        
+                        <div class="encouragement">
+                            <p><strong>💡 Keep exploring and sharing!</strong></p>
+                            <p>We encourage you to continue submitting quotes that inspire you. Every submission helps us understand what resonates with our community, and we'd love to see more of your discoveries!</p>
+                        </div>
+                        
+                        <p>Remember, curation is subjective, and what might not fit today could be perfect tomorrow. Please don't let this discourage you from sharing more wonderful quotes with us!</p>
+                        
+                        <div class="footer">
+                            <p>With appreciation,<br>The Quote Me Team</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        
+        # Send the email
+        response = ses_client.send_email(
+            Source=sender_email,
+            Destination={'ToAddresses': [proposer_email]},
+            Message={
+                'Subject': {'Data': subject, 'Charset': 'UTF-8'},
+                'Body': {'Html': {'Data': html_body, 'Charset': 'UTF-8'}}
+            }
+        )
+        print(f"Email sent successfully to {proposer_email}: {response['MessageId']}")
+        return True
+        
+    except Exception as e:
+        print(f"Failed to send email to {proposer_email}: {str(e)}")
+        return False
 
 def lambda_handler(event, context):
     """
@@ -181,6 +294,22 @@ def lambda_handler(event, context):
                     ExpressionAttributeNames=expression_names
                 )
                 
+                # Send email notification to proposer
+                proposer_email = proposed_quote.get('proposer_email')
+                proposer_name = proposed_quote.get('proposer_name')
+                quote_text = proposed_quote.get('quote')
+                quote_author = proposed_quote.get('author')
+                
+                if proposer_email:
+                    send_decision_email(
+                        proposer_email=proposer_email,
+                        proposer_name=proposer_name,
+                        quote_text=quote_text,
+                        author=quote_author,
+                        action=action,
+                        feedback=feedback
+                    )
+                
                 # If approved, add to main quotes table
                 if action == 'approve':
                     # Create new quote in main table
@@ -312,7 +441,7 @@ def lambda_handler(event, context):
                 
                 # Get pending quotes first
                 response = table.query(
-                    IndexName='StatusDateIndex',
+                    IndexName='StatusIndex',
                     KeyConditionExpression='#status = :status',
                     ExpressionAttributeNames={
                         '#status': 'status'
@@ -326,7 +455,7 @@ def lambda_handler(event, context):
                 
                 # Get approved quotes
                 response = table.query(
-                    IndexName='StatusDateIndex',
+                    IndexName='StatusIndex',
                     KeyConditionExpression='#status = :status',
                     ExpressionAttributeNames={
                         '#status': 'status'
@@ -341,7 +470,7 @@ def lambda_handler(event, context):
                 
                 # Get rejected quotes
                 response = table.query(
-                    IndexName='StatusDateIndex',
+                    IndexName='StatusIndex',
                     KeyConditionExpression='#status = :status',
                     ExpressionAttributeNames={
                         '#status': 'status'

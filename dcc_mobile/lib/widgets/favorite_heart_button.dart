@@ -125,8 +125,8 @@ class _FavoriteHeartButtonState extends State<FavoriteHeartButton>
                   Text('Added to favorites'),
                 ],
               ),
-              duration: const Duration(seconds: 2),
-              backgroundColor: Theme.of(context).colorScheme.primary,
+              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.green,
             ),
           );
         } else {
@@ -139,8 +139,8 @@ class _FavoriteHeartButtonState extends State<FavoriteHeartButton>
                   Text('Removed from favorites'),
                 ],
               ),
-              duration: const Duration(seconds: 2),
-              backgroundColor: Theme.of(context).colorScheme.primary,
+              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.green,
             ),
           );
         }

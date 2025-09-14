@@ -1,0 +1,23 @@
+Quote Me API Configuration
+Generated: Sat Sep 13 22:25:44 EDT 2025
+========================
+
+API URL: https://dcc.anystupididea.com
+API Key: iJF7oVCPHLaeWfYPhkuy71izWFoXrr8qawS4drL1
+User Pool ID: us-east-1_WCJMgcwll
+User Pool Client ID: 308apko2vm7tphi0c74ec209cc
+Quotes Table: quote-me-quotes
+Tags Table: quote-me-tags
+Images Bucket: quote-me-images-862066558306
+
+Test Commands:
+--------------
+# Get a random quote
+curl 'https://dcc.anystupididea.com/quote' -H 'x-api-key: iJF7oVCPHLaeWfYPhkuy71izWFoXrr8qawS4drL1' | jq
+
+# Get all tags
+curl 'https://dcc.anystupididea.com/tags' -H 'x-api-key: iJF7oVCPHLaeWfYPhkuy71izWFoXrr8qawS4drL1' | jq
+
+# Get quote by tag
+curl 'https://dcc.anystupididea.com/quote?tags=Wisdom' -H 'x-api-key: iJF7oVCPHLaeWfYPhkuy71izWFoXrr8qawS4drL1' | jq
+

@@ -324,14 +324,11 @@ def handle_scheduled_delivery(event):
         }
 
 def get_daily_quote():
-    """Get a random quote for daily delivery (same as optimized quote handler)"""
+    """Get a random quote for daily delivery"""
     try:
-        # Get all quotes using the TypeDateIndex (same as quote_handler_optimized.py)
-        response = quotes_table.query(
-            IndexName='TypeDateIndex',
-            KeyConditionExpression=Key('type').eq('quote'),
-            Limit=1000,
-            ScanIndexForward=False  # Newest first
+        # Get all quotes using a simple scan (compatible with quote-me-quotes table)
+        response = quotes_table.scan(
+            Limit=1000
         )
         
         items = response.get('Items', [])

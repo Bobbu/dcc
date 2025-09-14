@@ -8,6 +8,7 @@ class Quote {
   final String createdAt;
   final String updatedAt;
   final String? createdBy;
+  final String? imageUrl;
 
   Quote({
     required this.id,
@@ -17,6 +18,7 @@ class Quote {
     required this.createdAt,
     required this.updatedAt,
     this.createdBy,
+    this.imageUrl,
   });
 
   factory Quote.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class Quote {
         createdAt: json['created_at'] ?? '',
         updatedAt: json['updated_at'] ?? '',
         createdBy: json['created_by'],
+        imageUrl: json['image_url'],
       );
     } catch (e) {
       LoggerService.error('❌ Error parsing quote from JSON: $json', error: e);
@@ -41,6 +44,7 @@ class Quote {
       'quote': quote,
       'author': author,
       'tags': tags,
+      if (imageUrl != null) 'image_url': imageUrl,
     };
   }
 }

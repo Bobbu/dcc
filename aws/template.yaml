@@ -349,7 +349,7 @@ Resources:
     Properties:
       FunctionName: dcc-admin-handler
       CodeUri: lambda/
-      Handler: admin_handler_optimized.lambda_handler
+      Handler: admin_handler.lambda_handler
       Runtime: python3.10
       Timeout: 30
       Environment:
@@ -494,7 +494,7 @@ Resources:
     Properties:
       FunctionName: dcc-openai-handler
       CodeUri: lambda/
-      Handler: candidate_tags_handler.lambda_handler
+      Handler: openai_based_tag_generator.lambda_handler
       Runtime: python3.10
       Timeout: 30
       Environment:
@@ -517,7 +517,7 @@ Resources:
     Properties:
       FunctionName: dcc-candidate-quotes-handler
       CodeUri: lambda/
-      Handler: candidate_quotes_handler.lambda_handler
+      Handler: openai_based_quote_finder_by_author.lambda_handler
       Runtime: python3.10
       Timeout: 30
       Environment:
@@ -540,7 +540,7 @@ Resources:
     Properties:
       FunctionName: dcc-candidate-quotes-by-topic-handler
       CodeUri: lambda/
-      Handler: candidate_quotes_by_topic_handler.lambda_handler
+      Handler: openai_based_quote_finder_by_topic.lambda_handler
       Runtime: python3.10
       Timeout: 30
       Environment:
@@ -555,6 +555,116 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # SQS Queue for image generation jobs
+  ImageGenerationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: dcc-image-generation-queue
+      VisibilityTimeout: 300  # 5 minutes
+      MessageRetentionPeriod: 86400  # 1 day
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ImageGenerationDLQ.Arn
+        maxReceiveCount: 3
+
+  ImageGenerationDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: dcc-image-generation-dlq
+      MessageRetentionPeriod: 1209600  # 14 days
+
+  # Queue handler - submits jobs and returns immediately
+  ImageGenerationQueueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-image-generation-queue
+      CodeUri: lambda/
+      Handler: image_generation_queue_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Environment:
+        Variables:
+          IMAGE_GENERATION_QUEUE_URL: !Ref ImageGenerationQueue
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: dcc-quotes-optimized
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt ImageGenerationQueue.QueueName
+      Events:
+        GenerateImage:
+          Type: Api
+          Properties:
+            Path: /admin/generate-image
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        OptionsGenerateImage:
+          Type: Api
+          Properties:
+            Path: /admin/generate-image
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              ApiKeyRequired: false
+
+  # Async processor - handles actual image generation
+  ImageGenerationProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-image-generation-processor
+      CodeUri: lambda/
+      Handler: openai_based_image_generator.lambda_handler
+      Runtime: python3.10
+      Timeout: 300  # 5 minutes for image generation
+      ReservedConcurrentExecutions: 2  # Limit concurrent executions to avoid rate limits
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          QUOTE_IMAGES_BUCKET: dcc-s3-images-quote-images
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: dcc-quotes-optimized
+        - S3WritePolicy:
+            BucketName: dcc-s3-images-quote-images
+      Events:
+        QueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ImageGenerationQueue.Arn
+            BatchSize: 1  # Process one at a time
+
+  # Status checker endpoint
+  ImageGenerationStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: dcc-image-generation-status
+      CodeUri: lambda/
+      Handler: image_generation_status_handler.lambda_handler
+      Runtime: python3.10
+      Timeout: 30
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: dcc-quotes-optimized
+      Events:
+        CheckStatus:
+          Type: Api
+          Properties:
+            Path: /admin/image-generation-status/{jobId}
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        OptionsCheckStatus:
+          Type: Api
+          Properties:
+            Path: /admin/image-generation-status/{jobId}
+            Method: OPTIONS
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
               ApiKeyRequired: false
 
   # Users Lambda function for listing Cognito users
@@ -2074,6 +2184,9 @@ Resources:
         gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
         gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
 
+  # S3 bucket is deployed separately via deploy-s3.sh
+  # This avoids CloudFormation timeout issues
+
 Outputs:
   ApiUrl:
     Description: "API Gateway endpoint URL"
@@ -2116,6 +2229,12 @@ Outputs:
     Value: !Ref ExportsBucket
     Export:
       Name: DccExportsBucket
+
+  QuoteImagesBucketName:
+    Description: "S3 Bucket for quote images"
+    Value: "dcc-s3-images-quote-images"
+    Export:
+      Name: DccQuoteImagesBucket
 
   UserPoolClientId:
     Description: "Cognito User Pool Client ID" 

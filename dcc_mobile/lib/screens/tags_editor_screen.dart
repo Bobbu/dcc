@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/logger_service.dart';
 import '../themes.dart';
+import 'admin_dashboard_screen.dart';
 
 class TagsEditorScreen extends StatefulWidget {
   const TagsEditorScreen({super.key});
@@ -371,6 +372,21 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
     Navigator.of(context).pop();
   }
 
+  void _viewQuotesWithTag(String tagName) {
+    // Navigate to admin dashboard with the tag as search query
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AdminDashboardScreen(
+          initialSearchQuery: tagName,
+        ),
+      ),
+    ).then((_) {
+      // Reload tags when returning in case quotes were modified
+      _loadTags();
+    });
+  }
+
   void _showAddTagDialog() {
     final tagController = TextEditingController();
 
@@ -688,13 +704,25 @@ class _TagsEditorScreenState extends State<TagsEditorScreen> {
                                   ),
                                   trailing: PopupMenuButton<String>(
                                     onSelected: (value) {
-                                      if (value == 'edit') {
+                                      if (value == 'view') {
+                                        _viewQuotesWithTag(tag.name);
+                                      } else if (value == 'edit') {
                                         _showEditTagDialog(tag);
                                       } else if (value == 'delete') {
                                         _showDeleteTagDialog(tag.name);
                                       }
                                     },
                                     itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'view',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.visibility),
+                                            SizedBox(width: 8),
+                                            Text('View quotes'),
+                                          ],
+                                        ),
+                                      ),
                                       const PopupMenuItem(
                                         value: 'edit',
                                         child: Row(

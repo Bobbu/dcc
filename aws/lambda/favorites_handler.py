@@ -47,8 +47,8 @@ def get_quote_by_id(quote_id):
     """Fetch quote details from quotes table"""
     try:
         logger.info(f"Looking up quote with ID: {quote_id} in table: {os.environ.get('QUOTES_TABLE_NAME')}")
-        # Use the correct composite key structure: PK and SK both = QUOTE#{quote_id}
-        response = quotes_table.get_item(Key={'PK': f'QUOTE#{quote_id}', 'SK': f'QUOTE#{quote_id}'})
+        # Use the simple primary key structure: just id
+        response = quotes_table.get_item(Key={'id': quote_id})
         logger.info(f"Quote lookup response: {response}")
         item = response.get('Item')
         if item:

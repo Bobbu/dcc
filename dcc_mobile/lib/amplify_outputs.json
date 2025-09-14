@@ -2,12 +2,12 @@
   "version": "1",
   "auth": {
     "aws_region": "us-east-1",
-    "user_pool_id": "us-east-1_ecyuILBAu",
-    "user_pool_client_id": "2idvhvlhgbheglr0hptel5j55",
+    "user_pool_id": "us-east-1_WCJMgcwll",
+    "user_pool_client_id": "308apko2vm7tphi0c74ec209cc",
     "identity_pool_id": "us-east-1:08e2b0fd-c70f-4104-b99a-28bdf03d9878",
     "oauth": {
       "identity_providers": ["GOOGLE", "APPLE"],
-      "domain": "dcc-demo-sam-app-auth.auth.us-east-1.amazoncognito.com",
+      "domain": "quote-me-auth-1757704767.auth.us-east-1.amazoncognito.com",
       "scopes": [
         "email",
         "openid", 
@@ -38,8 +38,8 @@
         "Version": "1.0",
         "CognitoUserPool": {
           "Default": {
-            "PoolId": "us-east-1_ecyuILBAu",
-            "AppClientId": "2idvhvlhgbheglr0hptel5j55",
+            "PoolId": "us-east-1_WCJMgcwll",
+            "AppClientId": "308apko2vm7tphi0c74ec209cc",
             "Region": "us-east-1"
           }
         },
@@ -52,8 +52,8 @@
         "Auth": {
           "Default": {
             "OAuth": {
-              "WebDomain": "dcc-demo-sam-app-auth.auth.us-east-1.amazoncognito.com",
-              "AppClientId": "2idvhvlhgbheglr0hptel5j55",
+              "WebDomain": "quote-me-auth-1757704767.auth.us-east-1.amazoncognito.com",
+              "AppClientId": "308apko2vm7tphi0c74ec209cc",
               "SignInRedirectURI": "https://quote-me.anystupididea.com/auth/callback,quoteme://auth-success",
               "SignOutRedirectURI": "https://quote-me.anystupididea.com/,quoteme://auth-signout",
               "Scopes": ["email", "openid", "profile"]

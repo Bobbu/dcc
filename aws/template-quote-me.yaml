@@ -1,0 +1,776 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Quote Me API - Complete System with Correct Naming
+
+Parameters:
+  CustomDomainName:
+    Type: String
+    Default: dcc.anystupididea.com  # Keep ONLY this as dcc
+    Description: Custom domain name for the API
+  
+  CertificateArn:
+    Type: String
+    Default: arn:aws:acm:us-east-1:862066558306:certificate/b33b1d60-cde0-4c8b-a38a-e9f3ab1b4b42
+    Description: ACM Certificate ARN for the custom domain
+  
+  HostedZoneId:
+    Type: String
+    Default: Z6ED78QGBFL6M
+    Description: Route53 Hosted Zone ID for anystupididea.com
+  
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: OpenAI API key for tag generation
+  
+  FCMServiceAccountJSON:
+    Type: String
+    NoEcho: true
+    Description: FCM Service Account JSON for push notifications
+    Default: ""
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.9
+    Environment:
+      Variables:
+        QUOTES_TABLE: !Ref QuotesTable
+        TAGS_TABLE: !Ref TagsTable
+        USER_POOL_ID: !Ref UserPool
+        USER_POOL_CLIENT_ID: !Ref UserPoolClient
+        OPENAI_API_KEY: !Ref OpenAIApiKey
+        QUOTE_IMAGES_BUCKET: !Ref QuoteImagesBucket
+        FAVORITES_TABLE_NAME: !Ref FavoritesTable
+        QUOTES_TABLE_NAME: !Ref QuotesTable
+        SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTable
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowOrigin: "'*'"
+    Domain:
+      DomainName: !Ref CustomDomainName
+      CertificateArn: !Ref CertificateArn
+      Route53:
+        HostedZoneId: !Ref HostedZoneId
+
+Resources:
+  # S3 Bucket for Images
+  QuoteImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'quote-me-images-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+  QuoteImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref QuoteImagesBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub '${QuoteImagesBucket.Arn}/*'
+
+  # DynamoDB Tables
+  QuotesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: quote-me-quotes
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: author
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: AuthorIndex
+          KeySchema:
+            - AttributeName: author
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  TagsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: quote-me-tags
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tag
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tag
+          KeyType: HASH
+
+  FavoritesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: quote-me-favorites
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: quote_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+        - AttributeName: quote_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserCreatedAtIndex
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: quote-me-subscriptions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+
+  # DynamoDB table for proposed quotes
+  ProposedQuotesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: quote-me-proposed-quotes
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: proposer_email
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: created_date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ProposerEmailIndex
+          KeySchema:
+            - AttributeName: proposer_email
+              KeyType: HASH
+            - AttributeName: created_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: created_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: quote-me-user-pool
+      AutoVerifiedAttributes:
+        - email
+      MfaConfiguration: 'OFF'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - AttributeDataType: String
+          Name: email
+          Required: true
+          Mutable: true
+        - AttributeDataType: String
+          Name: given_name
+          Required: false
+          Mutable: true
+        - AttributeDataType: String
+          Name: family_name
+          Required: false
+          Mutable: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: quote-me-user-pool-client
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Sub 'https://${CustomDomainName}/auth/callback'
+        - 'http://localhost:3000/auth/callback'
+      LogoutURLs:
+        - !Sub 'https://${CustomDomainName}'
+        - 'http://localhost:3000'
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      ReadAttributes:
+        - email
+        - name
+        - given_name
+        - family_name
+      WriteAttributes:
+        - email
+        - name
+        - given_name
+        - family_name
+
+  # Cognito User Pool Groups
+  UsersGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Users
+      Description: Default group for all users
+      UserPoolId: !Ref UserPool
+      Precedence: 1
+
+  AdminsGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admins
+      Description: Administrator group with full system access
+      UserPoolId: !Ref UserPool
+      Precedence: 0
+
+  # API Gateway
+  QuoteMeApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: quote-me-api
+      StageName: prod
+      Auth:
+        ApiKeyRequired: true
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+            AuthType: COGNITO_USER_POOLS
+            IdentitySource: method.request.header.Authorization
+
+  # API Key and Usage Plan
+  QuoteMeApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn: QuoteMeApiprodStage
+    Properties:
+      Name: quote-me-api-key
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref QuoteMeApi
+          StageName: prod
+
+  QuoteMeUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: QuoteMeApiprodStage
+    Properties:
+      UsagePlanName: quote-me-usage-plan
+      Description: Usage plan for Quote Me API
+      ApiStages:
+        - ApiId: !Ref QuoteMeApi
+          Stage: prod
+      Throttle:
+        RateLimit: 10
+        BurstLimit: 20
+      Quota:
+        Limit: 1000
+        Period: DAY
+
+  QuoteMeUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref QuoteMeApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref QuoteMeUsagePlan
+
+  # Lambda Functions
+  QuoteHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-quote-handler
+      CodeUri: lambda/
+      Handler: quote_handler.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref QuotesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref TagsTable
+      Events:
+        GetRandomQuote:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /quote
+            Method: GET
+            Auth:
+              ApiKeyRequired: true
+        GetQuoteById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /quote/{id}
+            Method: GET
+            Auth:
+              ApiKeyRequired: true
+
+  TagsHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-tags-handler
+      CodeUri: lambda/
+      Handler: tags_handler.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref TagsTable
+      Events:
+        GetTags:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /tags
+            Method: GET
+            Auth:
+              ApiKeyRequired: true
+
+  AdminHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-admin-handler
+      CodeUri: lambda/
+      Handler: admin_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TagsTable
+      Events:
+        AdminQuotes:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/quotes
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AdminQuotesById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/quotes/{id}
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AdminSearch:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/search
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AdminTags:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/tags
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AdminTagsWithId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/tags/{tag}
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AdminTagsUnused:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/tags/unused
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  AuthHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-auth-handler
+      CodeUri: lambda/
+      Handler: auth_handler.lambda_handler
+      Events:
+        AuthRegister:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /auth/register
+            Method: POST
+            Auth:
+              ApiKeyRequired: false
+        AuthConfirm:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /auth/confirm
+            Method: POST
+            Auth:
+              ApiKeyRequired: false
+
+  OptionsHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-options-handler
+      CodeUri: lambda/
+      Handler: options_handler.lambda_handler
+      Events:
+        OptionsRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /{proxy+}
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+
+  OpenAIHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-openai-handler
+      CodeUri: lambda/
+      Handler: openai_based_tag_generator.lambda_handler
+      Events:
+        GenerateTags:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/generate-tags
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  FavoritesHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-favorites-handler
+      CodeUri: lambda/
+      Handler: favorites_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FavoritesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref QuotesTable
+      Events:
+        GetFavorites:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /favorites
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AddFavorite:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /favorites/{id}
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        RemoveFavorite:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /favorites/{id}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        CheckFavorite:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /favorites/{id}/check
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # Candidate quotes function for fetching potential quotes from OpenAI
+  CandidateQuotesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-candidate-quotes-handler
+      CodeUri: lambda/
+      Handler: openai_based_quote_finder_by_author.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Events:
+        GetCandidateQuotes:
+          Type: Api
+          Properties:
+            Path: /admin/candidate-quotes
+            Method: GET
+            RestApiId: !Ref QuoteMeApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # Candidate quotes by topic function for fetching potential quotes from OpenAI by topic
+  CandidateQuotesByTopicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-candidate-quotes-by-topic-handler
+      CodeUri: lambda/
+      Handler: openai_based_quote_finder_by_topic.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Events:
+        GetCandidateQuotesByTopic:
+          Type: Api
+          Properties:
+            Path: /admin/candidate-quotes-by-topic
+            Method: GET
+            RestApiId: !Ref QuoteMeApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  DailyNuggetsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-daily-nuggets-handler
+      CodeUri: lambda/
+      Handler: daily_nuggets_handler.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTable
+          SENDER_EMAIL: noreply@anystupididea.com
+          CORS_ORIGIN: "*"
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref QuotesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SubscriptionsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: "*"
+      Events:
+        GetSubscription:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /subscriptions
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UpdateSubscription:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /subscriptions
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        DeleteSubscription:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /subscriptions
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        TestEmail:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /subscriptions/test
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        AdminGetSubscriptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/subscriptions
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # Lambda function for proposing quotes
+  ProposeQuoteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-propose-quote-handler
+      CodeUri: lambda/
+      Handler: propose_quote_handler.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ProposedQuotesTable
+          QUOTES_TABLE_NAME: !Ref QuotesTable
+          SENDER_EMAIL: noreply@anystupididea.com
+          ENVIRONMENT: dev
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProposedQuotesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotesTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: "*"
+      Events:
+        ProposeQuoteApi:
+          Type: Api
+          Properties:
+            Path: /propose-quote
+            Method: POST
+            RestApiId: !Ref QuoteMeApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        GetProposedQuotesApi:
+          Type: Api
+          Properties:
+            Path: /proposed-quotes
+            Method: GET
+            RestApiId: !Ref QuoteMeApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UpdateProposedQuoteApi:
+          Type: Api
+          Properties:
+            Path: /proposed-quotes/{id}
+            Method: PUT
+            RestApiId: !Ref QuoteMeApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        DeleteProposedQuoteApi:
+          Type: Api
+          Properties:
+            Path: /proposed-quotes/{id}
+            Method: DELETE
+            RestApiId: !Ref QuoteMeApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+Outputs:
+  ApiUrl:
+    Description: Custom Domain API URL
+    Value: !Sub 'https://${CustomDomainName}'
+  
+  ApiKeyId:
+    Description: API Key ID
+    Value: !Ref QuoteMeApiKey
+  
+  ApiKeyValue:
+    Description: API Key Value (retrieve with AWS CLI)
+    Value: !Sub 'aws apigateway get-api-key --api-key ${QuoteMeApiKey} --include-value --query value --output text'
+  
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+  
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+  
+  QuotesTableName:
+    Description: DynamoDB Quotes Table Name
+    Value: !Ref QuotesTable
+  
+  TagsTableName:
+    Description: DynamoDB Tags Table Name
+    Value: !Ref TagsTable
+  
+  QuoteImagesBucketName:
+    Description: S3 Bucket for quote images
+    Value: !Ref QuoteImagesBucket
+  
+  FavoritesTableName:
+    Description: DynamoDB Favorites Table Name
+    Value: !Ref FavoritesTable
+  
+  SubscriptionsTableName:
+    Description: DynamoDB Subscriptions Table Name
+    Value: !Ref SubscriptionsTable
+  
+  ProposedQuotesTableName:
+    Description: DynamoDB Proposed Quotes Table Name
+    Value: !Ref ProposedQuotesTable

@@ -11,14 +11,14 @@ const amplifyconfig = '''{
         },
         "CognitoUserPool": {
           "Default": {
-            "PoolId": "us-east-1_ecyuILBAu",
-            "AppClientId": "2idvhvlhgbheglr0hptel5j55",
+            "PoolId": "us-east-1_WCJMgcwll",
+            "AppClientId": "308apko2vm7tphi0c74ec209cc",
             "Region": "us-east-1"
           }
         },
         "OAuth": {
-          "WebDomain": "dcc-demo-sam-app-auth.auth.us-east-1.amazoncognito.com",
-          "AppClientId": "2idvhvlhgbheglr0hptel5j55",
+          "WebDomain": "quote-me-auth-1757704767.auth.us-east-1.amazoncognito.com",
+          "AppClientId": "308apko2vm7tphi0c74ec209cc",
           "SignInRedirectURI": "https://quote-me.anystupididea.com/auth/callback,quoteme://auth-success",
           "SignOutRedirectURI": "https://quote-me.anystupididea.com/",
           "Scopes": [
