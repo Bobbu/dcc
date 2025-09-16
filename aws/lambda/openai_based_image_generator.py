@@ -5,8 +5,7 @@ import logging
 from datetime import datetime
 import boto3
 import uuid
-from urllib.parse import urlparse
-from openai import OpenAI
+import base64
 
 # Configure logging
 logger = logging.getLogger()
@@ -14,12 +13,12 @@ logger.setLevel(logging.INFO)
 
 # OpenAI configuration
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-OPENAI_BASE_URL = 'https://api.openai.com/v1'
 QUOTE_IMAGES_BUCKET = os.environ.get('QUOTE_IMAGES_BUCKET')
 
 # AWS services
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('dcc-quotes-optimized')
+quotes_table_name = os.environ.get('QUOTES_TABLE_NAME', 'quote-me-quotes')
+table = dynamodb.Table(quotes_table_name)
 s3_client = boto3.client('s3')
 
 def lambda_handler(event, context):
@@ -46,13 +45,19 @@ def lambda_handler(event, context):
             # Generate the sophisticated prompt
             prompt = build_image_prompt(quote, author, tags)
             
-            # Call OpenAI DALL-E 3 API to get temporary URL
-            temp_image_url = generate_image_with_openai(prompt)
+            # Call OpenAI DALL-E 3 API to get image URL (might be temporary URL or permanent S3 URL)
+            image_result = generate_image_with_openai(prompt)
             
-            logger.info(f"Successfully generated temporary image for job {job_id}: {temp_image_url}")
+            logger.info(f"Successfully generated image for job {job_id}: {image_result}")
             
-            # Download image from OpenAI and upload to S3
-            permanent_image_url = download_and_store_image(temp_image_url, quote_id or job_id)
+            # Check if we got a permanent S3 URL (base64 case) or temporary URL (URL case)
+            if image_result.startswith('https://') and 'amazonaws.com' in image_result:
+                # Already permanent S3 URL from base64 processing
+                permanent_image_url = image_result
+                logger.info(f"Using permanent S3 URL from base64 processing: {permanent_image_url}")
+            else:
+                # Temporary URL from OpenAI - need to download and store
+                permanent_image_url = download_and_store_image(image_result, quote_id or job_id)
             
             logger.info(f"Stored permanent image for job {job_id}: {permanent_image_url}")
             
@@ -60,14 +65,14 @@ def lambda_handler(event, context):
             if quote_id:
                 try:
                     table.update_item(
-                        Key={'PK': f'QUOTE#{quote_id}', 'SK': f'QUOTE#{quote_id}'},
+                        Key={'id': quote_id},  # Use simple id key like admin handler
                         UpdateExpression='SET image_url = :url, updated_at = :now',
                         ExpressionAttributeValues={
                             ':url': permanent_image_url,
                             ':now': datetime.utcnow().isoformat()
                         }
                     )
-                    logger.info(f"Updated quote {quote_id} with permanent image URL")
+                    logger.info(f"Updated quote {quote_id} with permanent image URL: {permanent_image_url}")
                 except Exception as e:
                     logger.error(f"Failed to update quote with image URL: {str(e)}")
             
@@ -124,6 +129,40 @@ def download_and_store_image(temp_url, identifier):
         logger.warning("Falling back to temporary OpenAI URL")
         return temp_url
 
+def upload_base64_image_to_s3(image_data, identifier):
+    """
+    Upload base64 image data directly to S3.
+    Returns the permanent S3 URL.
+    """
+    try:
+        if not QUOTE_IMAGES_BUCKET:
+            raise ValueError('QUOTE_IMAGES_BUCKET environment variable not set')
+        
+        # Generate a unique filename
+        file_extension = 'png'  # DALL-E generates PNG images
+        filename = f"{identifier}-{uuid.uuid4().hex[:8]}.{file_extension}"
+        
+        logger.info(f"Uploading base64 image data to S3: {filename}")
+        
+        # Upload to S3
+        s3_client.put_object(
+            Bucket=QUOTE_IMAGES_BUCKET,
+            Key=filename,
+            Body=image_data,
+            ContentType='image/png',
+            CacheControl='max-age=31536000',  # 1 year cache
+        )
+        
+        # Generate the permanent S3 URL
+        permanent_url = f"https://{QUOTE_IMAGES_BUCKET}.s3.amazonaws.com/{filename}"
+        
+        logger.info(f"Successfully stored base64 image at: {permanent_url}")
+        return permanent_url
+        
+    except Exception as e:
+        logger.error(f"Failed to upload base64 image to S3: {str(e)}")
+        raise
+
 def update_job_status(job_id, status, image_url=None, error=None):
     """Update job status in DynamoDB."""
     try:
@@ -142,7 +181,7 @@ def update_job_status(job_id, status, image_url=None, error=None):
             expr_values[':error'] = error
         
         table.update_item(
-            Key={'PK': f'JOB#{job_id}', 'SK': 'METADATA'},
+            Key={'id': f'JOB_{job_id}'},  # Use simple id key
             UpdateExpression=update_expr,
             ExpressionAttributeNames={'#status': 'status'},
             ExpressionAttributeValues=expr_values
@@ -171,11 +210,9 @@ Style Guidelines:
 
 Visual Elements:
 - Symbolic representations of the quote's core message
-- Natural elements like soft light rays, flowing water, or serene landscapes
-- Geometric patterns or flowing lines suggesting growth, progress, or wisdom
-- Subtle textures that add depth without overwhelming
 - Color psychology matching the quote's emotional tone
-- Composition leaves space for text overlay
+- Diverse, inclusive imagery when depicting people or cultural elements
+- Abstract or symbolic elements preferred over literal representations
 
 Quote: "{quote}"
 Author: {author}"""
@@ -217,31 +254,70 @@ def get_author_context(author):
 
 def generate_image_with_openai(prompt):
     """
-    Calls OpenAI API to generate an image - uses official OpenAI client like the working example.
+    Calls OpenAI API to generate an image using REST API directly.
     """
     
     if not OPENAI_API_KEY:
         raise ValueError('OpenAI API key not configured')
     
-    # Initialize OpenAI client exactly like the working example
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    
     logger.info(f"Calling OpenAI API with prompt: {prompt[:100]}...")
     
+    # Prepare the request following your working example
+    url = "https://api.openai.com/v1/images/generations"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": "gpt-image-1",
+        "prompt": prompt,
+        "size": "1024x1024",
+        "n": 1
+    }
+    
     try:
-        # Match the working example exactly
-        result = client.images.generate(
-            model="gpt-image-1",
-            prompt=prompt,
-            size="1024x1024"
-        )
+        # Make the API request
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
         
-        # Get the image URL exactly like the working example
-        image_url = result.data[0].url
+        data = response.json()
         
-        logger.info(f"OpenAI API successful, image URL: {image_url}")
-        return image_url
-        
-    except Exception as e:
-        logger.error(f"OpenAI API request failed: {str(e)}")
+        # Extract the image data from the response - handle both URL and base64 formats
+        if "data" in data and len(data["data"]) > 0:
+            item = data["data"][0]
+            
+            if "b64_json" in item:
+                # Handle base64 response format
+                logger.info("Received base64 image data from OpenAI")
+                image_data = base64.b64decode(item["b64_json"])
+                
+                # Upload directly to S3 and return the permanent URL
+                return upload_base64_image_to_s3(image_data, f"openai-{uuid.uuid4().hex[:8]}")
+                
+            elif "url" in item:
+                # Handle URL response format
+                image_url = item["url"]
+                logger.info(f"OpenAI API successful, image URL: {image_url}")
+                return image_url
+            else:
+                logger.error(f"Unexpected response format: {data}")
+                raise Exception("Unexpected response format from OpenAI")
+        else:
+            logger.error(f"No data in response: {data}")
+            raise Exception("No image data in OpenAI response")
+            
+    except requests.exceptions.RequestException as e:
+        # Log the full response details for debugging
+        if hasattr(e, 'response') and e.response is not None:
+            logger.error(f"OpenAI API request failed: {str(e)}")
+            logger.error(f"Response status: {e.response.status_code}")
+            logger.error(f"Response headers: {dict(e.response.headers)}")
+            logger.error(f"Response body: {e.response.text}")
+            logger.error(f"Request payload: {json.dumps(payload)}")
+        else:
+            logger.error(f"OpenAI API request failed: {str(e)}")
         raise Exception(f"OpenAI API request failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error processing OpenAI response: {str(e)}")
+        raise

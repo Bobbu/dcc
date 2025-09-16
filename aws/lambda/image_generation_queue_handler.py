@@ -12,7 +12,8 @@ logger.setLevel(logging.INFO)
 # AWS services
 sqs = boto3.client('sqs')
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('dcc-quotes-optimized')
+quotes_table_name = os.environ.get('QUOTES_TABLE_NAME', 'quote-me-quotes')
+table = dynamodb.Table(quotes_table_name)
 
 # SQS Queue URL (will be set from environment variable)
 QUEUE_URL = os.environ.get('IMAGE_GENERATION_QUEUE_URL')
@@ -59,8 +60,7 @@ def lambda_handler(event, context):
         
         # Create job record in DynamoDB for tracking
         job_item = {
-            'PK': f'JOB#{job_id}',
-            'SK': 'METADATA',
+            'id': f'JOB_{job_id}',  # Use simple id field for primary key
             'job_id': job_id,
             'status': 'queued',
             'quote': quote,
@@ -71,7 +71,7 @@ def lambda_handler(event, context):
             'type': 'image_generation_job'
         }
         
-        # Store job status in the same table with a different partition key pattern
+        # Store job status in the quotes table
         table.put_item(Item=job_item)
         
         # Send message to SQS queue

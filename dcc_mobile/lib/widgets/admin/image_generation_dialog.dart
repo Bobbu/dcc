@@ -27,13 +27,14 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
   final _quoteController = TextEditingController();
   final _authorController = TextEditingController();
   final _tagsController = TextEditingController();
+  final _customUrlController = TextEditingController();
   
   bool _isGenerating = false;
   String? _generatedImageUrl;
   String? _errorMessage;
-  String? _currentJobId;
   Timer? _statusTimer;
   String _jobStatus = '';
+  bool _useCustomUrl = false;
 
   @override
   void initState() {
@@ -48,6 +49,7 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
   void dispose() {
     _quoteController.dispose();
     _authorController.dispose();
+    _customUrlController.dispose();
     _tagsController.dispose();
     _statusTimer?.cancel();
     super.dispose();
@@ -75,7 +77,6 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
       );
 
       setState(() {
-        _currentJobId = jobId;
         _jobStatus = 'Job submitted. Generating image...';
       });
 
@@ -85,6 +86,60 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to submit job: $e';
+        _isGenerating = false;
+        _jobStatus = '';
+      });
+    }
+  }
+
+  Future<void> _saveCustomUrl() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (!_useCustomUrl || _customUrlController.text.trim().isEmpty) return;
+
+    setState(() {
+      _isGenerating = true;
+      _errorMessage = null;
+      _jobStatus = 'Processing URL and extracting direct image link...';
+    });
+
+    try {
+      // Auto-prepend https:// if no protocol specified
+      String imageUrl = _customUrlController.text.trim();
+      if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        imageUrl = 'https://$imageUrl';
+      }
+      
+      // If we have a quote ID, update it directly
+      if (widget.quoteId != null) {
+        final success = await OpenAIImageGenerator.saveCustomImageUrl(
+          quoteId: widget.quoteId!,
+          imageUrl: imageUrl,
+        );
+
+        if (success) {
+          // Force image refresh by clearing cache
+          final imageProvider = NetworkImage(imageUrl);
+          imageProvider.evict();
+          
+          setState(() {
+            _generatedImageUrl = imageUrl;
+            _isGenerating = false;
+            _jobStatus = 'Custom image URL saved successfully!';
+          });
+        } else {
+          throw Exception('Failed to save custom image URL');
+        }
+      } else {
+        // No quote ID - just show the URL as if it was generated
+        setState(() {
+          _generatedImageUrl = imageUrl;
+          _isGenerating = false;
+          _jobStatus = 'Custom image URL ready!';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to save custom URL: $e';
         _isGenerating = false;
         _jobStatus = '';
       });
@@ -132,74 +187,51 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
     });
   }
 
-  Future<void> _generateTestImage() async {
-    setState(() {
-      _isGenerating = true;
-      _errorMessage = null;
-      _generatedImageUrl = null;
-      _jobStatus = 'Submitting test job...';
-    });
-
-    try {
-      final jobId = await OpenAIImageGenerator.generateTestImage();
-      
-      setState(() {
-        _currentJobId = jobId;
-        _jobStatus = 'Test job submitted. Generating image...';
-      });
-
-      // Start polling for status
-      _startStatusPolling(jobId);
-      
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to submit test job: $e';
-        _isGenerating = false;
-        _jobStatus = '';
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
       child: Container(
         width: MediaQuery.of(context).size.width * 0.9,
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: const EdgeInsets.all(24),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            Row(
-              children: [
-                Icon(
-                  Icons.image,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  widget.existingImageUrl != null 
-                      ? 'Update Quote Image' 
-                      : 'Generate Quote Image',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                  ) ?? const TextStyle(),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.image,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    widget.existingImageUrl != null 
+                        ? 'Update Quote Image' 
+                        : 'Generate Quote Image',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ) ?? const TextStyle(),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
 
             // Form
             Expanded(
               child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -250,6 +282,78 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
                         ),
                       ),
                       const SizedBox(height: 24),
+                      
+                      // Custom URL option
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Switch(
+                                  value: _useCustomUrl,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _useCustomUrl = value;
+                                      if (value) {
+                                        _errorMessage = null;
+                                      }
+                                    });
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Use Custom Image URL',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(width: 8),
+                                Tooltip(
+                                  message: 'Provide your own image URL instead of generating with AI',
+                                  child: Icon(
+                                    Icons.info_outline,
+                                    size: 16,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_useCustomUrl) ...[
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _customUrlController,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
+                                decoration: const InputDecoration(
+                                  labelText: 'Image URL *',
+                                  hintText: 'Direct image URL or sharing page URL',
+                                  helperText: 'You can paste sharing URLs from reve.com, etc.',
+                                  helperMaxLines: 2,
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.link),
+                                ),
+                                validator: _useCustomUrl ? (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'URL is required when using custom URL';
+                                  }
+                                  // Just check if it looks like a valid URL (we'll auto-add https if needed)
+                                  if (!value.contains('.') || value.contains(' ')) {
+                                    return 'Please enter a valid URL (e.g., example.com/image.jpg)';
+                                  }
+                                  return null;
+                                } : null,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
                       // Action buttons
                       Row(
@@ -260,7 +364,7 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
                               Row(
                                 children: [
                                   ElevatedButton.icon(
-                                    onPressed: _isGenerating ? null : _generateImage,
+                                    onPressed: _isGenerating ? null : (_useCustomUrl ? _saveCustomUrl : _generateImage),
                                     icon: _isGenerating
                                         ? const SizedBox(
                                             width: 16,
@@ -270,18 +374,14 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
                                               color: Colors.white,
                                             ),
                                           )
-                                        : const Icon(Icons.auto_awesome),
+                                        : Icon(_useCustomUrl ? Icons.save : Icons.auto_awesome),
                                     label: Text(_isGenerating 
                                         ? 'Processing...' 
-                                        : widget.existingImageUrl != null 
-                                            ? 'Generate New Image'
-                                            : 'Generate Image'),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  TextButton.icon(
-                                    onPressed: _isGenerating ? null : _generateTestImage,
-                                    icon: const Icon(Icons.science),
-                                    label: const Text('Test Image'),
+                                        : _useCustomUrl
+                                            ? 'Save Custom Image'
+                                            : widget.existingImageUrl != null 
+                                                ? 'Generate New Image'
+                                                : 'Generate Image'),
                                   ),
                                 ],
                               ),
@@ -355,51 +455,74 @@ class _ImageGenerationDialogState extends State<ImageGenerationDialog> {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  _generatedImageUrl!,
-                                  fit: BoxFit.contain,
-                                  width: double.infinity,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      height: 200,
-                                      alignment: Alignment.center,
-                                      child: CircularProgressIndicator(
-                                        value: loadingProgress.expectedTotalBytes != null
-                                            ? loadingProgress.cumulativeBytesLoaded /
-                                                loadingProgress.expectedTotalBytes!
-                                            : null,
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      height: 200,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.errorContainer,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Center(
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.broken_image,
-                                              size: 48,
-                                              color: Theme.of(context).colorScheme.error,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Failed to load image',
-                                              style: TextStyle(
-                                                color: Theme.of(context).colorScheme.onErrorContainer,
-                                              ),
-                                            ),
-                                          ],
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 300,
+                                    minHeight: 150,
+                                  ),
+                                  child: Image.network(
+                                    _generatedImageUrl!.contains('?') 
+                                        ? '$_generatedImageUrl&t=${DateTime.now().millisecondsSinceEpoch}'
+                                        : '$_generatedImageUrl?t=${DateTime.now().millisecondsSinceEpoch}',
+                                    fit: BoxFit.contain,
+                                    width: double.infinity,
+                                    headers: {
+                                      'User-Agent': 'Mozilla/5.0 (compatible; Quote-Me-App/1.0)',
+                                    },
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        height: 200,
+                                        alignment: Alignment.center,
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded /
+                                                  loadingProgress.expectedTotalBytes!
+                                              : null,
                                         ),
-                                      ),
-                                    );
-                                  },
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        height: 200,
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).colorScheme.errorContainer,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.broken_image,
+                                                size: 48,
+                                                color: Theme.of(context).colorScheme.error,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Failed to load image',
+                                                style: TextStyle(
+                                                  color: Theme.of(context).colorScheme.onErrorContainer,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Error: ${error.toString()}',
+                                                style: TextStyle(
+                                                  color: Theme.of(context).colorScheme.onErrorContainer,
+                                                  fontSize: 10,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
                             ),

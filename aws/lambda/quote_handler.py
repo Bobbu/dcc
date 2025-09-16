@@ -131,12 +131,9 @@ def get_quote_by_id(quote_id):
                 'body': json.dumps({'error': 'Quote ID is required'})
             }
         
-        # Query the quote directly
+        # Query the quote directly using simple key structure
         response = table.get_item(
-            Key={
-                'PK': f'QUOTE#{quote_id}',
-                'SK': f'QUOTE#{quote_id}'
-            }
+            Key={'id': quote_id}
         )
         
         if 'Item' not in response:
@@ -459,6 +456,7 @@ def format_quote_response(item):
             'quote': item.get('quote', ''),
             'author': item.get('author', ''),
             'tags': item.get('tags', []),
+            'image_url': item.get('image_url'),  # Include image URL if available
             'created_at': item.get('created_at'),
             'updated_at': item.get('updated_at')
         }

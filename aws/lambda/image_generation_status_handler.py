@@ -1,6 +1,7 @@
 import json
 import boto3
 import logging
+import os
 
 # Configure logging
 logger = logging.getLogger()
@@ -8,7 +9,8 @@ logger.setLevel(logging.INFO)
 
 # DynamoDB configuration
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('dcc-quotes-optimized')
+quotes_table_name = os.environ.get('QUOTES_TABLE_NAME', 'quote-me-quotes')
+table = dynamodb.Table(quotes_table_name)
 
 def lambda_handler(event, context):
     """
@@ -37,7 +39,7 @@ def lambda_handler(event, context):
         logger.info(f"Checking status for job {job_id}")
         
         # Get job status from DynamoDB
-        response = table.get_item(Key={'PK': f'JOB#{job_id}', 'SK': 'METADATA'})
+        response = table.get_item(Key={'id': f'JOB_{job_id}'})
         
         if 'Item' not in response:
             return {

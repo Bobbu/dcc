@@ -37,6 +37,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   String? _quote;
   String? _author;
   String? _currentQuoteId;
+  String? _currentImageUrl;
   List<String> _currentTags = [];
   bool _isLoading = false;
   String? _error;
@@ -810,7 +811,18 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
           _quote = data['quote'];
           _author = data['author'];
           _currentQuoteId = data['id'];
-          _currentTags = List<String>.from(data['tags'] ?? []);
+          _currentImageUrl = data['image_url'];
+          
+          // Handle tags - they might be returned as string or array
+          var tagsData = data['tags'] ?? [];
+          if (tagsData is String) {
+            _currentTags = tagsData.split(',').map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toList();
+          } else if (tagsData is List) {
+            _currentTags = List<String>.from(tagsData);
+          } else {
+            _currentTags = [];
+          }
+          
           _isLoading = false;
         });
         
@@ -868,6 +880,380 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
         _isLoading = false;
       });
     }
+  }
+
+  Widget _buildCardWithImage() {
+    return AspectRatio(
+      aspectRatio: 1.0, // Square aspect ratio for AI-generated images
+      child: Stack(
+        children: [
+          // Background image filling the square
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                _currentImageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.brown.shade600,
+                          Colors.orange.shade800,
+                          Colors.brown.shade700,
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          
+          // Overlay for text readability
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.3),
+                    Colors.black.withValues(alpha: 0.5),
+                    Colors.black.withValues(alpha: 0.3),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          
+          // Content overlaid on image
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.format_quote,
+                    color: Colors.white.withValues(alpha: 230),
+                    size: 32,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _quote!,
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      height: 1.4,
+                      fontSize: Theme.of(context).textTheme.headlineLarge?.fontSize != null 
+                          ? (Theme.of(context).textTheme.headlineLarge!.fontSize! * 1.1)
+                          : null,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(-1.5, -1.5),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.9),
+                        ),
+                        Shadow(
+                          offset: Offset(1.5, -1.5),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.9),
+                        ),
+                        Shadow(
+                          offset: Offset(-1.5, 1.5),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.9),
+                        ),
+                        Shadow(
+                          offset: Offset(1.5, 1.5),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.9),
+                        ),
+                        Shadow(
+                          offset: Offset(0, 0),
+                          blurRadius: 6,
+                          color: Colors.black.withValues(alpha: 0.8),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '— $_author',
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.95),
+                      fontSize: Theme.of(context).textTheme.headlineLarge?.fontSize != null 
+                          ? (Theme.of(context).textTheme.headlineLarge!.fontSize! * 0.9)
+                          : null,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(-1, -1),
+                          blurRadius: 2,
+                          color: Colors.black.withValues(alpha: 0.7),
+                        ),
+                        Shadow(
+                          offset: Offset(1, -1),
+                          blurRadius: 2,
+                          color: Colors.black.withValues(alpha: 0.7),
+                        ),
+                        Shadow(
+                          offset: Offset(-1, 1),
+                          blurRadius: 2,
+                          color: Colors.black.withValues(alpha: 0.7),
+                        ),
+                        Shadow(
+                          offset: Offset(1, 1),
+                          blurRadius: 2,
+                          color: Colors.black.withValues(alpha: 0.7),
+                        ),
+                        Shadow(
+                          offset: Offset(0, 0),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.5),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_currentQuoteId != null)
+                        FavoriteHeartButton(
+                          quoteId: _currentQuoteId!,
+                          size: 28,
+                        ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: IconButton(
+                          onPressed: _audioEnabled 
+                            ? () {
+                                LoggerService.debug('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
+                                if (_isSpeaking) {
+                                  _stopSpeaking();
+                                } else {
+                                  _speakQuote();
+                                }
+                              }
+                            : null,
+                          icon: Icon(
+                            _isSpeaking 
+                              ? Icons.stop 
+                              : _audioEnabled 
+                                ? Icons.volume_up 
+                                : Icons.volume_off,
+                            color: _audioEnabled ? Colors.white : Colors.white.withValues(alpha: 128),
+                          ),
+                          tooltip: _audioEnabled
+                            ? (_isSpeaking ? 'Stop Reading' : 'Read Quote Aloud')
+                            : 'Audio disabled (enable in settings)',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardWithoutImage() {
+    return AspectRatio(
+      aspectRatio: 1.0, // Square aspect ratio for consistency
+      child: Stack(
+        children: [
+          // Sunny gradient background filling the square
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.brown.shade600,
+                    Colors.orange.shade800,
+                    Colors.brown.shade700,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          
+          // Light overlay for text readability
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.1),
+                    Colors.white.withValues(alpha: 0.2),
+                    Colors.white.withValues(alpha: 0.1),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          
+          // Content overlaid on gradient
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.format_quote,
+                    color: Colors.white.withValues(alpha: 230),
+                    size: 32,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _quote!,
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      height: 1.4,
+                      fontSize: Theme.of(context).textTheme.headlineLarge?.fontSize != null 
+                          ? (Theme.of(context).textTheme.headlineLarge!.fontSize! * 1.1)
+                          : null,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(-1.5, -1.5),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.9),
+                        ),
+                        Shadow(
+                          offset: Offset(1.5, -1.5),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.9),
+                        ),
+                        Shadow(
+                          offset: Offset(-1.5, 1.5),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.9),
+                        ),
+                        Shadow(
+                          offset: Offset(1.5, 1.5),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.9),
+                        ),
+                        Shadow(
+                          offset: Offset(0, 0),
+                          blurRadius: 6,
+                          color: Colors.black.withValues(alpha: 0.8),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '— $_author',
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.95),
+                      fontSize: Theme.of(context).textTheme.headlineLarge?.fontSize != null 
+                          ? (Theme.of(context).textTheme.headlineLarge!.fontSize! * 0.9)
+                          : null,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(-1, -1),
+                          blurRadius: 2,
+                          color: Colors.black.withValues(alpha: 0.7),
+                        ),
+                        Shadow(
+                          offset: Offset(1, -1),
+                          blurRadius: 2,
+                          color: Colors.black.withValues(alpha: 0.7),
+                        ),
+                        Shadow(
+                          offset: Offset(-1, 1),
+                          blurRadius: 2,
+                          color: Colors.black.withValues(alpha: 0.7),
+                        ),
+                        Shadow(
+                          offset: Offset(1, 1),
+                          blurRadius: 2,
+                          color: Colors.black.withValues(alpha: 0.7),
+                        ),
+                        Shadow(
+                          offset: Offset(0, 0),
+                          blurRadius: 3,
+                          color: Colors.black.withValues(alpha: 0.5),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_currentQuoteId != null)
+                        FavoriteHeartButton(
+                          quoteId: _currentQuoteId!,
+                          size: 28,
+                        ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: IconButton(
+                          onPressed: _audioEnabled 
+                            ? () {
+                                LoggerService.debug('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
+                                if (_isSpeaking) {
+                                  _stopSpeaking();
+                                } else {
+                                  _speakQuote();
+                                }
+                              }
+                            : null,
+                          icon: Icon(
+                            _isSpeaking 
+                              ? Icons.stop 
+                              : _audioEnabled 
+                                ? Icons.volume_up 
+                                : Icons.volume_off,
+                            color: _audioEnabled ? Colors.white : Colors.white.withValues(alpha: 128),
+                          ),
+                          tooltip: _audioEnabled
+                            ? (_isSpeaking ? 'Stop Reading' : 'Read Quote Aloud')
+                            : 'Audio disabled (enable in settings)',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1129,91 +1515,50 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     ),
                   )
                 else if (_quote != null && _author != null)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Card(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Theme.of(context).colorScheme.surface,
-                              Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.5),
-                            ],
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Main quote card (square with image or gradient)
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 8),
+                        child: _currentImageUrl != null && _currentImageUrl!.isNotEmpty
+                          ? _buildCardWithImage()
+                          : _buildCardWithoutImage(),
+                      ),
+                      // Overlaid Get Quote button at the bottom
+                      Positioned(
+                        bottom: 24,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(25),
                           ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.format_quote,
-                                color: Theme.of(context).colorScheme.secondary,
-                                size: 32,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _quote!,
-                                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                  fontStyle: FontStyle.italic,
-                                  color: Theme.of(context).colorScheme.primary,
-                                  height: 1.4,
+                          child: SizedBox(
+                            width: 200,
+                            child: ElevatedButton.icon(
+                              onPressed: _isLoading ? null : _getQuote,
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: Text(
+                                _isLoading ? 'Loading...' : 'Get Quote',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 20),
-                              Text(
-                                '— $_author',
-                                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).colorScheme.primary,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white.withValues(alpha: 0.95),
+                                foregroundColor: Colors.black87,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
                                 ),
-                                textAlign: TextAlign.center,
+                                elevation: 4,
                               ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  if (_currentQuoteId != null)
-                                    FavoriteHeartButton(
-                                      quoteId: _currentQuoteId!,
-                                      size: 28,
-                                    ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    onPressed: _audioEnabled 
-                                      ? () {
-                                          LoggerService.debug('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
-                                          if (_isSpeaking) {
-                                            _stopSpeaking();
-                                          } else {
-                                            _speakQuote();
-                                          }
-                                        }
-                                      : null,
-                                    icon: Icon(
-                                      _isSpeaking 
-                                        ? Icons.stop 
-                                        : _audioEnabled 
-                                          ? Icons.volume_up 
-                                          : Icons.volume_off,
-                                      color: _audioEnabled 
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Theme.of(context).colorScheme.primary.withValues(alpha: 77),
-                                    ),
-                                    tooltip: _audioEnabled
-                                      ? (_isSpeaking ? 'Stop Reading' : 'Read Quote Aloud')
-                                      : 'Audio disabled (enable in settings)',
-                                  ),
-                                ],
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   )
                 else
                   Container(
@@ -1251,23 +1596,27 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                       ],
                     ),
                   ),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: 280,
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _getQuote,
-                    icon: const Icon(Icons.refresh, size: 20),
-                    label: Text(
-                      _isLoading ? 'Loading...' : 'Get Quote',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shadowColor: Theme.of(context).colorScheme.secondary,
-                      elevation: 4,
+                // Only show Get Quote button when no quote is displayed
+                if (_quote == null && _author == null) ...[
+                  const SizedBox(height: 40),
+                  // Get Quote button for initial state
+                  SizedBox(
+                    width: 280,
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _getQuote,
+                      icon: const Icon(Icons.refresh, size: 20),
+                      label: Text(
+                        _isLoading ? 'Loading...' : 'Get Quote',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        shadowColor: Theme.of(context).colorScheme.secondary,
+                        elevation: 4,
+                      ),
                     ),
                   ),
-                ),
+                ],
                 // Authentication buttons for non-logged-in users
                 if (_authCheckComplete && !_isSignedIn) ...[
                   const SizedBox(height: 24),

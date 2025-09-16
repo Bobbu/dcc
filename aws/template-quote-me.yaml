@@ -85,6 +85,24 @@ Resources:
             Action: 's3:GetObject'
             Resource: !Sub '${QuoteImagesBucket.Arn}/*'
 
+  # SQS Queue for Image Generation
+  ImageGenerationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: quote-me-image-generation-queue
+      VisibilityTimeout: 360  # 6 minutes (longer than Lambda timeout)
+      MessageRetentionPeriod: 86400  # 1 day
+      ReceiveMessageWaitTimeSeconds: 20  # Long polling
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ImageGenerationDLQ.Arn
+        maxReceiveCount: 3
+
+  ImageGenerationDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: quote-me-image-generation-dlq
+      MessageRetentionPeriod: 1209600  # 14 days
+
   # DynamoDB Tables
   QuotesTable:
     Type: AWS::DynamoDB::Table
@@ -443,6 +461,70 @@ Resources:
             Auth:
               Authorizer: CognitoAuthorizer
               ApiKeyRequired: false
+        AdminSaveCustomImage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/save-custom-image
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  UsersHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-users-handler
+      CodeUri: lambda/
+      Handler: users_handler.handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          SUBSCRIPTION_TABLE: !Ref SubscriptionsTable
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:ListUsers
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminListGroupsForUser
+                - cognito-idp:AdminAddUserToGroup
+                - cognito-idp:AdminRemoveUserFromGroup
+                - cognito-idp:AdminDeleteUser
+              Resource: !GetAtt UserPool.Arn
+        - DynamoDBReadPolicy:
+            TableName: !Ref SubscriptionsTable
+      Events:
+        GetUsers:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/users
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        UpdateUser:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/users/{userId}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+        DeleteUser:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/users/{userId}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
 
   AuthHandlerFunction:
     Type: AWS::Serverless::Function
@@ -475,6 +557,194 @@ Resources:
       CodeUri: lambda/
       Handler: options_handler.lambda_handler
       Events:
+        # Admin endpoints OPTIONS
+        OptionsAdminQuotes:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/quotes
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminQuotesById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/quotes/{id}
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminSearch:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/search
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminTags:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/tags
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminTagsById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/tags/{tag}
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminTagsUnused:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/tags/unused
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminSaveCustomImage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/save-custom-image
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminUsers:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/users
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminUsersById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/users/{userId}
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminGenerateTags:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/generate-tags
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminCandidateQuotes:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/candidate-quotes
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminCandidateQuotesByTopic:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/candidate-quotes-by-topic
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminSubscriptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/subscriptions
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminGenerateImage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/generate-image
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsAdminImageGenerationStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /admin/image-generation-status/{jobId}
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        # User endpoints OPTIONS  
+        OptionsFavorites:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /favorites
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsFavoritesById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /favorites/{id}
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsFavoritesByIdCheck:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /favorites/{id}/check
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsSubscriptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /subscriptions
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsSubscriptionsTest:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /subscriptions/test
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        # Public endpoints OPTIONS
+        OptionsQuote:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /quote
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsQuoteById:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /quote/{id}
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        OptionsTags:
+          Type: Api
+          Properties:
+            RestApiId: !Ref QuoteMeApi
+            Path: /tags
+            Method: OPTIONS
+            Auth:
+              ApiKeyRequired: false
+        # Keep the catch-all for any other OPTIONS requests
         OptionsRoot:
           Type: Api
           Properties:
@@ -730,6 +1000,88 @@ Resources:
               Authorizer: CognitoAuthorizer
               ApiKeyRequired: false
 
+  # Image Generation Queue Handler Function
+  ImageGenerationQueueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-image-generation-queue
+      CodeUri: lambda/
+      Handler: image_generation_queue_handler.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          IMAGE_GENERATION_QUEUE_URL: !Ref ImageGenerationQueue
+          QUOTES_TABLE_NAME: !Ref QuotesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotesTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt ImageGenerationQueue.QueueName
+      Events:
+        GenerateImage:
+          Type: Api
+          Properties:
+            Path: /admin/generate-image
+            Method: POST
+            RestApiId: !Ref QuoteMeApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
+  # Image Generation Processor Function (processes SQS messages)
+  ImageGenerationProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-image-generation-processor
+      CodeUri: lambda/
+      Handler: openai_based_image_generator.lambda_handler
+      Runtime: python3.9
+      Timeout: 300  # 5 minutes for image generation
+      ReservedConcurrentExecutions: 2  # Limit concurrent executions to avoid rate limits
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          QUOTE_IMAGES_BUCKET: !Ref QuoteImagesBucket
+          QUOTES_TABLE_NAME: !Ref QuotesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuotesTable
+        - S3CrudPolicy:
+            BucketName: !Ref QuoteImagesBucket
+      Events:
+        QueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ImageGenerationQueue.Arn
+            BatchSize: 1  # Process one at a time
+
+  # Image Generation Status Function
+  ImageGenerationStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-image-generation-status
+      CodeUri: lambda/
+      Handler: image_generation_status_handler.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          QUOTES_TABLE_NAME: !Ref QuotesTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref QuotesTable
+      Events:
+        CheckStatus:
+          Type: Api
+          Properties:
+            Path: /admin/image-generation-status/{jobId}
+            Method: GET
+            RestApiId: !Ref QuoteMeApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+              ApiKeyRequired: false
+
 Outputs:
   ApiUrl:
     Description: Custom Domain API URL
@@ -774,3 +1126,11 @@ Outputs:
   ProposedQuotesTableName:
     Description: DynamoDB Proposed Quotes Table Name
     Value: !Ref ProposedQuotesTable
+  
+  ImageGenerationQueueUrl:
+    Description: SQS Queue URL for Image Generation
+    Value: !Ref ImageGenerationQueue
+  
+  ImageGenerationDLQUrl:
+    Description: Dead Letter Queue URL for Image Generation
+    Value: !Ref ImageGenerationDLQ

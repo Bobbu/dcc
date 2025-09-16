@@ -952,6 +952,43 @@ def handle_search_quotes(event, user_claims):
         traceback.print_exc()
         return create_response(500, {"error": "Internal server error"})
 
+def handle_save_custom_image(event, user_claims):
+    """Handle POST /admin/save-custom-image - Save a custom image URL to a quote"""
+    if not user_claims['is_admin']:
+        return create_response(403, {"error": "Forbidden", "message": "Admin access required"})
+    
+    try:
+        body = json.loads(event.get('body', '{}'))
+        quote_id = body.get('quote_id')
+        image_url = body.get('image_url')
+        
+        if not quote_id or not image_url:
+            return create_response(400, {"error": "Missing quote_id or image_url"})
+        
+        # Update the quote with the custom image URL
+        timestamp = datetime.utcnow().isoformat()
+        
+        table.update_item(
+            Key={'id': quote_id},
+            UpdateExpression='SET image_url = :url, updated_at = :now',
+            ExpressionAttributeValues={
+                ':url': image_url,
+                ':now': timestamp
+            }
+        )
+        
+        print(f"✅ Custom image URL saved for quote {quote_id}")
+        
+        return create_response(200, {
+            "message": "Custom image URL saved successfully",
+            "quote_id": quote_id,
+            "image_url": image_url
+        })
+        
+    except Exception as e:
+        print(f"❌ Error saving custom image URL: {e}")
+        return create_response(500, {"error": f"Failed to save custom image URL: {str(e)}"})
+
 def handle_check_duplicate(event, user_claims):
     """Check if a quote is a duplicate of an existing quote"""
     if not user_claims['is_admin']:
@@ -1072,6 +1109,8 @@ def lambda_handler(event, context):
             return handle_delete_tag(event, user_claims)
         elif method == 'POST' and path == '/admin/check-duplicate':
             return handle_check_duplicate(event, user_claims)
+        elif method == 'POST' and path == '/admin/save-custom-image':
+            return handle_save_custom_image(event, user_claims)
         else:
             return create_response(404, {"error": "Not found"})
             
