@@ -17,11 +17,27 @@ Guidance for Claude Code when working with the Quote Me codebase.
 cd aws
 ./deploy.sh    # ALWAYS use this for consistent deployments
 ```
-✅ Uses `aws/template.yaml` as single source of truth
+✅ Uses `aws/template-quote-me.yaml` as single source of truth
 ✅ Handles OpenAI API key injection securely
-✅ Supports Google and Apple Sign In (Apple configured manually in AWS Console)
+✅ **Identity Providers**: Google and Apple Sign In configured via `configure_identity_providers.sh` script
 ✅ **Push Notifications**: Automatically detects and deploys FCM service account JSON
 ✅ **One-Click Deployment**: Single script handles all scenarios (FCM optional)
+✅ **"Scorched Earth" Ready**: Complete rebuild from scratch with consistent configuration
+
+#### Identity Provider Configuration
+```bash
+# Configure identity providers (runs automatically during deployment)
+./configure_identity_providers.sh 4    # Configure all (Google + Apple + OAuth flows)
+
+# Individual configuration options:
+./configure_identity_providers.sh 1    # Google only
+./configure_identity_providers.sh 2    # Apple only
+./configure_identity_providers.sh 3    # Update OAuth flows
+./configure_identity_providers.sh 5    # Show current config
+```
+✅ **Avoids CloudFormation Issues**: Identity providers configured outside CFN (resolves multi-line private key problems)
+✅ **OAuth Flows**: Automatically configures callback URLs, scopes, and flows
+✅ **Environment Integration**: Uses `.env.deployment` for credentials
 
 #### Standalone Apple Sign In Deployment
 ```bash
@@ -33,9 +49,11 @@ cd aws
 ✅ Outputs ready-to-use Amplify configuration
 
 **✅ DEPLOYMENT STATUS**
-- Database: `dcc-quotes-optimized` with 3,798 items, 4 GSI indexes
+- Database: `quote-me-quotes` with 2,327+ quotes, optimized GSI indexes
 - Performance: 5-25x improvement with GSI queries
-- Domain: `https://dcc.anystupididea.com`
+- Domain: `https://quote-me.anystupididea.com` (web app) / `https://dcc.anystupididea.com` (API)
+- **Federated Auth**: Google and Apple Sign In fully operational
+- **OAuth Configuration**: All callback URLs, flows, and scopes properly configured
 - All endpoints operational with JWT auth for admin
 
 ### API Testing
@@ -130,6 +148,26 @@ flutter build web --release  # Web
 **Export**: JSON/CSV to Download, Clipboard, or S3 with shareable URLs
 **Access**: Admin Dashboard → Menu
 
+### Identity Provider Configuration
+The system uses a hybrid approach for federated authentication:
+- **CloudFormation**: Manages core Cognito User Pool and Client infrastructure
+- **Shell Script**: Configures identity providers outside CloudFormation to avoid multi-line private key issues
+
+**Configuration Files:**
+- `configure_identity_providers.sh`: Automated identity provider setup
+- `.env.deployment`: Contains Google and Apple credentials
+- `template-quote-me.yaml`: Core infrastructure (identity providers removed)
+
+**Required Apple Developer Portal Setup:**
+- **Service ID**: `com.anystupididea.quoteme.signin`
+- **Domains and Subdomains**: `quote-me-auth-1757704767.auth.us-east-1.amazoncognito.com`
+- **Return URLs**: `https://quote-me-auth-1757704767.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`
+
+**Required Google Cloud Console Setup:**
+- **Client ID**: `445066027204-f4qcm9jdlborgg9koks4lce2uju7u1lt.apps.googleusercontent.com`
+- **Authorized JavaScript Origins**: `https://quote-me.anystupididea.com`
+- **Authorized Redirect URIs**: `https://quote-me-auth-1757704767.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`
+
 
 
 
@@ -140,7 +178,10 @@ flutter build web --release  # Web
 - **Environment**: `./update_env.sh` syncs AWS outputs to `.env`
 - **Auth Model**: API Key (public/rate-limited), JWT (admin/unlimited)
 - **Data Flow**: DynamoDB → Lambda → API Gateway → Flutter
-- **Domain**: https://dcc.anystupididea.com with CloudFront/SSL
+- **Domains**:
+  - API: https://dcc.anystupididea.com (AWS API Gateway with CloudFront/SSL)
+  - Web App: https://quote-me.anystupididea.com (Flutter web app)
+- **Identity Providers**: Configured via shell script outside CloudFormation
 
 ## API Endpoints
 
@@ -174,7 +215,8 @@ flutter build web --release  # Web
 - **Registration**: Self-service with email verification
 - **Groups**: "Users" (auto), "Admins" (manual)
 - **Admin**: `admin@dcc.com` / `AdminPass123!`
-- **Cognito**: Pool `us-east-1_ecyuILBAu`, Client `2idvhvlhgbheglr0hptel5j55`
+- **Cognito**: Pool `us-east-1_WCJMgcwll`, Client `308apko2vm7tphi0c74ec209cc`
+- **Federated Auth**: Google (`445066027204-f4qcm9jdlborgg9koks4lce2uju7u1lt.apps.googleusercontent.com`) and Apple (`com.anystupididea.quoteme.signin`)
 
 ## Production Status
 - **Database**: 3,798 quotes with O(1) tag retrieval
@@ -194,12 +236,14 @@ flutter build web --release  # Web
 - **Standards**: Clean architecture, automated testing
 
 ## Recent Improvements (September 2025)
-- **✅ Apple Sign In Implementation**: Complete federated authentication integration
-  - **Cross-Platform Support**: Works on iOS, Android, and web browsers  
-  - **AWS Cognito Integration**: Apple Identity Provider with proper attribute mapping
+- **✅ Federated Authentication Overhaul**: Complete Google and Apple Sign In implementation
+  - **Google Sign In**: Fully operational with proper OAuth flows and callback URLs
+  - **Apple Sign In**: Complete implementation with Apple Developer Portal integration
+  - **Cross-Platform Support**: Works on iOS, Android, and web browsers
+  - **AWS Cognito Integration**: Identity providers with proper attribute mapping
   - **Profile Screen Support**: Graceful handling of Apple's privacy-focused data sharing
-  - **Standalone Template**: Reusable `template_sign_in_with_apple.yaml` for new projects
-  - **One-Click Deployment**: `./deploy_apple_signin.sh` script for rapid setup
+  - **"Scorched Earth" Deployment**: Identity providers configured via shell script outside CloudFormation
+  - **OAuth Configuration**: Automatic setup of callback URLs, flows, and scopes
 - **✅ AI Quote Finding Features**: Admin-only quote discovery tools
   - **Find New Quotes by Author**: GPT-4o-mini powered author-specific quote finding
   - **Find New Quotes by Topic**: Topic-based quote discovery across multiple authors
