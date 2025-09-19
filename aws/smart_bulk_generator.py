@@ -5,6 +5,7 @@ Smart Bulk Image Generator
 - Checks job status instead of blind waiting
 - Retries failed jobs
 - Provides real cost tracking
+- Tracks and skips previously failed quotes
 """
 
 import boto3
@@ -12,6 +13,7 @@ import requests
 import json
 import time
 import sys
+import os
 from datetime import datetime
 
 class Colors:
@@ -45,6 +47,11 @@ class SmartBulkGenerator:
             'retried': 0,
             'cost': 0.0  # DALL-E 3 costs $0.040 per image
         }
+        
+        # Failure tracking
+        self.failure_log_file = "failed_image_generation_quotes.txt"
+        self.failed_quotes = set()
+        self._load_failed_quotes()
         
     def setup_admin_user(self):
         """Create temporary admin user"""
@@ -96,6 +103,33 @@ class SmartBulkGenerator:
             print(f"{Colors.RED}✗ Setup failed: {e}{Colors.NC}")
             return False
     
+    def _load_failed_quotes(self):
+        """Load previously failed quotes from the tracking file"""
+        if os.path.exists(self.failure_log_file):
+            try:
+                with open(self.failure_log_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        # Extract quote text from format: "quote" -- author [optional error] # timestamp
+                        if line.strip() and '"' in line:
+                            # Find the quote between quotes
+                            start = line.find('"') + 1
+                            end = line.find('"', start)
+                            if end > start:
+                                quote_text = line[start:end]
+                                self.failed_quotes.add(quote_text)
+                print(f"{Colors.YELLOW}📋 Loaded {len(self.failed_quotes)} previously failed quotes{Colors.NC}")
+            except Exception as e:
+                print(f"{Colors.YELLOW}⚠ Could not load failure log: {e}{Colors.NC}")
+    
+    def _log_failed_quote(self, quote_text, author, error_reason=""):
+        """Log a failed quote to the failure tracking file"""
+        with open(self.failure_log_file, 'a', encoding='utf-8') as f:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            error_suffix = f" [{error_reason}]" if error_reason else ""
+            f.write(f'"{quote_text}" -- {author}{error_suffix} # {timestamp}\n')
+        # Also add to in-memory set
+        self.failed_quotes.add(quote_text)
+    
     def check_job_status(self, job_id):
         """Check the status of an image generation job"""
         try:
@@ -112,7 +146,7 @@ class SmartBulkGenerator:
             print(f"  {Colors.YELLOW}⚠ Could not check status: {e}{Colors.NC}")
             return 'error'
     
-    def wait_for_job(self, job_id, max_wait=300):
+    def wait_for_job(self, job_id, max_wait=300, quote=None):
         """Wait for job completion with status checking"""
         start_time = time.time()
         last_status = None
@@ -132,6 +166,9 @@ class SmartBulkGenerator:
                 elif status == 'failed':
                     print(f"  {Colors.RED}✗ [{elapsed}s] Image generation failed{Colors.NC}")
                     self.stats['failed'] += 1
+                    # Log the failed quote if we have the quote info
+                    if quote:
+                        self._log_failed_quote(quote['quote'], quote['author'], "OpenAI rejection")
                     return False
                 last_status = status
             
@@ -139,6 +176,8 @@ class SmartBulkGenerator:
         
         print(f"  {Colors.YELLOW}⚠ Timeout after {max_wait}s{Colors.NC}")
         self.stats['failed'] += 1
+        if quote:
+            self._log_failed_quote(quote['quote'], quote['author'], "Timeout")
         return False
     
     def submit_image_job(self, quote):
@@ -186,7 +225,7 @@ class SmartBulkGenerator:
             },
             params={
                 'limit': 500,
-                'sort_by': 'created_at',
+                'sort_by': 'updated_at',
                 'sort_order': 'asc'
             }
         )
@@ -198,10 +237,25 @@ class SmartBulkGenerator:
         quotes = response.json().get('quotes', [])
         quotes_without_images = [q for q in quotes if not q.get('image_url')]
         
-        print(f"Found {len(quotes_without_images)} quotes without images\n")
+        # Filter out previously failed quotes
+        quotes_to_process = []
+        skipped_count = 0
+        for q in quotes_without_images:
+            if q['quote'] in self.failed_quotes:
+                skipped_count += 1
+            else:
+                quotes_to_process.append(q)
+        
+        if skipped_count > 0:
+            print(f"{Colors.YELLOW}⚠ Skipping {skipped_count} previously failed quotes{Colors.NC}")
+        
+        print(f"Found {len(quotes_to_process)} quotes to process (after filtering failures)\n")
+        
+        if not quotes_to_process:
+            return False
         
         # Process batch
-        batch = quotes_without_images[:batch_size]
+        batch = quotes_to_process[:batch_size]
         
         for i, quote in enumerate(batch, 1):
             print(f"{Colors.PURPLE}━━━ Quote {i}/{len(batch)} ━━━{Colors.NC}")
@@ -215,7 +269,7 @@ class SmartBulkGenerator:
                 print(f"  📤 Job submitted: {job_id}")
                 
                 # Wait for completion with status checking
-                success = self.wait_for_job(job_id)
+                success = self.wait_for_job(job_id, quote=quote)
                 
                 if not success:
                     # Retry once if failed
@@ -223,7 +277,7 @@ class SmartBulkGenerator:
                     job_id = self.submit_image_job(quote)
                     if job_id:
                         self.stats['retried'] += 1
-                        self.wait_for_job(job_id)
+                        self.wait_for_job(job_id, quote=quote)
             
             print()
             

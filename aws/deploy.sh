@@ -70,6 +70,12 @@ if [ -n "$FCM_SERVICE_ACCOUNT_JSON" ]; then
         --parameter-overrides \
             OpenAIApiKey="$OPENAI_API_KEY" \
             FCMServiceAccountJSON="$FCM_SERVICE_ACCOUNT_JSON" \
+            GoogleClientId="$GOOGLE_CLIENT_ID" \
+            GoogleClientSecret="$GOOGLE_CLIENT_SECRET" \
+            AppleClientId="$APPLE_SERVICES_ID" \
+            AppleTeamId="$APPLE_TEAM_ID" \
+            AppleKeyId="$APPLE_KEY_ID" \
+            ApplePrivateKey="$APPLE_PRIVATE_KEY" \
         --s3-bucket $BUCKET_NAME \
         --s3-prefix quote-me-api 2>&1 | tee -a $LOG_FILE
 else
@@ -80,6 +86,12 @@ else
         --no-confirm-changeset \
         --parameter-overrides \
             OpenAIApiKey="$OPENAI_API_KEY" \
+            GoogleClientId="$GOOGLE_CLIENT_ID" \
+            GoogleClientSecret="$GOOGLE_CLIENT_SECRET" \
+            AppleClientId="$APPLE_SERVICES_ID" \
+            AppleTeamId="$APPLE_TEAM_ID" \
+            AppleKeyId="$APPLE_KEY_ID" \
+            ApplePrivateKey="$APPLE_PRIVATE_KEY" \
         --s3-bucket $BUCKET_NAME \
         --s3-prefix quote-me-api 2>&1 | tee -a $LOG_FILE
 fi
@@ -206,6 +218,15 @@ EOF
         echo "Sample quote: \"$SAMPLE_QUOTE...\""
     else
         echo -e "${YELLOW}API returned status $RESPONSE${NC}"
+    fi
+
+    # Configure identity providers (Google and Apple Sign In)
+    echo ""
+    echo -e "${YELLOW}Configuring identity providers...${NC}"
+    if ./configure_identity_providers.sh 4; then
+        echo -e "${GREEN}✓ Identity providers configured successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ Identity provider configuration failed (continuing anyway)${NC}"
     fi
     
 else

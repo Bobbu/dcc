@@ -10,6 +10,7 @@ import json
 import requests
 import time
 import sys
+import os
 from datetime import datetime
 from botocore.exceptions import ClientError
 
@@ -44,12 +45,66 @@ class BulkImageGenerator:
         self.token_obtained_at = None
         self.user_created = False
         
+        # Failure tracking
+        self.failure_log_file = "failed_image_generation_quotes.txt"
+        self.failed_quotes = set()
+        self._load_failed_quotes()
+        
         print(f"{Colors.PURPLE}╔══════════════════════════════════════════╗{Colors.NC}")
         print(f"{Colors.PURPLE}║     🎨 BULK QUOTE IMAGE GENERATOR 🎨     ║{Colors.NC}")
         print(f"{Colors.PURPLE}╚══════════════════════════════════════════╝{Colors.NC}")
         print(f"📅 Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"🎯 Target: Generate images for quotes without them")
+        if self.failed_quotes:
+            print(f"⚠️  Loaded {len(self.failed_quotes)} previously failed quotes (will skip)")
         print()
+
+    def _load_failed_quotes(self):
+        """Load previously failed quotes from the failure log file"""
+        try:
+            if os.path.exists(self.failure_log_file):
+                with open(self.failure_log_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            # Extract quote text from the format: "Quote text" -- Author
+                            if ' -- ' in line:
+                                quote_text = line.split(' -- ')[0].strip('"')
+                                self.failed_quotes.add(quote_text)
+                print(f"  {Colors.YELLOW}📝 Loaded {len(self.failed_quotes)} previously failed quotes{Colors.NC}")
+        except Exception as e:
+            print(f"  {Colors.YELLOW}⚠️ Could not load failure log: {str(e)}{Colors.NC}")
+
+    def _log_failed_quote(self, quote_text, author, error_reason=""):
+        """Log a failed quote to the failure tracking file"""
+        try:
+            # Create header if file doesn't exist
+            file_exists = os.path.exists(self.failure_log_file)
+            
+            with open(self.failure_log_file, 'a', encoding='utf-8') as f:
+                if not file_exists:
+                    f.write("# Failed Image Generation Quotes\n")
+                    f.write("# Format: \"Quote text\" -- Author [Error reason]\n")
+                    f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("#" + "="*60 + "\n\n")
+                
+                # Log the failed quote
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                error_suffix = f" [{error_reason}]" if error_reason else ""
+                f.write(f'"{quote_text}" -- {author}{error_suffix} # {timestamp}\n')
+            
+            # Add to in-memory set to avoid retrying this session
+            self.failed_quotes.add(quote_text)
+            
+            print(f"  {Colors.YELLOW}📝 Logged failure to {self.failure_log_file}{Colors.NC}")
+            
+        except Exception as e:
+            print(f"  {Colors.RED}✗ Could not log failure: {str(e)}{Colors.NC}")
+
+    def _should_skip_quote(self, quote):
+        """Check if a quote should be skipped due to previous failures"""
+        quote_text = quote.get('quote', '')
+        return quote_text in self.failed_quotes
 
     def setup_admin_user(self):
         """Create and authenticate a temporary admin user"""
@@ -168,13 +223,14 @@ class BulkImageGenerator:
             processed_ids = getattr(self, '_processed_quote_ids', set())
             
             # Keep fetching until we have enough quotes without images or run out
+            last_key = None  # Initialize pagination key
             while len(quotes_without_images) < limit:
                 # Build admin API request
                 admin_url = f"{self.api_url}/admin/quotes"
                 params = {
                     'limit': 500,  # Fetch more at once since pagination is broken
-                    'sort_by': 'created_at',
-                    'sort_order': 'asc'  # Get oldest quotes first (less likely to have images)
+                    'sort_by': 'updated_at',
+                    'sort_order': 'asc'  # Get oldest updated quotes first (process oldest unedited quotes first)
                 }
                 
                 if last_key:
@@ -201,10 +257,12 @@ class BulkImageGenerator:
                     print(f"  {Colors.YELLOW}📝 No more quotes available in database{Colors.NC}")
                     break
                 
-                # Filter this batch for quotes without images AND not already processed
+                # Filter this batch for quotes without images, not already processed, AND not previously failed
                 batch_without_images = [
                     q for q in batch_quotes 
-                    if not q.get('image_url') and q.get('id') not in processed_ids
+                    if not q.get('image_url') 
+                    and q.get('id') not in processed_ids
+                    and not self._should_skip_quote(q)
                 ]
                 quotes_without_images.extend(batch_without_images)
                 
@@ -220,10 +278,12 @@ class BulkImageGenerator:
                 
                 # Progress update
                 total_checked = len(batch_quotes)
-                without_images = len(batch_without_images)
-                with_images = total_checked - without_images
+                without_images_total = len([q for q in batch_quotes if not q.get('image_url')])
+                with_images = total_checked - without_images_total
+                previously_failed = len([q for q in batch_quotes if not q.get('image_url') and self._should_skip_quote(q)])
+                without_images_available = len(batch_without_images)
                 
-                print(f"  📊 Batch: {total_checked} quotes checked, {without_images} without images, {with_images} with images")
+                print(f"  📊 Batch: {total_checked} quotes checked, {without_images_total} without images ({previously_failed} skipped due to previous failures), {without_images_available} available for processing, {with_images} with images")
                 
                 # If no more pages, we're done
                 if not last_key:
@@ -288,14 +348,20 @@ class BulkImageGenerator:
                     return job_id
                 else:
                     print(f"  {Colors.RED}✗ No job ID in response{Colors.NC}")
+                    self._log_failed_quote(quote_text, author, "No job ID returned")
                     return None
             else:
+                error_reason = f"HTTP {response.status_code}"
+                response_text = response.text[:100] if response.text else "No response body"
                 print(f"  {Colors.RED}✗ Job submission failed (HTTP {response.status_code}){Colors.NC}")
-                print(f"    Response: {response.text[:100]}")
+                print(f"    Response: {response_text}")
+                self._log_failed_quote(quote_text, author, f"{error_reason}: {response_text}")
                 return None
                 
         except Exception as e:
-            print(f"  {Colors.RED}✗ Error submitting job: {str(e)}{Colors.NC}")
+            error_msg = str(e)
+            print(f"  {Colors.RED}✗ Error submitting job: {error_msg}{Colors.NC}")
+            self._log_failed_quote(quote_text, author, f"Exception: {error_msg}")
             return None
 
     def wait_for_completion(self, job_id, quote_author):
