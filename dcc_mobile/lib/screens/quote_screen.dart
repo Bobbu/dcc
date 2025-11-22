@@ -893,8 +893,8 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
         final availableHeight = screenHeight - 306;
         final availableWidth = screenWidth - 16; // Account for horizontal margins
 
-        // Use the smaller dimension to ensure it fits
-        final maxSize = availableHeight < availableWidth ? availableHeight : availableWidth;
+        // Always fit within vertical viewport (prioritize height over width)
+        final maxSize = availableHeight;
 
         return ConstrainedBox(
           constraints: BoxConstraints(
@@ -1105,8 +1105,8 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
         final availableHeight = screenHeight - 306;
         final availableWidth = screenWidth - 16; // Account for horizontal margins
 
-        // Use the smaller dimension to ensure it fits
-        final maxSize = availableHeight < availableWidth ? availableHeight : availableWidth;
+        // Always fit within vertical viewport (prioritize height over width)
+        final maxSize = availableHeight;
 
         return ConstrainedBox(
           constraints: BoxConstraints(
