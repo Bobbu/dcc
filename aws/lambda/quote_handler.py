@@ -162,22 +162,40 @@ def get_quote_by_id(quote_id):
 def get_all_tags():
     """Get all available tags from the database"""
     try:
-        # Query all tag items using GSI
+        # Query all tag items using GSI with pagination
+        tags = ['All']  # Always include 'All' option
+
+        # Initial query
         response = table.query(
             IndexName='TypeDateIndex',
             KeyConditionExpression=Key('type').eq('tag'),
             ProjectionExpression='#name',
             ExpressionAttributeNames={'#name': 'name'}
         )
-        
-        tags = ['All']  # Always include 'All' option
+
         for item in response['Items']:
             if 'name' in item:
                 tags.append(item['name'])
-        
+
+        # Continue querying while there are more pages
+        while 'LastEvaluatedKey' in response:
+            response = table.query(
+                IndexName='TypeDateIndex',
+                KeyConditionExpression=Key('type').eq('tag'),
+                ProjectionExpression='#name',
+                ExpressionAttributeNames={'#name': 'name'},
+                ExclusiveStartKey=response['LastEvaluatedKey']
+            )
+
+            for item in response['Items']:
+                if 'name' in item:
+                    tags.append(item['name'])
+
         # Remove duplicates and sort
         tags = sorted(list(set(tags)))
-        
+
+        logger.info(f"Retrieved {len(tags)} total tags from database")
+
         return {
             'statusCode': 200,
             'headers': CORS_HEADERS,

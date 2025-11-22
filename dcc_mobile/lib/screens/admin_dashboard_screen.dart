@@ -1844,7 +1844,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Dashboard'),
+        title: const Text('Quote Editor'),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) {

@@ -173,7 +173,7 @@ class AuthService {
   static Future<bool> signIn(String email, String password) async {
     try {
       LoggerService.info('Attempting sign-in for: $email');
-      
+
       final result = await Amplify.Auth.signIn(
         username: email,
         password: password,
@@ -192,7 +192,7 @@ class AuthService {
       }
     } catch (e) {
       LoggerService.error('Sign-in error: $e', error: e);
-      return false;
+      rethrow;
     }
   }
 
@@ -265,12 +265,12 @@ class AuthService {
     try {
       LoggerService.info('🔵 Starting Google OAuth sign-in via Cognito hosted UI...');
       LoggerService.info('🔍 Platform check - kIsWeb: $kIsWeb');
-      
+
       // Use Amplify's signInWithWebUI - the proper way according to AWS docs
       final result = await Amplify.Auth.signInWithWebUI(
         provider: AuthProvider.google,
       );
-      
+
       if (result.isSignedIn) {
         LoggerService.info('✅ Google sign-in successful via Amplify');
         FavoritesService.preloadFavorites().catchError((e) {
@@ -283,7 +283,7 @@ class AuthService {
       }
     } catch (e) {
       LoggerService.error('Google OAuth sign-in error: $e', error: e);
-      return false;
+      rethrow;
     }
   }
 
@@ -291,16 +291,16 @@ class AuthService {
     try {
       LoggerService.info('🍎 Starting Apple OAuth sign-in via Cognito hosted UI...');
       LoggerService.info('🔍 Platform check - kIsWeb: $kIsWeb');
-      
+
       // Ensure Amplify is properly configured and initialized
       await configure();
       await Future.delayed(const Duration(milliseconds: 200));
-      
+
       // Use Amplify's signInWithWebUI with Apple provider
       final result = await Amplify.Auth.signInWithWebUI(
         provider: AuthProvider.apple,
       );
-      
+
       if (result.isSignedIn) {
         LoggerService.info('✅ Apple sign-in successful via Amplify');
         FavoritesService.preloadFavorites().catchError((e) {
@@ -313,7 +313,7 @@ class AuthService {
       }
     } catch (e) {
       LoggerService.error('Apple OAuth sign-in error: $e', error: e);
-      return false;
+      rethrow;
     }
   }
   

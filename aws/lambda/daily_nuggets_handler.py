@@ -198,7 +198,10 @@ def update_subscription(email, body):
         delivery_method = body.get('delivery_method', 'email')
         timezone_str = body.get('timezone', 'America/New_York')
         notification_preferences = body.get('notification_preferences', {})
-        
+
+        # Extract delivery hour if provided
+        delivery_hour = notification_preferences.get('deliveryHour', 8)  # Default to 8 AM
+
         # Prepare item for DynamoDB
         item = {
             'email': email,
@@ -208,13 +211,18 @@ def update_subscription(email, body):
             'created_at': datetime.now(timezone.utc).isoformat(),
             'updated_at': datetime.now(timezone.utc).isoformat()
         }
-        
-        # Add notification preferences if provided
+
+        # Add notification preferences if provided (including deliveryHour)
         if notification_preferences:
+            # Ensure deliveryHour is included
+            if 'deliveryHour' not in notification_preferences:
+                notification_preferences['deliveryHour'] = 8  # Default to 8 AM
             item['notificationPreferences'] = notification_preferences
-            logger.info(f"📱 Storing notification preferences: {json.dumps(notification_preferences, cls=DecimalEncoder)}")
+            logger.info(f"📱 Storing notification preferences with delivery hour {notification_preferences['deliveryHour']}: {json.dumps(notification_preferences, cls=DecimalEncoder)}")
         else:
-            logger.info("📱 No notification preferences provided - FCM token will not be stored")
+            # Even if no preferences provided, add default delivery hour
+            item['notificationPreferences'] = {'deliveryHour': 8}
+            logger.info("📱 No notification preferences provided - setting default delivery hour to 8 AM")
         
         # Check if subscription exists to preserve created_at
         existing = subscriptions_table.get_item(Key={'email': email})
@@ -269,19 +277,73 @@ def delete_subscription(email):
 def handle_scheduled_delivery(event):
     """Handle scheduled EventBridge trigger to send daily emails"""
     try:
-        # Get timezone from event detail (passed from EventBridge rule)
-        target_timezone = event.get('detail', {}).get('timezone', 'America/New_York')
-        logger.info(f"Processing daily delivery for timezone: {target_timezone}")
-        
-        # Query all active subscriptions for this timezone
+        # Get the UTC hour from event detail (passed from EventBridge rule)
+        hour_utc = event.get('detail', {}).get('hour_utc', 0)
+        logger.info(f"Processing daily delivery for UTC hour: {hour_utc}")
+
+        # Query all active subscriptions with email delivery
         response = subscriptions_table.scan(
-            FilterExpression=Attr('is_subscribed').eq(True) & 
-                           Attr('timezone').eq(target_timezone) &
+            FilterExpression=Attr('is_subscribed').eq(True) &
                            Attr('delivery_method').eq('email')
         )
-        
-        subscribers = response.get('Items', [])
-        logger.info(f"Found {len(subscribers)} subscribers for {target_timezone}")
+
+        all_subscribers = response.get('Items', [])
+
+        # Timezone offset mapping (without pytz dependency)
+        # This handles US timezones and a few common ones
+        timezone_offsets = {
+            'America/New_York': -5,      # EST (or -4 during EDT)
+            'America/Chicago': -6,       # CST (or -5 during CDT)
+            'America/Denver': -7,        # MST (or -6 during MDT)
+            'America/Los_Angeles': -8,   # PST (or -7 during PDT)
+            'America/Phoenix': -7,       # MST (no DST)
+            'Europe/London': 0,          # GMT (or +1 during BST)
+            'Europe/Paris': 1,           # CET (or +2 during CEST)
+            'Asia/Tokyo': 9,             # JST
+            'Australia/Sydney': 10,      # AEST (or +11 during AEDT)
+        }
+
+        # For simplicity, we'll check if we're in DST period (March-November for US)
+        # This is approximate but good enough for daily delivery
+        current_month = datetime.now().month
+        is_dst_period = 3 <= current_month <= 11
+
+        # Adjust offsets for DST where applicable
+        if is_dst_period:
+            timezone_offsets['America/New_York'] = -4
+            timezone_offsets['America/Chicago'] = -5
+            timezone_offsets['America/Denver'] = -6
+            timezone_offsets['America/Los_Angeles'] = -7
+            timezone_offsets['Europe/London'] = 1
+            timezone_offsets['Europe/Paris'] = 2
+            timezone_offsets['Australia/Sydney'] = 11
+
+        # Filter subscribers who should receive email at this UTC hour
+        subscribers = []
+        for subscriber in all_subscribers:
+            timezone_str = subscriber.get('timezone', 'America/New_York')
+            notification_prefs = subscriber.get('notificationPreferences', {})
+            delivery_hour = notification_prefs.get('deliveryHour', 8)  # Default to 8 AM if not set
+
+            try:
+                # Get timezone offset
+                offset = timezone_offsets.get(timezone_str, -5)  # Default to Eastern if unknown
+
+                # Calculate local hour from UTC hour
+                local_hour = (hour_utc + offset) % 24
+                if local_hour < 0:
+                    local_hour += 24
+
+                # Check if this is the user's preferred delivery hour
+                if local_hour == delivery_hour:
+                    subscribers.append(subscriber)
+                    logger.info(f"Will send to {subscriber['email']} - {timezone_str} local hour {local_hour} matches preference {delivery_hour}")
+                else:
+                    logger.debug(f"Skipping {subscriber['email']} - {timezone_str} local hour {local_hour} != preference {delivery_hour}")
+
+            except Exception as e:
+                logger.error(f"Error processing timezone for {subscriber['email']}: {str(e)}")
+        logger.info(f"Found {len(subscribers)} to email at UTC hour {hour_utc}")
         
         # Get today's quote
         quote_data = get_daily_quote()
@@ -310,7 +372,7 @@ def handle_scheduled_delivery(event):
         return {
             'statusCode': 200,
             'body': json.dumps({
-                'message': f'Daily delivery complete for {target_timezone}',
+                'message': f'Daily delivery complete for UTC hour {hour_utc}',
                 'sent': success_count,
                 'failed': error_count
             })
@@ -355,7 +417,21 @@ def send_daily_email(recipient_email, quote_data):
     try:
         # Format the email
         subject = f"🌟 Your Daily Nugget - {datetime.now().strftime('%B %d, %Y')}"
-        
+
+        # URL encode the quote for sharing
+        import urllib.parse
+        quote_text = f'"{quote_data["quote"]}" — {quote_data["author"]}'
+        encoded_quote = urllib.parse.quote(quote_text)
+        quote_id = quote_data.get('id', '')
+
+        # Create sharing URLs
+        twitter_url = f"https://twitter.com/intent/tweet?text={encoded_quote}&hashtag=DailyNugget"
+        facebook_url = f"https://www.facebook.com/sharer/sharer.php?u=https://quote-me.anystupididea.com/quote/{quote_id}&quote={encoded_quote}"
+        linkedin_url = f"https://www.linkedin.com/sharing/share-offsite/?url=https://quote-me.anystupididea.com/quote/{quote_id}"
+        email_share_subject = urllib.parse.quote("Check out this inspiring quote!")
+        email_share_body = urllib.parse.quote(f"{quote_text}\n\nShared from Quote Me Daily Nuggets")
+        email_share_url = f"mailto:?subject={email_share_subject}&body={email_share_body}"
+
         # HTML email template
         html_body = f"""
         <!DOCTYPE html>
@@ -370,6 +446,14 @@ def send_daily_email(recipient_email, quote_data):
                 .author {{ font-size: 18px; color: #4a5568; text-align: right; margin: 20px 0; }}
                 .tags {{ margin: 30px 0; }}
                 .tag {{ display: inline-block; background: #edf2f7; color: #4a5568; padding: 5px 15px; border-radius: 20px; margin: 5px; font-size: 14px; }}
+                .share-section {{ background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center; }}
+                .share-title {{ font-size: 16px; color: #4a5568; margin-bottom: 15px; font-weight: 600; }}
+                .share-buttons {{ display: inline-block; }}
+                .share-button {{ display: inline-block; margin: 0 8px; padding: 10px 20px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; text-decoration: none; color: #4a5568; font-size: 14px; transition: all 0.2s; }}
+                .share-button:hover {{ background: #667eea; color: white; border-color: #667eea; }}
+                .action-buttons {{ text-align: center; margin: 30px 0; }}
+                .action-button {{ display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; margin: 0 10px; }}
+                .action-button:hover {{ background: #5a67d8; }}
                 .footer {{ background: #f7fafc; padding: 20px; text-align: center; color: #718096; font-size: 14px; }}
                 .unsubscribe {{ color: #4299e1; text-decoration: none; }}
             </style>
@@ -384,6 +468,21 @@ def send_daily_email(recipient_email, quote_data):
                     <div class="quote">"{quote_data['quote']}"</div>
                     <div class="author">— {quote_data['author']}</div>
                     {format_tags_html(quote_data.get('tags', []))}
+
+                    <div class="share-section">
+                        <div class="share-title">Share this quote</div>
+                        <div class="share-buttons">
+                            <a href="{twitter_url}" class="share-button">🐦 Twitter</a>
+                            <a href="{facebook_url}" class="share-button">📘 Facebook</a>
+                            <a href="{linkedin_url}" class="share-button">💼 LinkedIn</a>
+                            <a href="{email_share_url}" class="share-button">✉️ Email</a>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <a href="https://quote-me.anystupididea.com/quote/{quote_id}" class="action-button">View in Browser</a>
+                        <a href="quoteme:///quote/{quote_id}" class="action-button">Open in App</a>
+                    </div>
                 </div>
                 <div class="footer">
                     <p>You're receiving this because you subscribed to Daily Nuggets.</p>
@@ -400,13 +499,19 @@ def send_daily_email(recipient_email, quote_data):
         # Plain text fallback
         text_body = f"""
         Daily Nugget - {datetime.now().strftime('%B %d, %Y')}
-        
+
         "{quote_data['quote']}"
-        
+
         — {quote_data['author']}
-        
+
         Tags: {', '.join(quote_data.get('tags', []))}
-        
+
+        ---
+        Share this quote:
+        • Twitter: {twitter_url}
+        • View in browser: https://quote-me.anystupididea.com/quote/{quote_id}
+        • Open in app: quoteme:///quote/{quote_id}
+
         ---
         You're receiving this because you subscribed to Daily Nuggets.
         Manage your subscription in the Quote Me app.

@@ -883,9 +883,27 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildCardWithImage() {
-    return AspectRatio(
-      aspectRatio: 1.0, // Square aspect ratio for AI-generated images
-      child: Stack(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate max size to fit viewport while maintaining square aspect
+        final screenHeight = MediaQuery.of(context).size.height;
+        final screenWidth = MediaQuery.of(context).size.width;
+
+        // Reserve space for app bar (~56), padding (~100), and buttons (~150)
+        final availableHeight = screenHeight - 306;
+        final availableWidth = screenWidth - 16; // Account for horizontal margins
+
+        // Use the smaller dimension to ensure it fits
+        final maxSize = availableHeight < availableWidth ? availableHeight : availableWidth;
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxSize,
+            maxHeight: maxSize,
+          ),
+          child: AspectRatio(
+            aspectRatio: 1.0, // Square aspect ratio for AI-generated images
+            child: Stack(
         children: [
           // Background image filling the square
           Positioned.fill(
@@ -1069,14 +1087,35 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
             ),
           ),
         ],
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildCardWithoutImage() {
-    return AspectRatio(
-      aspectRatio: 1.0, // Square aspect ratio for consistency
-      child: Stack(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate max size to fit viewport while maintaining square aspect
+        final screenHeight = MediaQuery.of(context).size.height;
+        final screenWidth = MediaQuery.of(context).size.width;
+
+        // Reserve space for app bar (~56), padding (~100), and buttons (~150)
+        final availableHeight = screenHeight - 306;
+        final availableWidth = screenWidth - 16; // Account for horizontal margins
+
+        // Use the smaller dimension to ensure it fits
+        final maxSize = availableHeight < availableWidth ? availableHeight : availableWidth;
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxSize,
+            maxHeight: maxSize,
+          ),
+          child: AspectRatio(
+            aspectRatio: 1.0, // Square aspect ratio for consistency
+            child: Stack(
         children: [
           // Sunny gradient background filling the square
           Positioned.fill(
@@ -1252,7 +1291,10 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
             ),
           ),
         ],
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1428,7 +1470,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     children: [
                       Icon(Icons.admin_panel_settings, color: Theme.of(context).colorScheme.primary),
                       SizedBox(width: 8),
-                      Text('Admin Dashboard'),
+                      Text('Quote Editor'),
                     ],
                   ),
                 ),
@@ -1617,6 +1659,33 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ],
+                // Loading state while checking authentication
+                if (!_authCheckComplete) ...[
+                  const SizedBox(height: 24),
+                  Center(
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Initializing...',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 // Authentication buttons for non-logged-in users
                 if (_authCheckComplete && !_isSignedIn) ...[
                   const SizedBox(height: 24),
@@ -1695,6 +1764,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                   ),
                 ],
                 // Daily Nuggets subscription button for logged-in users who aren't subscribed
+                // Only show after auth check completes and confirms signed in
                 if (_authCheckComplete && _isSignedIn && !_isSubscribedToDailyNuggets) ...[
                   const SizedBox(height: 24),
                   SizedBox(
