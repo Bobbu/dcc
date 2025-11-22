@@ -1557,8 +1557,8 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     ),
                   )
                 else if (_quote != null && _author != null)
-                  Stack(
-                    alignment: Alignment.center,
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Main quote card (square with image or gradient)
                       Container(
@@ -1567,36 +1567,28 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                           ? _buildCardWithImage()
                           : _buildCardWithoutImage(),
                       ),
-                      // Overlaid Get Quote button at the bottom
-                      Positioned(
-                        bottom: 24,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          child: SizedBox(
-                            width: 200,
-                            child: ElevatedButton.icon(
-                              onPressed: _isLoading ? null : _getQuote,
-                              icon: const Icon(Icons.refresh, size: 18),
-                              label: Text(
-                                _isLoading ? 'Loading...' : 'Get Quote',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white.withValues(alpha: 0.95),
-                                foregroundColor: Colors.black87,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                elevation: 4,
-                              ),
+                      // Get Quote button below the card
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: 200,
+                        child: ElevatedButton.icon(
+                          onPressed: _isLoading ? null : _getQuote,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: Text(
+                            _isLoading ? 'Loading...' : 'Get Quote',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                             ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                            elevation: 4,
                           ),
                         ),
                       ),
