@@ -263,6 +263,19 @@ Resources:
             ProjectionType: ALL
       BillingMode: PAY_PER_REQUEST
 
+  # DynamoDB table for analytics report snapshots
+  AnalyticsReportsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: quote-me-analytics-reports
+      AttributeDefinitions:
+        - AttributeName: report_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: report_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
   # Cognito User Pool
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -1619,6 +1632,68 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt EventBridgeRuleHour23.Arn
 
+  # User Analytics Report Function
+  UserAnalyticsReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: quote-me-user-analytics-report
+      CodeUri: ./
+      Handler: user_analytics_report_handler.lambda_handler
+      Runtime: python3.9
+      Timeout: 300
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          QUOTES_TABLE_NAME: !Ref QuotesTable
+          TAGS_TABLE_NAME: !Ref TagsTable
+          SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTable
+          REPORTS_TABLE_NAME: !Ref AnalyticsReportsTable
+          FROM_EMAIL: noreply@anystupididea.com
+          ADMIN_GROUP_NAME: Admins
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref QuotesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref TagsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref SubscriptionsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalyticsReportsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - cognito-idp:ListUsers
+              - cognito-idp:ListUsersInGroup
+              - cognito-idp:GetUser
+            Resource: !GetAtt UserPool.Arn
+        - Statement:
+            Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: "*"
+
+  # EventBridge Rule for Weekly Analytics Report (Every Monday at 8 AM UTC)
+  UserAnalyticsReportSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: user-analytics-report-weekly
+      Description: "Trigger weekly user analytics report every Monday at 8 AM UTC"
+      ScheduleExpression: "cron(0 8 ? * MON *)"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt UserAnalyticsReportFunction.Arn
+          Id: "UserAnalyticsReportTarget"
+
+  # Lambda Permission for EventBridge to invoke Analytics Report
+  UserAnalyticsReportPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UserAnalyticsReportFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt UserAnalyticsReportSchedule.Arn
+
 Outputs:
   ApiUrl:
     Description: Custom Domain API URL
@@ -1663,7 +1738,11 @@ Outputs:
   ProposedQuotesTableName:
     Description: DynamoDB Proposed Quotes Table Name
     Value: !Ref ProposedQuotesTable
-  
+
+  AnalyticsReportsTableName:
+    Description: DynamoDB Analytics Reports Table Name
+    Value: !Ref AnalyticsReportsTable
+
   ImageGenerationQueueUrl:
     Description: SQS Queue URL for Image Generation
     Value: !Ref ImageGenerationQueue
