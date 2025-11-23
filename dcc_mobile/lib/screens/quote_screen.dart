@@ -1632,81 +1632,42 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ],
-                // Authentication buttons for non-logged-in users
+                // Authentication button for non-logged-in users
                 if (_authCheckComplete && !_isSignedIn) ...[
                   const SizedBox(height: 24),
-                  Column(
-                    children: [
-                      SizedBox(
-                        width: 280,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            setState(() {
-                              _authCheckComplete = false;
-                            });
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginScreen(),
-                              ),
-                            );
-                            if (result == true) {
-                              await _checkAuthStatus();
-                            } else {
-                              // Re-enable buttons if login was cancelled
-                              setState(() {
-                                _authCheckComplete = true;
-                              });
-                            }
-                          },
-                          icon: const Icon(Icons.login, size: 20),
-                          label: Text(
-                            'Sign In',
-                            style: Theme.of(context).textTheme.labelLarge,
+                  SizedBox(
+                    width: 280,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        setState(() {
+                          _authCheckComplete = false;
+                        });
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                            backgroundColor: Theme.of(context).colorScheme.primary,
-                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                          ),
-                        ),
+                        );
+                        if (result == true) {
+                          await _checkAuthStatus();
+                        } else {
+                          // Re-enable button if login was cancelled
+                          setState(() {
+                            _authCheckComplete = true;
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.login, size: 20),
+                      label: Text(
+                        'Sign In / Sign Up',
+                        style: Theme.of(context).textTheme.labelLarge,
                       ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: 280,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            setState(() {
-                              _authCheckComplete = false;
-                            });
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginScreen(initialMode: 'signup'),
-                              ),
-                            );
-                            if (result == true) {
-                              await _checkAuthStatus();
-                            } else {
-                              // Re-enable buttons if signup was cancelled
-                              setState(() {
-                                _authCheckComplete = true;
-                              });
-                            }
-                          },
-                          icon: const Icon(Icons.person_add, size: 20),
-                          label: Text(
-                            'Sign Up',
-                            style: Theme.of(context).textTheme.labelLarge,
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                            backgroundColor: Theme.of(context).colorScheme.primary,
-                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                          ),
-                        ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       ),
-                    ],
+                    ),
                   ),
                 ],
                 // Daily Nuggets subscription button for logged-in users who aren't subscribed
