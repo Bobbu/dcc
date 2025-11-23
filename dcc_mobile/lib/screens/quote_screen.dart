@@ -1041,47 +1041,6 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (_currentQuoteId != null)
-                        FavoriteHeartButton(
-                          quoteId: _currentQuoteId!,
-                          size: 28,
-                        ),
-                      const SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: IconButton(
-                          onPressed: _audioEnabled 
-                            ? () {
-                                LoggerService.debug('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
-                                if (_isSpeaking) {
-                                  _stopSpeaking();
-                                } else {
-                                  _speakQuote();
-                                }
-                              }
-                            : null,
-                          icon: Icon(
-                            _isSpeaking 
-                              ? Icons.stop 
-                              : _audioEnabled 
-                                ? Icons.volume_up 
-                                : Icons.volume_off,
-                            color: _audioEnabled ? Colors.white : Colors.white.withValues(alpha: 128),
-                          ),
-                          tooltip: _audioEnabled
-                            ? (_isSpeaking ? 'Stop Reading' : 'Read Quote Aloud')
-                            : 'Audio disabled (enable in settings)',
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -1117,7 +1076,7 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
             aspectRatio: 1.0, // Square aspect ratio for consistency
             child: Stack(
         children: [
-          // Sunny gradient background filling the square
+          // Darker gradient background filling the square
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -1126,9 +1085,9 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Colors.brown.shade600,
-                    Colors.orange.shade800,
-                    Colors.brown.shade700,
+                    Color(0xFF3E2723), // Very dark brown
+                    Color(0xFF4E342E), // Dark brown
+                    Color(0xFF3E2723), // Very dark brown
                   ],
                 ),
               ),
@@ -1244,47 +1203,6 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                       ],
                     ),
                     textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (_currentQuoteId != null)
-                        FavoriteHeartButton(
-                          quoteId: _currentQuoteId!,
-                          size: 28,
-                        ),
-                      const SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: IconButton(
-                          onPressed: _audioEnabled 
-                            ? () {
-                                LoggerService.debug('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
-                                if (_isSpeaking) {
-                                  _stopSpeaking();
-                                } else {
-                                  _speakQuote();
-                                }
-                              }
-                            : null,
-                          icon: Icon(
-                            _isSpeaking 
-                              ? Icons.stop 
-                              : _audioEnabled 
-                                ? Icons.volume_up 
-                                : Icons.volume_off,
-                            color: _audioEnabled ? Colors.white : Colors.white.withValues(alpha: 128),
-                          ),
-                          tooltip: _audioEnabled
-                            ? (_isSpeaking ? 'Stop Reading' : 'Read Quote Aloud')
-                            : 'Audio disabled (enable in settings)',
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -1567,8 +1485,44 @@ class _QuoteScreenState extends State<QuoteScreen> with WidgetsBindingObserver {
                           ? _buildCardWithImage()
                           : _buildCardWithoutImage(),
                       ),
-                      // Get Quote button below the card
-                      const SizedBox(height: 24),
+                      // Action buttons (heart and audio) below the card
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_currentQuoteId != null)
+                            FavoriteHeartButton(
+                              quoteId: _currentQuoteId!,
+                              size: 32,
+                            ),
+                          const SizedBox(width: 16),
+                          IconButton(
+                            onPressed: _audioEnabled
+                              ? () {
+                                  LoggerService.debug('🎛️ Audio button pressed - _isSpeaking=$_isSpeaking');
+                                  if (_isSpeaking) {
+                                    _stopSpeaking();
+                                  } else {
+                                    _speakQuote();
+                                  }
+                                }
+                              : null,
+                            icon: Icon(
+                              _isSpeaking
+                                ? Icons.stop
+                                : _audioEnabled
+                                  ? Icons.volume_up
+                                  : Icons.volume_off,
+                              size: 32,
+                            ),
+                            tooltip: _audioEnabled
+                              ? (_isSpeaking ? 'Stop Reading' : 'Read Quote Aloud')
+                              : 'Audio disabled (enable in settings)',
+                          ),
+                        ],
+                      ),
+                      // Get Quote button below the action buttons
+                      const SizedBox(height: 16),
                       SizedBox(
                         width: 200,
                         child: ElevatedButton.icon(
