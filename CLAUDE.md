@@ -49,8 +49,8 @@ cd aws
 ✅ Outputs ready-to-use Amplify configuration
 
 **✅ DEPLOYMENT STATUS**
-- Database: `quote-me-quotes` with 2,327+ quotes, optimized GSI indexes
-- Performance: 5-25x improvement with GSI queries
+- Database: `quote-me-quotes` with 2,330+ quotes, 367 tags
+- Performance: Fast DynamoDB queries with pagination support
 - Domain: `https://quote-me.anystupididea.com` (web app) / `https://dcc.anystupididea.com` (API)
 - **Federated Auth**: Google and Apple Sign In fully operational
 - **OAuth Configuration**: All callback URLs, flows, and scopes properly configured
@@ -93,7 +93,7 @@ flutter build web --release  # Web
 - **Infrastructure**: SAM template with API Gateway, Lambda, DynamoDB, Cognito
 - **Authentication**: Dual-layer (API Key for public, JWT for admin) + Federated (Google, Apple Sign In)
 - **Lambda Functions**:
-  - `quote_handler.py`: Public API with tag filtering, O(1) tag retrieval, limit up to 1000
+  - `quote_handler.py`: Public API with tag filtering via DynamoDB scan, limit up to 1000
   - `admin_handler.py`: CRUD with tag management and data integrity, limit up to 1000
   - `auth_handler.py`: User registration/verification
   - `options_handler.py`: CORS support
@@ -102,7 +102,7 @@ flutter build web --release  # Web
   - `candidate_quotes_by_topic_handler.py`: Admin-only AI quote finding by topic (configurable 1-20 limit)
   - `favorites_handler.py`: User favorites management with JWT authentication
   - `daily_nuggets_handler.py`: Subscription management, scheduled email delivery, and push notifications
-- **Performance**: Tags metadata caching, GSI indexes, zero-scan operations
+- **Performance**: Fast DynamoDB queries with filter expressions and pagination
 - **Security**: Rate limiting (public only), email verification, role-based access
 - **Email Delivery**: AWS SES for Daily Nuggets, EventBridge for scheduling
 - **Push Notifications**: Firebase Cloud Messaging (FCM) v1 API with JWT authentication
@@ -188,7 +188,7 @@ The system uses a hybrid approach for federated authentication:
 ### Public (API Key, Rate Limited)
 - `GET /quote` - Random quote with optional tag filtering
 - `GET /quote/{id}` - Specific quote by ID
-- `GET /tags` - All available tags (O(1) retrieval)
+- `GET /tags` - All available tags (367 tags from TagsTable)
 - `POST /auth/register` - User registration (no auth required)
 - `POST /auth/confirm` - Email verification (no auth required)
 
@@ -219,9 +219,9 @@ The system uses a hybrid approach for federated authentication:
 - **Federated Auth**: Google (`445066027204-f4qcm9jdlborgg9koks4lce2uju7u1lt.apps.googleusercontent.com`) and Apple (`com.anystupididea.quoteme.signin`)
 
 ## Production Status
-- **Database**: 3,798 quotes with O(1) tag retrieval
-- **Auth**: Cognito with self-registration, role-based access
-- **Performance**: 5-25x faster with GSI, CloudFront CDN
+- **Database**: 2,330 quotes, 367 tags across dedicated tables
+- **Auth**: Cognito with self-registration, role-based access, Google/Apple Sign In
+- **Performance**: Fast DynamoDB queries, CloudFront CDN
 - **Platforms**: iOS, Android, Web (https://quote-me.anystupididea.com)
 
 ## Key Capabilities
@@ -235,7 +235,21 @@ The system uses a hybrid approach for federated authentication:
 - **Resilience**: Auto-retry, graceful error handling
 - **Standards**: Clean architecture, automated testing
 
-## Recent Improvements (September 2025)
+## Recent Improvements
+
+### November 2025 (v1.1) - Tags & Filtering Fixes
+- **✅ Tags Endpoint Fixed**: Resolved 500 errors preventing tags from loading
+  - **Root Cause**: Duplicate Lambda functions configured for /tags endpoint
+  - **Fix**: Removed legacy TagsHandlerFunction, consolidated to QuoteHandlerFunction
+  - **Result**: All 367 tags now display correctly in Settings screen
+- **✅ Quote Filtering Fixed**: Multi-tag quote retrieval now works correctly
+  - **Root Cause**: Code expected non-existent TagQuoteIndex GSI and mapping table
+  - **Fix**: Rewrote filtering to use DynamoDB scan with contains() expressions
+  - **Result**: Selecting multiple tags returns relevant quotes without 404 errors
+- **✅ Data Model Clarified**: Tags stored in separate TagsTable, quotes have tags as array attribute
+- **✅ Documentation Updated**: Removed incorrect "O(1)" and "zero-scan" performance claims
+
+### September 2025
 - **✅ Federated Authentication Overhaul**: Complete Google and Apple Sign In implementation
   - **Google Sign In**: Fully operational with proper OAuth flows and callback URLs
   - **Apple Sign In**: Complete implementation with Apple Developer Portal integration

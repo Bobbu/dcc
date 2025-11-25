@@ -31,7 +31,7 @@ A comprehensive quote management system with enterprise-grade features, includin
   - **Multi-User Support**: User-scoped preferences prevent cross-user data sharing
   - **Push Notifications**: Firebase Cloud Messaging (FCM) v1 API with user permission management and test notifications
 - **Role-Based Access**: Different features for regular users vs administrators
-- **Dynamic Tag System**: Real-time tag loading with O(1) performance
+- **Dynamic Tag System**: Real-time tag loading from dedicated TagsTable (367 tags)
 - **Advanced Audio**: Text-to-speech with 20-50+ voice options, speech rate controls (Very Slow to Fast), and pitch adjustment (Low/Normal/High). Default: OFF
 - **About Dialog**: Responsive information dialog accessible to all users with app features and version info
 - **Settings Management**: Comprehensive user preferences:
@@ -64,7 +64,7 @@ A comprehensive quote management system with enterprise-grade features, includin
 - **Email Delivery**: AWS SES for Daily Nuggets with EventBridge scheduling
 - **Push Notifications**: Firebase Cloud Messaging (FCM) v1 API with JWT authentication and automatic FCM service account JSON deployment
 - **Custom Domain**: SSL-secured endpoints via Route53 and CloudFront
-- **High Performance**: Tags metadata caching for zero-scan operations
+- **High Performance**: Fast DynamoDB queries with filter expressions and pagination
 - **CORS Support**: Full web application compatibility
 - **Rate Limiting**: Applied only to public API endpoints (1 req/sec sustained, 5 req/sec burst)
 - **Auto-scaling**: Serverless infrastructure scales automatically
@@ -387,7 +387,8 @@ The Quote Me app includes a comprehensive text-to-speech system for enhanced acc
 
 ### Performance
 - **API Response**: < 200ms average latency
-- **Tag Retrieval**: O(1) with metadata caching
+- **Tag Retrieval**: Fast DynamoDB scan with pagination (367 tags)
+- **Quote Filtering**: Efficient scan with filter expressions
 - **Web Loading**: < 2s initial load with CDN
 - **Mobile**: 60fps smooth animations
 - **Auto-scaling**: Handles traffic spikes automatically
@@ -505,7 +506,24 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 🆕 Recent Updates (September 2025)
+## 🆕 Recent Updates
+
+### November 2025 (v1.1) - Tags & Filtering Fixes
+- **✅ Tags Display Issue Resolved**: Settings screen now shows all 367 tags (was only showing 10 fallback tags)
+  - **Root Cause**: Duplicate TagsHandlerFunction Lambda causing 500 errors on /tags endpoint
+  - **Solution**: Removed duplicate function, consolidated endpoint to QuoteHandlerFunction
+  - **Impact**: Users can now see and select from complete tag catalog
+- **✅ Quote Filtering Fixed**: Multi-tag quote retrieval working correctly (was returning 404 errors)
+  - **Root Cause**: Code expected non-existent TagQuoteIndex GSI and tag-quote mapping table
+  - **Solution**: Rewrote filtering logic to use DynamoDB scan with contains() filter expressions
+  - **Impact**: Selecting any combination of tags now returns relevant quotes successfully
+- **✅ Architecture Clarified**:
+  - Tags stored in dedicated `quote-me-tags` table (366 tags)
+  - Quotes stored in `quote-me-quotes` table with tags as array attribute (~2,330 quotes)
+  - Tag filtering uses DynamoDB scan operations (fast but not O(1))
+- **✅ Documentation Accuracy**: Removed incorrect "O(1)" and "zero-scan" performance claims
+
+### September 2025
 
 ### ✅ AI Quote Finding Features
 - **Find New Quotes by Author**: GPT-4o-mini powered quote discovery for specific authors
