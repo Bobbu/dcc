@@ -440,17 +440,6 @@ Resources:
             Method: GET
             Auth:
               ApiKeyRequired: true
-
-  TagsHandlerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: quote-me-tags-handler
-      CodeUri: lambda/
-      Handler: tags_handler.lambda_handler
-      Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref TagsTable
-      Events:
         GetTags:
           Type: Api
           Properties:

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 dynamodb = boto3.resource('dynamodb')
 table_name = os.environ['QUOTES_TABLE_NAME']
 table = dynamodb.Table(table_name)
+tags_table = dynamodb.Table(os.environ['TAGS_TABLE'])
 
 # CORS headers
 CORS_HEADERS = {
@@ -75,44 +76,64 @@ def get_random_quote(query_params):
     try:
         tags = query_params.get('tags', '').split(',') if query_params.get('tags') else []
         tags = [tag.strip() for tag in tags if tag.strip()]
-        
+
         if tags:
-            # Get quotes filtered by tags
+            # Get quotes filtered by tags using scan
+            # We scan the table and filter by checking if any of the requested tags
+            # is in the quote's tags array
             quotes = []
-            for tag in tags:
-                tag_quotes = get_quotes_for_tag(tag, limit=100)
-                quotes.extend(tag_quotes)
-            
-            # Remove duplicates by quote ID
-            unique_quotes = {}
-            for quote in quotes:
-                quote_id = quote.get('id') or quote.get('PK', '').replace('QUOTE#', '')
-                unique_quotes[quote_id] = quote
-            
-            quotes = list(unique_quotes.values())
+
+            # Build filter expression to match ANY of the requested tags
+            filter_expressions = []
+            expression_attribute_values = {}
+            for i, tag in enumerate(tags):
+                filter_expressions.append(f'contains(tags, :tag{i})')
+                expression_attribute_values[f':tag{i}'] = tag
+
+            filter_expression = ' OR '.join(filter_expressions)
+
+            # Scan with filter
+            response = table.scan(
+                FilterExpression=filter_expression,
+                ExpressionAttributeValues=expression_attribute_values,
+                Limit=1000
+            )
+
+            quotes = response['Items']
+
+            # Continue scanning if we don't have enough quotes and there are more pages
+            while 'LastEvaluatedKey' in response and len(quotes) < 1000:
+                response = table.scan(
+                    FilterExpression=filter_expression,
+                    ExpressionAttributeValues=expression_attribute_values,
+                    ExclusiveStartKey=response['LastEvaluatedKey'],
+                    Limit=1000 - len(quotes)
+                )
+                quotes.extend(response['Items'])
         else:
-            # Get all quotes
-            quotes = get_all_quotes_from_index(limit=1000)
-        
+            # Get all quotes using scan
+            response = table.scan(Limit=1000)
+            quotes = response['Items']
+
         if not quotes:
             return {
                 'statusCode': 404,
                 'headers': CORS_HEADERS,
                 'body': json.dumps({'error': 'No quotes found'})
             }
-        
+
         # Select random quote
         selected_quote = random.choice(quotes)
-        
+
         # Format response
         formatted_quote = format_quote_response(selected_quote)
-        
+
         return {
             'statusCode': 200,
             'headers': CORS_HEADERS,
             'body': json.dumps(formatted_quote, cls=DecimalEncoder)
         }
-        
+
     except Exception as e:
         logger.error(f"Error in get_random_quote: {str(e)}")
         return {
@@ -160,41 +181,32 @@ def get_quote_by_id(quote_id):
         }
 
 def get_all_tags():
-    """Get all available tags from the database"""
+    """Get all available tags from the TagsTable"""
     try:
-        # Query all tag items using GSI with pagination
-        tags = ['All']  # Always include 'All' option
+        # Always include 'All' option
+        tags = ['All']
 
-        # Initial query
-        response = table.query(
-            IndexName='TypeDateIndex',
-            KeyConditionExpression=Key('type').eq('tag'),
-            ProjectionExpression='#name',
-            ExpressionAttributeNames={'#name': 'name'}
-        )
+        # Initial scan of tags table
+        response = tags_table.scan()
 
         for item in response['Items']:
-            if 'name' in item:
-                tags.append(item['name'])
+            if 'tag' in item:
+                tags.append(item['tag'])
 
-        # Continue querying while there are more pages
+        # Continue scanning while there are more pages
         while 'LastEvaluatedKey' in response:
-            response = table.query(
-                IndexName='TypeDateIndex',
-                KeyConditionExpression=Key('type').eq('tag'),
-                ProjectionExpression='#name',
-                ExpressionAttributeNames={'#name': 'name'},
+            response = tags_table.scan(
                 ExclusiveStartKey=response['LastEvaluatedKey']
             )
 
             for item in response['Items']:
-                if 'name' in item:
-                    tags.append(item['name'])
+                if 'tag' in item:
+                    tags.append(item['tag'])
 
         # Remove duplicates and sort
         tags = sorted(list(set(tags)))
 
-        logger.info(f"Retrieved {len(tags)} total tags from database")
+        logger.info(f"Retrieved {len(tags)} total tags from TagsTable")
 
         return {
             'statusCode': 200,
@@ -204,7 +216,7 @@ def get_all_tags():
                 'count': len(tags)
             })
         }
-        
+
     except Exception as e:
         logger.error(f"Error in get_all_tags: {str(e)}")
         # Fallback to basic tags
