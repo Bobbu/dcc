@@ -2,6 +2,7 @@ import json
 import os
 import boto3
 import requests
+import random
 from datetime import datetime
 
 def create_response(status_code, body):
@@ -55,12 +56,19 @@ def handle_generate_tags(event):
         existing_tags = body.get('existingTags', [])
         
         print(f"🏷️ Generating tags for quote by {author}: {quote_text[:100]}...")
-        
+
         if not quote_text:
             return create_response(400, {"error": "Quote text is required"})
-        
+
         # Prepare the prompt for OpenAI
-        existing_tags_str = ', '.join(existing_tags[:20]) if existing_tags else "None"
+        # Randomize tag order to avoid alphabetical bias, then take a larger sample
+        if existing_tags:
+            shuffled_tags = existing_tags.copy()
+            random.shuffle(shuffled_tags)
+            sampled_tags = shuffled_tags[:150]  # Increased from 20 to 150
+            existing_tags_str = ', '.join(sampled_tags)
+        else:
+            existing_tags_str = "None"
         
         prompt = f"""
 You are an expert at categorizing inspirational and motivational quotes with relevant, professional tags.
@@ -68,12 +76,14 @@ You are an expert at categorizing inspirational and motivational quotes with rel
 Quote: "{quote_text}"
 Author: {author}
 
-Existing tags in the system: {existing_tags_str}
+Available tags (random sample from our tag library): {existing_tags_str}
 
 Instructions:
 1. Generate 1-5 highly relevant tags for this quote
-2. Focus on themes, emotions, concepts, and topics
-3. Choose only from the existing tags. Do not make any new ones.
+2. Focus on themes, emotions, concepts, and topics (e.g., War, Peace, Wisdom, Humor, Leadership)
+3. Choose ONLY from the available tags listed above. Do not create new tags.
+4. Select the most accurate and specific tags that capture the quote's essence
+5. Consider the full list carefully before making selections
 
 Return only a JSON array of tag strings, nothing else.
 Example: ["Wisdom", "Personal Growth", "Humor"]
